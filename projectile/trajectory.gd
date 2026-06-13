@@ -21,7 +21,7 @@ static func check_segment(terrain: TerrainManager, from: Vector2, to: Vector2) -
 # exactly (velocity integrated before position, same collision stepping).
 # Returns { hit: bool, impact_voxel: Vector2i, points: PackedVector2Array }.
 static func simulate_arc(terrain: TerrainManager, origin: Vector2, direction: Vector2,
-		speed: float, max_time: float = 8.0) -> Dictionary:
+		speed: float, gravity_scale: float = 1.0, max_time: float = 8.0) -> Dictionary:
 	var dt := 1.0 / 60.0
 	var pos := origin
 	var vel := direction.normalized() * speed
@@ -29,7 +29,7 @@ static func simulate_arc(terrain: TerrainManager, origin: Vector2, direction: Ve
 	var w := Const.world_pixel_size()
 	var t := 0.0
 	while t < max_time:
-		vel.y += Const.GRAVITY * dt
+		vel.y += Const.GRAVITY * gravity_scale * dt
 		var next := pos + vel * dt
 		var hit := check_segment(terrain, pos, next)
 		if hit["collided"]:

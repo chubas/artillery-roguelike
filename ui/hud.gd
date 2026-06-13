@@ -1,50 +1,122 @@
-# Screen-space HUD: angle readout, charge power bar, controls hint.
-# Separate CanvasLayer from TargetingUI because that one follows the viewport.
+# Screen-space HUD (M2 spec §10): angle/power readouts, action pips, unit info,
+# turn indicator, End Turn + Undo buttons. Placeholder quality by design.
 class_name HUD
 extends CanvasLayer
+
+signal end_turn_pressed
+signal undo_pressed
 
 var _angle_label : Label
 var _power_label : Label
 var _power_bar : PowerBar
+var _action_pips : ActionPips
+var _unit_info_label : Label
+var _turn_label : Label
+var _end_turn_btn : Button
+var _undo_btn : Button
 
 func _ready() -> void:
+	_build_top_left()
+	_build_top_center()
+	_build_top_right()
+
+func _build_top_left() -> void:
 	var box := VBoxContainer.new()
 	box.position = Vector2(12, 10)
 	box.add_theme_constant_override("separation", 4)
 	add_child(box)
-
 	_angle_label = _make_label(16)
 	box.add_child(_angle_label)
-
 	_power_label = _make_label(13)
 	box.add_child(_power_label)
-
 	_power_bar = PowerBar.new()
 	_power_bar.custom_minimum_size = Vector2(220, 14)
 	box.add_child(_power_bar)
-
+	_action_pips = ActionPips.new()
+	_action_pips.custom_minimum_size = Vector2(5 * 24, 20)
+	box.add_child(_action_pips)
 	var hint := _make_label(11)
-	hint.text = "↑/↓ angle · hold Space to charge, release to fire · WASD pan · wheel zoom"
+	hint.text = "↑/↓ angle · ←/→ move · Space charge/fire · Tab select · click select · WASD pan"
 	hint.modulate = Color(1, 1, 1, 0.55)
 	box.add_child(hint)
 
-func _make_label(size: int) -> Label:
+func _build_top_center() -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	box.offset_top = 8
+	box.add_theme_constant_override("separation", 2)
+	add_child(box)
+	_turn_label = _make_label(18)
+	_turn_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_turn_label)
+	_unit_info_label = _make_label(14)
+	_unit_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_unit_info_label)
+
+func _build_top_right() -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	box.offset_left = -150
+	box.offset_right = -12
+	box.offset_top = 10
+	box.add_theme_constant_override("separation", 6)
+	add_child(box)
+	_end_turn_btn = Button.new()
+	_end_turn_btn.text = "End Turn"
+	_end_turn_btn.pressed.connect(func(): end_turn_pressed.emit())
+	box.add_child(_end_turn_btn)
+	_undo_btn = Button.new()
+	_undo_btn.text = "Undo Move"
+	_undo_btn.pressed.connect(func(): undo_pressed.emit())
+	box.add_child(_undo_btn)
+
+func _make_label(font_size: int) -> Label:
 	var l := Label.new()
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", Color.WHITE)
 	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
 	l.add_theme_constant_override("shadow_offset_x", 1)
 	l.add_theme_constant_override("shadow_offset_y", 1)
 	return l
 
+# --- Setters (no-op when unchanged; called every frame by CombatManager) ----------
 func set_angle(deg: float) -> void:
-	_angle_label.text = "Angle: %d°" % roundi(deg)
+	_set_text(_angle_label, "Angle: %d°" % roundi(deg))
+
+func set_angle_none() -> void:
+	_set_text(_angle_label, "Angle: —")
 
 func set_power(frac: float, charging: bool) -> void:
-	_power_bar.frac = frac
-	_power_bar.charging = charging
-	_power_bar.queue_redraw()
-	_power_label.text = "Power: %d%%" % roundi(frac * 100.0) if charging else "Power: —"
+	if _power_bar.frac != frac or _power_bar.charging != charging:
+		_power_bar.frac = frac
+		_power_bar.charging = charging
+		_power_bar.queue_redraw()
+	_set_text(_power_label, "Power: %d%%" % roundi(frac * 100.0) if charging else "Power: —")
+
+func set_actions(current: int, maximum: int) -> void:
+	if _action_pips.current != current or _action_pips.maximum != maximum:
+		_action_pips.current = current
+		_action_pips.maximum = maximum
+		_action_pips.queue_redraw()
+
+func set_unit_info(text: String) -> void:
+	_set_text(_unit_info_label, text)
+
+func set_turn_text(text: String) -> void:
+	_set_text(_turn_label, text)
+
+func set_end_turn_alert(alert: bool) -> void:
+	var m := Color(1.0, 0.35, 0.3) if alert else Color.WHITE
+	if _end_turn_btn.modulate != m:
+		_end_turn_btn.modulate = m
+
+func set_undo_enabled(enabled: bool) -> void:
+	if _undo_btn.disabled == enabled:
+		_undo_btn.disabled = not enabled
+
+func _set_text(label: Label, text: String) -> void:
+	if label.text != text:
+		label.text = text
 
 
 class PowerBar:
@@ -58,6 +130,21 @@ class PowerBar:
 		draw_rect(r, Color(0, 0, 0, 0.5))
 		if charging and frac > 0.0:
 			var fill := Rect2(Vector2(1, 1), Vector2((size.x - 2) * frac, size.y - 2))
-			# Green → orange → red as the charge fills.
 			draw_rect(fill, Color(0.2, 0.9, 0.3).lerp(Color(1.0, 0.25, 0.15), frac))
 		draw_rect(r, Color(1, 1, 1, 0.6), false, 1.0)
+
+
+class ActionPips:
+	extends Control
+
+	var current := 5
+	var maximum := 5
+
+	func _draw() -> void:
+		for i in range(maximum):
+			var rect := Rect2(i * 24, 0, 20, 20)
+			if i < current:
+				draw_rect(rect, Color(0.95, 0.85, 0.3))
+			else:
+				draw_rect(rect, Color(0, 0, 0, 0.45))
+			draw_rect(rect, Color(1, 1, 1, 0.5), false, 1.0)

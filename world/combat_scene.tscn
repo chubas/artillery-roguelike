@@ -1,0 +1,30 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://world/combat_scene.gd" id="1"]
+[ext_resource type="Script" path="res://terrain/terrain_manager.gd" id="2"]
+[ext_resource type="Script" path="res://rendering/terrain_renderer.gd" id="3"]
+[ext_resource type="Script" path="res://projectile/projectile_manager.gd" id="4"]
+[ext_resource type="Script" path="res://systems/combat_manager.gd" id="5"]
+[ext_resource type="Script" path="res://ui/targeting_ui.gd" id="6"]
+
+[node name="CombatScene" type="Node2D"]
+script = ExtResource("1")
+
+[node name="TerrainManager" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="TerrainRenderer" type="Node2D" parent="."]
+script = ExtResource("3")
+
+[node name="ProjectileManager" type="Node2D" parent="."]
+script = ExtResource("4")
+
+[node name="UnitLayer" type="Node2D" parent="."]
+
+[node name="CombatManager" type="Node2D" parent="."]
+script = ExtResource("5")
+
+[node name="TargetingUI" type="CanvasLayer" parent="."]
+script = ExtResource("6")
+
+[node name="Camera2D" type="Camera2D" parent="."]

@@ -1,26 +1,26 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene format=3 uid="uid://cn28nt1pds3io"]
 
 [ext_resource type="Script" path="res://world/world.gd" id="1"]
-[ext_resource type="Script" path="res://terrain/terrain_manager.gd" id="2"]
-[ext_resource type="Script" path="res://rendering/terrain_renderer.gd" id="3"]
-[ext_resource type="Script" path="res://projectile/projectile_manager.gd" id="4"]
-[ext_resource type="Script" path="res://ui/targeting_ui.gd" id="5"]
+[ext_resource type="Script" uid="uid://x03fpxu76sde" path="res://terrain/terrain_manager.gd" id="2"]
+[ext_resource type="Script" uid="uid://cs0vpqa14c8a6" path="res://rendering/terrain_renderer.gd" id="3"]
+[ext_resource type="Script" uid="uid://b2kik14lm67gg" path="res://projectile/projectile_manager.gd" id="4"]
+[ext_resource type="Script" uid="uid://bl2a7ku3w0nfi" path="res://ui/targeting_ui.gd" id="5"]
 
-[node name="World" type="Node2D"]
+[node name="World" type="Node2D" unique_id=2058078644]
 script = ExtResource("1")
 
-[node name="TerrainManager" type="Node" parent="."]
+[node name="TerrainManager" type="Node" parent="." unique_id=1903661093]
 script = ExtResource("2")
 
-[node name="TerrainRenderer" type="Node2D" parent="."]
+[node name="TerrainRenderer" type="Node2D" parent="." unique_id=1958316875]
 script = ExtResource("3")
 
-[node name="ProjectileManager" type="Node2D" parent="."]
+[node name="ProjectileManager" type="Node2D" parent="." unique_id=26171424]
 script = ExtResource("4")
 
-[node name="UnitLayer" type="Node2D" parent="."]
+[node name="UnitLayer" type="Node2D" parent="." unique_id=1847937333]
 
-[node name="TargetingUI" type="CanvasLayer" parent="."]
+[node name="TargetingUI" type="CanvasLayer" parent="." unique_id=1453202856]
 script = ExtResource("5")
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=963979022]

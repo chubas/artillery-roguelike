@@ -44,8 +44,19 @@ const ANGLE_MIN_DEG  : float = 0.0     # 0 = horizontal right
 const ANGLE_MAX_DEG  : float = 180.0   # 180 = horizontal left (90 = straight up)
 const ANGLE_RATE_DEG : float = 45.0    # degrees/second while ↑/↓ held
 const MIN_PROJECTILE_SPEED : float = 250.0
-const MAX_PROJECTILE_SPEED : float = 950.0
+const MAX_PROJECTILE_SPEED : float = 950.0   # reference only; full charge = shot.base_speed
 const CHARGE_TIME : float = 1.4        # seconds from min to max power
+
+# --- M2 combat (M2 spec §4, §7) -----------------------------------------------
+const MAX_ACTIONS : int = 5            # shared action bar per player turn
+const ENEMY_FIRE_DELAY : float = 0.8   # seconds between enemy shots
+# Angles in this project are positive-up (0 = right, 90 = straight up).
+# The spec's -45°/-60° (Godot y-down convention) map to +45/+60 here.
+const ENEMY_LAUNCH_ANGLE_DEG : float = 45.0
+const ENEMY_ALT_ANGLE_DEG    : float = 60.0
+const ENEMY_ERROR_PCT : float = 0.05   # ±5% launch speed variance
+const ENEMY_SPEED_MIN : float = 100.0  # IK result clamp
+const ENEMY_SPEED_MAX : float = 2500.0 # cross-map shots need ~2000 px/s
 
 # --- Coordinate conversion (terrain spec §3.2) -------------------------------
 static func world_to_voxel(world_pos: Vector2) -> Vector2i:

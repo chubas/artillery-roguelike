@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="UnitDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/basic_shell.tres" id="1_h3nyc"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="2_ge6l5"]
+
+[resource]
+script = ExtResource("2_ge6l5")
+id = "player_light"
+display_name = "Unit2"
+width_voxels = 1
+max_hp = 4
+default_shot = ExtResource("1_h3nyc")
+color = Color(0.35, 0.75, 0.95, 1)

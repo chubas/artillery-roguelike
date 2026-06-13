@@ -11,8 +11,8 @@ config_version=5
 [application]
 
 config/name="Artillery Space"
-config/description="M1 — destructible voxel terrain prototype"
-run/main_scene="res://world/world.tscn"
+config/description="M2 — combat loop prototype"
+run/main_scene="res://world/combat_scene.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [display]

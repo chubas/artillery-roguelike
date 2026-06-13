@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="UnitDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/basic_shell.tres" id="1_ugnd6"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="2_7fgmf"]
+
+[resource]
+script = ExtResource("2_7fgmf")
+id = "enemy_static"
+display_name = "Enemy"
+move_range = 0
+default_shot = ExtResource("1_ugnd6")
+color = Color(0.85, 0.3, 0.25, 1)
