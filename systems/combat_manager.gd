@@ -4,6 +4,7 @@ class_name CombatManager
 extends Node2D
 
 signal action_bar_changed(current: int, maximum: int)
+signal unit_focused(unit: Unit)   # selection changed → CombatScene pans the camera
 
 enum GameState { PLAYER_TURN, ENEMY_TURN, STAGE_CLEAR, GAME_OVER }
 
@@ -11,6 +12,7 @@ const NO_MOVE := Vector2i(-9999, -9999)
 
 var game_state : GameState = GameState.PLAYER_TURN
 var actions_left : int = Const.MAX_ACTIONS
+var round_index : int = 0
 
 var player_units : Array = []
 var enemy_units : Array = []
@@ -19,6 +21,9 @@ var active_unit : Unit = null
 
 var charging : bool = false
 var charge_frac : float = 0.0
+
+var _checkpoint_positions : Dictionary = {}  # Unit -> Vector2i
+var _checkpoint_actions_left : int = 0
 
 var _terrain : TerrainManager
 var _projectiles : ProjectileManager
@@ -35,22 +40,30 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_targeting = targeting
 	_hud.end_turn_pressed.connect(end_player_turn)
 	_hud.undo_pressed.connect(try_undo)
-	_terrain.aoe_resolved.connect(_on_aoe_resolved)
+	_hud.shot_selected.connect(_select_shot)
+	# Auto-advance to the next unit only once a player shot has FULLY resolved (§ resolution
+	# routine in ProjectileManager), so the camera lingers on the impact before panning.
+	_projectiles.shot_resolved.connect(_on_shot_resolved)
+	# Gameplay events route through EventBus (M3): the resolver emits aoe_resolved there.
+	EventBus.aoe_resolved.connect(_on_aoe_resolved)
 	_spawn_all_units()
-	_start_player_turn()
+	_begin_round()
 
 func get_units() -> Array:
 	return all_units
 
 # --- Spawning (M2 spec §9.3, surface-snap + no-overlap per plan §1.5) -----------
 func _spawn_all_units() -> void:
+	# M3 test scenario (§10), adapted to the 120-wide map: players at 12/15, an
+	# ORGANIC enemy (weak to fire) and a MECHANICAL enemy (weak to electric) to the east.
 	var heavy : UnitDefinition = load("res://data/units/player_heavy.tres")
 	var light : UnitDefinition = load("res://data/units/player_light.tres")
-	var enemy : UnitDefinition = load("res://data/units/enemy_static.tres")
+	var organic : UnitDefinition = load("res://data/units/enemy_organic.tres")
+	var mechanical : UnitDefinition = load("res://data/units/enemy_mechanical.tres")
 	player_units.append(_spawn(heavy, "Unit1", 12, true))
 	player_units.append(_spawn(light, "Unit2", 15, true))
-	enemy_units.append(_spawn(enemy, "EnemyA", Const.MAP_WIDTH - 20, false))
-	enemy_units.append(_spawn(enemy, "EnemyB", Const.MAP_WIDTH - 14, false))
+	enemy_units.append(_spawn(organic, "EnemyA", Const.MAP_WIDTH - 20, false))
+	enemy_units.append(_spawn(mechanical, "EnemyB", Const.MAP_WIDTH - 14, false))
 	all_units = player_units + enemy_units
 
 func _spawn(def: UnitDefinition, unit_name: String, col: int, is_player: bool) -> Unit:
@@ -86,16 +99,38 @@ func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 	push_error("No valid spawn near col %d" % preferred_col)
 	return Vector2i(preferred_col, 0)
 
-# --- Turn loop (M2 spec §4.1) ----------------------------------------------------
+# --- Turn loop (M2 §4.1 + M3 §6 resolution order) --------------------------------
+# Round start → tile statuses tick → player turn (unit statuses tick, shock AP cut) →
+# player actions → enemy turn (enemy statuses tick → enemy fire) → next round.
+func _begin_round() -> void:
+	if _is_terminal():
+		return
+	round_index += 1
+	EventBus.round_started.emit(round_index)
+	# 1. Tile statuses tick (burning damages/spreads, electrified chains/decays).
+	TileStatusSystem.tick_all(_terrain, all_units)
+	if _is_terminal():
+		return
+	_start_player_turn()
+
 func _start_player_turn() -> void:
 	if _is_terminal():
 		return
 	game_state = GameState.PLAYER_TURN
-	actions_left = Const.MAX_ACTIONS
+	# 2. Player unit statuses tick (burn damage); accumulate Shock AP reduction.
+	var ap_reduction := 0
+	for u in player_units:
+		ap_reduction += UnitStatusSystem.tick_all(u)
+	if _is_terminal():
+		return
+	# 3. Shock AP reduction applied to the shared pool for this turn.
+	actions_left = maxi(0, Const.MAX_ACTIONS - ap_reduction)
 	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
 	for u in player_units:
 		u.reset_for_turn()
+	_save_checkpoint()
 	_select_first_available()
+	EventBus.turn_started.emit("player")
 
 func end_player_turn() -> void:
 	if game_state != GameState.PLAYER_TURN:
@@ -106,24 +141,35 @@ func end_player_turn() -> void:
 		if u.hp > 0:
 			u.mark_done()
 	_set_selection(null)
+	EventBus.turn_ended.emit("player")
 	game_state = GameState.ENEMY_TURN
 	_run_enemy_turn()
 
 func _run_enemy_turn() -> void:
-	# Sequential enemy fire with a readability delay (spec §7.5).
+	EventBus.turn_started.emit("enemy")
+	# 5. Enemy unit statuses tick (burn on enemies). No enemy action pool in M3, so Shock
+	#    AP reduction is moot for enemies (spec §6 step 6 is post-M2).
+	for e in enemy_units:
+		UnitStatusSystem.tick_all(e)
+	if _is_terminal():
+		return
+	# 7. Enemy actions: fire one at a time; wait for each shot to fully resolve.
 	for e in enemy_units:
 		if _is_terminal():
 			return
 		if e.hp <= 0:
 			continue
-		EnemySystem.fire_enemy(e, player_units, _projectiles)
 		await get_tree().create_timer(Const.ENEMY_FIRE_DELAY).timeout
-	# Resolution phase: wait until every projectile has landed.
-	while _projectiles.has_active():
-		await get_tree().create_timer(0.1).timeout
+		if _is_terminal():
+			return
+		EnemySystem.fire_enemy(e, player_units, _projectiles)
+		# Wait for the shot to fully resolve (flight + resolution routine + settle beat).
+		while _projectiles.is_busy():
+			await get_tree().create_timer(0.1).timeout
+	EventBus.turn_ended.emit("enemy")
 	if _is_terminal():
 		return
-	_start_player_turn()
+	_begin_round()
 
 func _is_terminal() -> bool:
 	return game_state == GameState.STAGE_CLEAR or game_state == GameState.GAME_OVER
@@ -150,6 +196,9 @@ func _set_selection(u: Unit) -> void:
 	active_unit = u
 	if u != null:
 		u.set_selected(true)
+		# Focus = pan the camera to this (allied) unit. Tab cycle, click, first-available
+		# and post-fire auto-advance all flow through here, so all of them focus.
+		unit_focused.emit(u)
 
 func _select_first_available() -> void:
 	for u in player_units:
@@ -192,6 +241,7 @@ func try_move(unit: Unit, direction: int) -> void:
 	unit.actions_spent_moving += 1
 	actions_left -= 1
 	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+	EventBus.unit_moved.emit(unit)
 
 func _resolve_move(unit: Unit, direction: int) -> Vector2i:
 	var w := unit.definition.width_voxels
@@ -244,40 +294,76 @@ func _overlaps_any_unit(top_left: Vector2i, def: UnitDefinition, exclude: Unit) 
 			return true
 	return false
 
-# --- Undo (M2 spec §5.5): full reset to turn-start position, refunds actions ------
+# --- Checkpoint save: called at turn start and after each firing event ------------
+func _save_checkpoint() -> void:
+	_checkpoint_positions.clear()
+	_checkpoint_actions_left = actions_left
+	for u in player_units:
+		if u.hp > 0 and not u.is_done:
+			_checkpoint_positions[u] = u.vox_position
+
+# --- Undo: restores ALL unfired player units to the last checkpoint ---------------
 func can_undo() -> bool:
 	return game_state == GameState.PLAYER_TURN and not charging \
-		and active_unit != null and active_unit.hp > 0 and not active_unit.is_done \
-		and active_unit.actions_spent_moving > 0 \
-		and not _overlaps_any_unit(active_unit.move_origin, active_unit.definition, active_unit)
+		and actions_left < _checkpoint_actions_left
 
 func try_undo() -> void:
 	if not can_undo():
 		return
-	var u := active_unit
-	actions_left = mini(actions_left + u.actions_spent_moving, Const.MAX_ACTIONS)
+	for u in _checkpoint_positions:
+		if is_instance_valid(u) and u.hp > 0 and not u.is_done:
+			u.set_vox_position(_checkpoint_positions[u])
+			u.actions_spent_moving = 0
+			_settle_unit(u)
+	actions_left = _checkpoint_actions_left
 	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
-	u.set_vox_position(u.move_origin)
-	u.actions_spent_moving = 0
-	_settle_unit(u)   # terrain at the origin may have been destroyed since
 
-# --- Firing (Gunbound model; ends activation per spec §5.4) -----------------------
+# --- Firing (Gunbound model; ends activation per spec §5.4, M3 §7 action cost) -----
 func _fire_active() -> void:
 	var u := active_unit
 	charging = false
 	if u == null or u.is_done or u.hp <= 0:
 		charge_frac = 0.0
 		return
-	var shot := u.definition.default_shot
-	var speed := lerpf(Const.MIN_PROJECTILE_SPEED, shot.base_speed, charge_frac)
+	var shot := u.get_active_shot()
+	# Elemental shells cost action points (basic = 0). Can't afford → abort the shot.
+	if actions_left < shot.action_cost:
+		charge_frac = 0.0
+		return
+	# Player full-charge speed is boosted (Const.PLAYER_POWER_MULT); enemies use raw IK.
+	var speed := lerpf(Const.MIN_PROJECTILE_SPEED,
+			shot.base_speed * Const.PLAYER_POWER_MULT, charge_frac)
 	charge_frac = 0.0
+	if shot.action_cost > 0:
+		actions_left -= shot.action_cost
+		action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
 	_projectiles.fire(u.barrel_origin_world(), u.aim_dir(), speed, shot, false)
+	EventBus.unit_fired.emit(u, shot)
 	u.mark_done()
-	# QoL: auto-advance to the next available unit if one exists.
+	_save_checkpoint()
+	# NOTE: the next unit is NOT focused here. The camera follows the projectile, then lingers
+	# on the impact while the shot resolves; _on_shot_resolved advances once that's done.
+
+# A shot finished its full resolution routine. For player shots, focus the next available
+# unit now (camera pans to it); enemy shots are sequenced by _run_enemy_turn's own wait.
+func _on_shot_resolved(is_enemy: bool) -> void:
+	if is_enemy or game_state != GameState.PLAYER_TURN:
+		return
 	for next in player_units:
 		if next.hp > 0 and not next.is_done:
 			_set_selection(next)
 			return
+	_set_selection(null)   # all player units done → HUD shows the end-turn prompt
+
+# --- Shot selection (M3 §8): keys 1/2/3 or HUD chips set active_unit.selected_shot ----
+func _select_shot(idx: int) -> void:
+	if game_state != GameState.PLAYER_TURN or charging:
+		return
+	if active_unit == null or active_unit.is_done or active_unit.hp <= 0:
+		return
+	var shots := active_unit.available_shots()
+	if idx >= 0 and idx < shots.size():
+		active_unit.selected_shot = shots[idx]
 
 # --- Settling: units fall when terrain under them is destroyed --------------------
 # (Not in the spec; without it units hover over craters. No fall damage in M2.)
@@ -308,6 +394,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_TAB:
 				if not charging:
 					_tab_cycle()
+			KEY_1:
+				if not charging:
+					_select_shot(0)
+			KEY_2:
+				if not charging:
+					_select_shot(1)
+			KEY_3:
+				if not charging:
+					_select_shot(2)
 			KEY_SPACE:
 				if not charging and active_unit != null \
 						and not active_unit.is_done and active_unit.hp > 0:
@@ -348,7 +443,7 @@ func _push_hud_state() -> void:
 		GameState.PLAYER_TURN:
 			_hud.set_turn_text("YOUR TURN")
 			var all_done := player_units.all(func(u): return u.hp <= 0 or u.is_done)
-			_hud.set_end_turn_alert(all_done or actions_left <= 0)
+			_hud.set_end_turn_alert(all_done)
 		GameState.ENEMY_TURN:
 			_hud.set_turn_text("ENEMY TURN")
 			_hud.set_end_turn_alert(false)
@@ -358,7 +453,9 @@ func _push_hud_state() -> void:
 		_hud.set_unit_info("%s — %d / %d" % [active_unit.display_name,
 				active_unit.hp, active_unit.definition.max_hp])
 		_hud.set_angle(active_unit.aim_angle_deg)
+		_hud.set_shots(active_unit.available_shots(), active_unit.get_active_shot(), actions_left)
 	else:
 		_hud.set_unit_info("")
 		_hud.set_angle_none()
+		_hud.set_shots([], null, actions_left)
 	_hud.set_power(charge_frac, charging)

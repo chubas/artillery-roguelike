@@ -11,16 +11,27 @@ extends Resource
 
 ## Stats
 @export var max_hp : int = 6
-@export var move_range : int = 4   # voxels per activation
+@export var move_range : int = 99  # max moves per activation (use 99 = unlimited for now)
 @export var climb_max : int = 1    # max voxel height climbed free
 
 ## Firing
 @export var default_shot : ShotDefinition = null
+## All shots this unit may select before firing (M3 §8). default_shot is the always-free
+## fallback; elemental shells cost action points. Empty = only default_shot available.
+@export var available_shots : Array[ShotDefinition] = []
 @export var barrel_offset : Vector2i = Vector2i(0, -1)
 	# offset in voxels from unit top-center to barrel origin
+
+## Structural tags used by element and keyword systems (M3 §3.3).
+## Valid values: ORGANIC, MECHANICAL, SHIELDED, HEAVY, FLYING
+@export var tags : Array[String] = []
+
+## Per-element damage multiplier overrides. Key = element id, value = multiplier.
+## Missing element id defaults to 1.0. Takes precedence over tag rules.
+## Example: { "fire": 1.5, "electric": 0.5 }
+@export var element_affinities : Dictionary = {}
 
 ## Prototype visuals (replaced by sprites post-M2)
 @export var color : Color = Color(0.5, 0.5, 0.5)
 
-# POST-M2: capacity_cost, action_points, upgrade slots, race, mount type,
-#          enemy_launch_angle_deg (spec §11 Q3)
+# POST-M3: capacity_cost, action_points, upgrade slots, race, mount type

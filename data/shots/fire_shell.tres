@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r2_fire.tres" id="1_705pi"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="2_rvpop"]
+
+[resource]
+script = ExtResource("2_rvpop")
+id = "fire_shell"
+display_name = "Fire"
+base_speed = 580.0
+aoe_pattern = ExtResource("1_705pi")
+action_cost = 1

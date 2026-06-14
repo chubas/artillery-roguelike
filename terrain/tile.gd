@@ -20,6 +20,22 @@ var element : Element  = Element.NONE
 var flags   : int      = 0
 var variant : int      = 0   # visual variant 0–3; cosmetic only
 
+## Whether this tile falls when the tile below it is destroyed/removed. Default false:
+## ALL terrain is currently fixed in place (no collapse). Collapse rules come later — when
+## they do, generation will opt specific tiles into collapsing by setting this true.
+var collapsible : bool = false
+
+## Active tile status instances (M3 §5.4). Key = status id, value = TileStatusInstance.
+var tile_statuses : Dictionary = {}
+
+## String tags for tile-status interaction (FLAMMABLE, CONDUCTIVE, LIQUID, ...).
+## DISTINCT from the integer `flags` bitmask: flags govern terrain gameplay (passable,
+## climbable, indestructible); status_tags govern status interaction rules (§5.4). Do not merge.
+var status_tags : Array[String] = []
+
+func has_flag_tag(tag: String) -> bool:
+	return tag in status_tags
+
 # 0 pristine, 1 cracked, 2 heavily damaged — derived, not stored.
 func damage_state() -> int:
 	if hp >= max_hp:        return 0
@@ -35,4 +51,10 @@ func setup(t: TileType, hp_val: int, var_idx: int) -> Tile:
 	hp = hp_val
 	max_hp = hp_val
 	variant = var_idx
+	# Standard solid terrain burns by default (M3 §5.4); generation overrides reinforced
+	# (CONDUCTIVE) and the indestructible platform (no tags).
+	if t == TileType.SOLID:
+		status_tags = ["FLAMMABLE"]
+	else:
+		status_tags = []
 	return self

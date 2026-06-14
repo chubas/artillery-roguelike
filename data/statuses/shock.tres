@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="StatusEffectDef" format=3]
+
+[ext_resource type="Script" path="res://data/statuses/status_effect_def.gd" id="1_4ldot"]
+
+[resource]
+script = ExtResource("1_4ldot")
+id = "shock"
+display_name = "Shock"
+duration = 1
+ap_reduction = 1
+tags = Array[String](["ELECTRIC"])

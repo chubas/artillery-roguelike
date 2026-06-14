@@ -36,8 +36,9 @@ func _draw_barrel_indicator(barrel: Vector2, dir: Vector2) -> void:
 			Color(1, 1, 1, 0.9))
 
 func _draw_charge_preview(barrel: Vector2) -> void:
-	var shot := active_unit.definition.default_shot
-	var speed := lerpf(Const.MIN_PROJECTILE_SPEED, shot.base_speed, power_frac)
+	var shot := active_unit.get_active_shot()
+	var speed := lerpf(Const.MIN_PROJECTILE_SPEED,
+			shot.base_speed * Const.PLAYER_POWER_MULT, power_frac)
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
 			speed, shot.gravity_scale)
 	var points : PackedVector2Array = sim["points"]
@@ -56,9 +57,16 @@ func _draw_pattern_footprint(center: Vector2i, pattern: AoEPattern) -> void:
 		if _hits_damageable_unit(vox):
 			draw_rect(rect, Color(1.0, 0.45, 0.1, 0.75))   # unit voxel in blast
 		else:
-			var dmg : int = aoe_map[offset].damage
-			# Damage gradient: stronger groups read as more opaque red.
-			draw_rect(rect, Color(1.0, 0.15, 0.15, 0.2 + 0.35 * float(dmg) / max_dmg))
+			var group : AoEGroup = aoe_map[offset]
+			# Tint by element so the player reads the payload at a glance (M3).
+			var base := Color(1.0, 0.15, 0.15)             # physical = red
+			if group.element != null and Features.elements_enabled:
+				match group.element.id:
+					"fire": base = Color(1.0, 0.5, 0.1)    # orange
+					"electric": base = Color(0.4, 0.7, 1.0) # blue
+			# Damage gradient: stronger groups read as more opaque.
+			base.a = 0.2 + 0.35 * float(group.damage) / max_dmg
+			draw_rect(rect, base)
 	var c := Const.voxel_center_world(center)
 	draw_line(c + Vector2(-vs * 0.4, 0), c + Vector2(vs * 0.4, 0), Color.WHITE, 1.5)
 	draw_line(c + Vector2(0, -vs * 0.4), c + Vector2(0, vs * 0.4), Color.WHITE, 1.5)

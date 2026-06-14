@@ -1,36 +1,84 @@
-# Stateless AoE resolver (M2 spec §6.3): applies an AoEPattern to terrain and units.
+# Stateless AoE resolver (M2 §6.3, extended for elements in M3 §3.4): applies an
+# AoEPattern to terrain and units, with per-group element effects (affinity damage,
+# unit statuses, tile statuses).
 #
-# Spec deviation (documented in milestone-2-plan.md): the spec's literal loop damages a
-# unit once per covered voxel, which stacks to a near-guaranteed one-shot for any
-# multi-voxel unit near the center. Instead a unit takes damage ONCE per blast, using
-# the highest group damage among its covered voxels.
+# Spec deviation (from milestone-2-plan.md): the literal per-voxel loop damages a unit
+# once per covered voxel, which one-shots any multi-voxel unit near the center. Instead a
+# unit takes damage ONCE per blast, from the DOMINANT group covering it (highest base
+# damage = innermost ring). That group's element drives affinity and the applied status.
+#
+# Feature gating (M3 §2.2): when Features.elements_enabled is false, all groups resolve as
+# physical (no affinity, no status) — proving the flag contract.
 class_name AoEResolver
 
 static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 		pattern: AoEPattern, is_enemy: bool) -> Array:
 	var aoe_map := pattern.to_map()
 	var affected : Array = []
-	var unit_damage : Dictionary = {}   # Unit -> max group damage
+	var unit_hit : Dictionary = {}   # Unit -> { "dmg": int, "element": ElementDef }
 	var max_dist := 0
 	for offset in aoe_map:
 		var target : Vector2i = origin + offset
 		var group : AoEGroup = aoe_map[offset]
-		max_dist = maxi(max_dist, abs(offset.x) + abs(offset.y))
+		var element : ElementDef = group.element if Features.elements_enabled else null
+		max_dist = maxi(max_dist, absi(offset.x) + absi(offset.y))
+		# Terrain damage (physical component always applies).
 		terrain.damage_tile(target.x, target.y, group.damage)
 		affected.append(target)
+		# Tile status from the element (e.g. fire → Burning) on surviving tiles.
+		if element and element.tile_status and Features.tile_statuses_enabled:
+			TileStatusSystem.apply(terrain, target, element.tile_status)
+		# Record dominant group per damageable unit (highest base group damage wins).
 		for unit in units:
-			if unit.hp <= 0:
+			if not _should_damage(unit, is_enemy):
 				continue
-			# Friendly fire off in M2 (spec §6.3 note).
-			if is_enemy and not unit.is_player:
+			if not _voxel_in_bbox(target, unit):
 				continue
-			if not is_enemy and unit.is_player:
-				continue
-			if unit.contains_voxel(target):
-				unit_damage[unit] = maxi(unit_damage.get(unit, 0), group.damage)
-	for unit in unit_damage:
-		unit.take_damage(unit_damage[unit])
+			var prev = unit_hit.get(unit, null)
+			if prev == null or group.damage > prev["dmg"]:
+				unit_hit[unit] = { "dmg": group.damage, "element": element }
+	# Apply the dominant hit to each unit: affinity damage + status.
+	for unit in unit_hit:
+		var element : ElementDef = unit_hit[unit]["element"]
+		var final_dmg := _calc_damage(unit, unit_hit[unit]["dmg"], element)
+		unit.take_damage(final_dmg)
+		EventBus.unit_hit_taken.emit(unit, final_dmg,
+				element.id if element else "physical", null)
+		if element and element.unit_status and Features.unit_statuses_enabled:
+			UnitStatusSystem.apply(unit, element.unit_status, 1)
 	# Collapse once, after the whole blast (terrain + unit damage applied).
 	terrain.flush_collapses()
 	terrain.aoe_resolved.emit(origin, max_dist, affected)
+	EventBus.aoe_resolved.emit(origin, max_dist, affected)
 	return affected
+
+# --- Shared helpers (also used by TileStatusSystem ticks) -------------------------
+
+## Friendly fire off (M2): a shot damages only the opposing side's living units.
+static func _should_damage(unit: Unit, is_enemy: bool) -> bool:
+	if unit.hp <= 0:
+		return false
+	if is_enemy:
+		return unit.is_player     # enemy shot hits players
+	return not unit.is_player     # player shot hits enemies
+
+static func _voxel_in_bbox(vox: Vector2i, unit: Unit) -> bool:
+	return unit.contains_voxel(vox)
+
+## Final damage after element affinity (M3 §3.4). Tag rules stack; a unit-specific
+## affinity-table entry OVERRIDES tag rules entirely. Minimum 1 damage on any hit.
+static func _calc_damage(unit: Unit, base_dmg: int, element: ElementDef) -> int:
+	if element == null:
+		return base_dmg
+	var mult := 1.0
+	var tags : Array = unit.definition.tags
+	if element.strong_vs_tag != "" and element.strong_vs_tag in tags:
+		mult *= 1.5
+	if element.weak_vs_tag != "" and element.weak_vs_tag in tags:
+		mult *= 0.5
+	if element.vs_shielded_mult > 0.0 and "SHIELDED" in tags:
+		mult *= element.vs_shielded_mult
+	# Unit-specific affinity override takes precedence over tag rules.
+	if unit.definition.element_affinities.has(element.id):
+		mult = float(unit.definition.element_affinities[element.id])
+	return maxi(1, int(base_dmg * mult))

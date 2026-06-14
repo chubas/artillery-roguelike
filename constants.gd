@@ -4,7 +4,7 @@ class_name Const
 
 # --- Grid (terrain spec §3.1) -------------------------------------------------
 const VOXEL_SIZE : int = 16     # px per voxel — single source of truth (DECIDED)
-const MAP_WIDTH  : int = 300    # voxels
+const MAP_WIDTH  : int = 120    # voxels
 const MAP_HEIGHT : int = 100    # voxels
 const CHUNK_SIZE : int = 16     # voxels per chunk side
 
@@ -46,10 +46,17 @@ const ANGLE_RATE_DEG : float = 45.0    # degrees/second while ↑/↓ held
 const MIN_PROJECTILE_SPEED : float = 250.0
 const MAX_PROJECTILE_SPEED : float = 950.0   # reference only; full charge = shot.base_speed
 const CHARGE_TIME : float = 1.4        # seconds from min to max power
+# Player full-charge launch speed = shot.base_speed × this (user request, M3): the M2
+# values fell short and craters under-covered. Enemies (IK) are unaffected.
+const PLAYER_POWER_MULT : float = 2.5
 
 # --- M2 combat (M2 spec §4, §7) -----------------------------------------------
 const MAX_ACTIONS : int = 5            # shared action bar per player turn
 const ENEMY_FIRE_DELAY : float = 0.8   # seconds between enemy shots
+# Settle beat at the END of a shot's resolution routine (after AoE/FX, before the next unit
+# is focused or the next enemy fires). Lets consequences read; future resolve actions
+# (death animations, terrain collapse) slot in ahead of it. See ProjectileManager._on_impact.
+const SHOT_RESOLVE_DELAY : float = 0.45
 # Angles in this project are positive-up (0 = right, 90 = straight up).
 # The spec's -45°/-60° (Godot y-down convention) map to +45/+60 here.
 const ENEMY_LAUNCH_ANGLE_DEG : float = 45.0

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ElementDef" format=3]
+
+[ext_resource type="Script" path="res://data/elements/element_def.gd" id="1_22p74"]
+[ext_resource type="Resource" path="res://data/tile_statuses/electrified.tres" id="2_65yrv"]
+[ext_resource type="Resource" path="res://data/statuses/shock.tres" id="3_1gkng"]
+
+[resource]
+script = ExtResource("1_22p74")
+id = "electric"
+display_name = "Electric"
+unit_status = ExtResource("3_1gkng")
+tile_status = ExtResource("2_65yrv")
+strong_vs_tag = "MECHANICAL"
+vs_shielded_mult = 2.0

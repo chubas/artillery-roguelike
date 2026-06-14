@@ -1,0 +1,38 @@
+# Global signal hub (M3 spec §2.1). No gameplay system imports or calls another
+# directly — all cross-system communication flows through these signals. This is the
+# rule that makes the interaction layer emergent.
+#
+# Scope decision (M3 plan): GAMEPLAY events route through here. The high-frequency
+# per-tile render signal (TerrainManager.tile_changed) stays a direct local connection
+# to TerrainRenderer for clarity and to avoid thousands of global emits per collapse.
+extends Node
+
+# ── Turn signals ─────────────────────────────────────────────────────────────
+signal turn_started(side: String)          # "player" or "enemy"
+signal turn_ended(side: String)
+signal round_started(round_index: int)
+
+# ── Unit signals ─────────────────────────────────────────────────────────────
+signal unit_moved(unit: Unit)
+signal unit_fired(unit: Unit, shot: ShotDefinition)
+signal unit_hit_dealt(unit: Unit, target: Unit, damage: int, element: String)
+signal unit_hit_taken(unit: Unit, damage: int, element: String, source: Unit)
+signal unit_killed(unit: Unit, killer: Unit)
+signal unit_died(unit: Unit)
+signal unit_tile_entered(unit: Unit, tile_pos: Vector2i)
+
+# ── Status signals ───────────────────────────────────────────────────────────
+signal status_applied(target: Unit, status_id: String, stacks: int)
+signal status_removed(target: Unit, status_id: String)
+signal status_ticked(target: Unit, status_id: String, stacks: int)
+
+# ── Terrain signals (gameplay-facing; render path stays local) ───────────────
+signal tile_damaged(col: int, row: int, dmg: int, remaining_hp: int)
+signal tile_destroyed(col: int, row: int, tile_type: int)
+signal tile_status_applied(col: int, row: int, status_id: String)
+signal tile_status_removed(col: int, row: int, status_id: String)
+signal tile_status_ticked(col: int, row: int, status_id: String)
+
+# ── Projectile signals ───────────────────────────────────────────────────────
+signal projectile_impact(world_pos: Vector2, impact_voxel: Vector2i, element: String)
+signal aoe_resolved(center: Vector2i, radius: int, affected_tiles: Array)

@@ -18,6 +18,21 @@ var move_origin : Vector2i              # vox_position at turn start (for undo)
 var actions_spent_moving : int = 0
 var selected : bool = false
 
+## Active status instances (M3 §4.4). Key = status id, value = StatusInstance.
+var active_statuses : Dictionary = {}
+
+## Shot chosen this activation (M3 §8). null = fall back to default_shot.
+var selected_shot : ShotDefinition = null
+
+func get_active_shot() -> ShotDefinition:
+	return selected_shot if selected_shot != null else definition.default_shot
+
+## Shots the player may pick from; falls back to [default_shot] if none authored.
+func available_shots() -> Array:
+	if definition.available_shots.is_empty():
+		return [definition.default_shot]
+	return definition.available_shots
+
 func _ready() -> void:
 	hp = definition.max_hp
 	move_origin = vox_position
@@ -33,7 +48,9 @@ func take_damage(dmg: int) -> void:
 	unit_damaged.emit(self, dmg, hp)
 	if hp == 0:
 		is_done = true
+		active_statuses.clear()
 		unit_died.emit(self)
+		EventBus.unit_died.emit(self)
 
 func reset_for_turn() -> void:
 	if hp <= 0:
@@ -41,6 +58,7 @@ func reset_for_turn() -> void:
 	is_done = false
 	move_origin = vox_position
 	actions_spent_moving = 0
+	selected_shot = null   # default back to the free basic shell each turn
 	queue_redraw()
 
 func mark_done() -> void:
@@ -98,6 +116,7 @@ func _draw() -> void:
 		draw_rect(body.grow(2.0), Color.WHITE, false, 2.0)
 	if hp > 0:
 		_draw_hp_bar(w)
+		_draw_status_badges(w)
 
 func _draw_hp_bar(w: float) -> void:
 	var frac := float(hp) / definition.max_hp
@@ -108,3 +127,24 @@ func _draw_hp_bar(w: float) -> void:
 	elif frac <= 0.5:
 		c = Color(0.95, 0.6, 0.15)         # orange 25–50%
 	draw_rect(Rect2(1, -6, maxf(0.0, (w - 2) * frac), 2), c)
+
+# Placeholder status badges (M3 §15): a small colour-coded square per active status with
+# its stack count. Colour by element tag — fire = orange, electric = cyan.
+func _draw_status_badges(w: float) -> void:
+	if active_statuses.is_empty():
+		return
+	var font := ThemeDB.fallback_font
+	var bx := 0.0
+	for id in active_statuses:
+		var inst : StatusInstance = active_statuses[id]
+		var c := Color(0.7, 0.7, 0.7)
+		if "FIRE" in inst.definition.tags:
+			c = Color(1.0, 0.5, 0.1)
+		elif "ELECTRIC" in inst.definition.tags:
+			c = Color(0.4, 0.8, 1.0)
+		var r := Rect2(bx, -22, 11, 11)
+		draw_rect(r, c)
+		draw_rect(r, Color(0, 0, 0, 0.6), false, 1.0)
+		draw_string(font, Vector2(bx + 2.5, -13), str(inst.stacks),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color.BLACK)
+		bx += 13.0

@@ -20,4 +20,5 @@ extends Resource
 enum TrajectoryType { ARC, FLAT, MORTAR, BYPASS, BOUNCING, BURROWING }
 @export var trajectory : TrajectoryType = TrajectoryType.ARC
 
-# POST-M2: element, flags (PIERCING, SEEKING, etc.)
+# Element lives per-group on the AoEPattern (M3 §3.2), not here — a shot can mix
+# elements across rings. POST-M3: flags (PIERCING, SEEKING, etc.)

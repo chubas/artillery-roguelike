@@ -63,6 +63,12 @@ func clear_tile(col: int, row: int) -> void:
 	_grid[_idx(col, row)] = null
 	tile_changed.emit(col, row)
 
+# Repaint request for tile overlays (status tint changes). Reuses the local render
+# signal — TerrainRenderer already routes tile_changed to the owning chunk (M3 plan).
+func mark_tile_dirty(col: int, row: int) -> void:
+	if _in_bounds(col, row):
+		tile_changed.emit(col, row)
+
 func damage_tile(col: int, row: int, dmg: int) -> void:
 	var tile := get_tile(col, row)
 	if tile == null:
@@ -74,6 +80,7 @@ func damage_tile(col: int, row: int, dmg: int) -> void:
 	if tile.damage_state() != prev_state:
 		tile_changed.emit(col, row)
 	tile_damaged.emit(col, row, dmg, tile.hp)
+	EventBus.tile_damaged.emit(col, row, dmg, tile.hp)
 	if tile.hp <= 0:
 		_destroy_tile(col, row, tile)
 
@@ -81,6 +88,7 @@ func _destroy_tile(col: int, row: int, tile: Tile) -> void:
 	# M1: destruction always leaves VOID (RUBBLE is post-M1).
 	_grid[_idx(col, row)] = null
 	tile_destroyed.emit(col, row, tile.type)
+	EventBus.tile_destroyed.emit(col, row, tile.type)
 	tile_changed.emit(col, row)
 	_pending_collapse_cols[col] = true
 	if not _collapse_flush_queued:
@@ -103,6 +111,9 @@ func _collapse_column(col: int) -> void:
 			continue
 		# Spawn platform tiles are anchored (prototype convenience, spec §6.1 pass 4).
 		if tile.has_flag(Tile.FLAG_INDESTRUCTIBLE):
+			continue
+		# Fixed terrain (the current default): non-collapsible tiles never fall.
+		if not tile.collapsible:
 			continue
 		if get_tile(col, row + 1) == null:
 			_fall_tile(col, row)
@@ -175,6 +186,7 @@ func generate() -> void:
 			Const.SPAWN_PLATFORM_COL + Const.SPAWN_PLATFORM_WIDTH):
 		var t := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
 		t.flags = Tile.FLAG_INDESTRUCTIBLE
+		t.status_tags = []   # indestructible platform does not burn (M3 §5.4)
 		_grid[_idx(col, prow)] = t
 		for row in range(maxi(prow - 6, 0), prow):
 			_grid[_idx(col, row)] = null
@@ -190,6 +202,8 @@ func generate() -> void:
 			if hp_rng.randf() < Const.REINFORCED_TILE_CHANCE:
 				t.hp = 6
 				t.max_hp = 6
+				# Reinforced = metal/ore: conducts electricity, does not burn (M3 decision).
+				t.status_tags = ["CONDUCTIVE"]
 
 	# Pass 6 — visual variants, cosmetic only.
 	var var_rng := RandomNumberGenerator.new()

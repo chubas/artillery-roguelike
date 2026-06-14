@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ElementDef" format=3]
+
+[ext_resource type="Script" path="res://data/elements/element_def.gd" id="1_hm0gs"]
+[ext_resource type="Resource" path="res://data/tile_statuses/burning.tres" id="2_uujx7"]
+[ext_resource type="Resource" path="res://data/statuses/burn.tres" id="3_n3gww"]
+
+[resource]
+script = ExtResource("1_hm0gs")
+id = "fire"
+display_name = "Fire"
+unit_status = ExtResource("3_n3gww")
+tile_status = ExtResource("2_uujx7")
+strong_vs_tag = "ORGANIC"

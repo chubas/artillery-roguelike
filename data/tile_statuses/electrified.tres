@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TileStatusDef" format=3]
+
+[ext_resource type="Resource" path="res://data/statuses/shock.tres" id="1_15va5"]
+[ext_resource type="Script" path="res://data/tile_statuses/tile_status_def.gd" id="2_ey8a3"]
+
+[resource]
+script = ExtResource("2_ey8a3")
+id = "electrified"
+display_name = "Electrified"
+duration = 2
+applied_status = ExtResource("1_15va5")
+tags = Array[String](["CHAIN", "ELECTRIC"])

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TileStatusDef" format=3]
+
+[ext_resource type="Resource" path="res://data/statuses/burn.tres" id="1_1uj3n"]
+[ext_resource type="Script" path="res://data/tile_statuses/tile_status_def.gd" id="2_vy6ue"]
+
+[resource]
+script = ExtResource("2_vy6ue")
+id = "burning"
+display_name = "Burning"
+applied_status = ExtResource("1_1uj3n")
+tags = Array[String](["SPREADABLE", "FIRE"])
+spreads_to_tag = "FLAMMABLE"
+removed_by_tag = "LIQUID"

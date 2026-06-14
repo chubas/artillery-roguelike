@@ -52,6 +52,16 @@ func _draw() -> void:
 			# Hairline border keeps the voxel grid readable.
 			draw_rect(rect, base.darkened(0.3), false, 1.0)
 			_draw_cracks(rect, tile.damage_state())
+			_draw_status_overlay(rect, tile)
+
+# Placeholder tile-status tints (M3 §16): burning = orange, electrified = blue-white.
+func _draw_status_overlay(rect: Rect2, tile: Tile) -> void:
+	if tile.tile_statuses.is_empty():
+		return
+	if tile.tile_statuses.has("burning"):
+		draw_rect(rect, Color(1.0, 0.45, 0.1, 0.45))
+	if tile.tile_statuses.has("electrified"):
+		draw_rect(rect, Color(0.55, 0.8, 1.0, 0.5))
 
 func _draw_cracks(rect: Rect2, state: int) -> void:
 	if state == 0:
