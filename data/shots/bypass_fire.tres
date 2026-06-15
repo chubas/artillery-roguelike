@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r4_fire.tres" id="1_ryj4w"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="2_peh1u"]
+
+[resource]
+script = ExtResource("2_peh1u")
+id = "bypass_fire"
+display_name = "Drill Fire"
+aoe_pattern = ExtResource("1_ryj4w")
+action_cost = 2
+bypass_terrain = true

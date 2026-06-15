@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r2.tres" id="1_tdgya"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="2_3dq8b"]
+
+[resource]
+script = ExtResource("2_3dq8b")
+id = "pull_basic"
+display_name = "Pull"
+aoe_pattern = ExtResource("1_tdgya")
+pull_near_radius = 4
+pull_far_radius = 8
+pull_near_voxels = 2
+pull_far_voxels = 1

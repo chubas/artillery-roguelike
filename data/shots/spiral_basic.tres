@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r2.tres" id="1_p1oyl"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="2_jakju"]
+
+[resource]
+script = ExtResource("2_jakju")
+id = "spiral_basic"
+display_name = "Spiral"
+aoe_pattern = ExtResource("1_p1oyl")
+spiral_arms = 2
+spiral_amplitude = 24.0
+spiral_frequency = 2.0

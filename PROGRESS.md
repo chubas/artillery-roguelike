@@ -16,15 +16,45 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
 
 ## Current state (2026-06-14)
 
-- **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine).
+- **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
+  M4 (shot varieties & 4-unit squad).
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 checklist headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 checklists headless
+  (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-06-14 — Milestone 4: Shot varieties & unit roster
+
+Four distinct shot behaviors, each its own player unit. Full design + deviations in
+[milestone-4-plan.md](milestone-4-plan.md).
+
+- **Salvo system.** `ProjectileManager` rebuilt around a `Salvo` (one logical shot = many
+  bodies). Bodies that hit terrain **pause** (not freed) and report an impact; the manager
+  drains impacts in collision order — `(physics_frame, salvo index)` — re-checking each voxel
+  first, so a pellet whose blocker an earlier impact already destroyed **resumes** and flies on.
+  One settle beat per salvo, then `shot_resolved`. `is_busy()` = "any salvo alive."
+- **Cluster** (`Cluster` unit): 5 pellets fanned 1° apart, R3 diamond each.
+- **Bypass / drill** (`Drill` unit): ignores terrain, deals 1 dmg per unique trail voxel,
+  stops on an opposing unit for a heavy R4 blast. Unit overlap checked in the manager.
+- **Gravity pull** (`Magnet` unit): post-impact `GravityPullResolver` drags units toward the
+  blast — inner band (≤4 vox) 2 steps, outer (≤8) 1 step, closest-first, blocked-stays-put.
+- **Spiral** (`Spiral` unit): main projectile + 2 `SpiralSatellite` arms oscillating
+  perpendicular to the heading; arms share the salvo/impact queue.
+- **UnitMovement** static module extracted from `CombatManager` so the pull shot shoves units
+  with **identical** climb/fall/collision rules as walking.
+- **Power memory.** Each unit remembers its last charge fraction; HUD draws a triangle marker
+  on the charge bar (angle already persisted). Action budget raised to **10 AP**; fire = 2 AP,
+  electric = 3 AP (unaffordable shots already grey out from M3).
+- **Content (baked):** R3/R4 diamonds (+ elemental variants); 12 shots (4 families × phys/fire/
+  electric); 4 player unit `.tres`.
+- **Key deviations:** spiral arms don't outlive the main projectile (despawn if it resolves
+  first); pull direction is fixed at the unit's initial side (pull *by* N voxels, may overshoot
+  the blast rather than stop at column alignment). See plan §10.
 
 ## 2026-06-14 — Shot resolution routine
 

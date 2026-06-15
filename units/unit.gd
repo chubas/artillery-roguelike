@@ -13,6 +13,9 @@ var display_name : String = ""          # per-instance (e.g. "EnemyA" / "EnemyB"
 var hp : int = 0
 var vox_position : Vector2i = Vector2i.ZERO
 var aim_angle_deg : float = 45.0        # positive-up convention; preserved per unit
+# Gunbound-style power memory (M4): the charge fraction of this unit's last shot. The HUD
+# draws a marker on the charge bar at this position so the player can re-dial the same power.
+var last_power_frac : float = 0.5
 var is_done : bool = false              # true after firing this turn
 var move_origin : Vector2i              # vox_position at turn start (for undo)
 var actions_spent_moving : int = 0

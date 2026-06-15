@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="AoEPattern" format=3]
+
+[ext_resource type="Script" path="res://data/shots/aoe_group.gd" id="1_ry0sy"]
+[ext_resource type="Resource" path="res://data/elements/fire.tres" id="2_n1275"]
+[ext_resource type="Script" path="res://data/shots/aoe_pattern.gd" id="3_q3sv6"]
+
+[sub_resource type="Resource" id="Resource_ob7ea"]
+script = ExtResource("1_ry0sy")
+offsets = Array[Vector2i]([Vector2i(0, 0)])
+damage = 10
+element = ExtResource("2_n1275")
+
+[sub_resource type="Resource" id="Resource_xxb3o"]
+script = ExtResource("1_ry0sy")
+offsets = Array[Vector2i]([Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0)])
+damage = 8
+element = ExtResource("2_n1275")
+
+[sub_resource type="Resource" id="Resource_ahubp"]
+script = ExtResource("1_ry0sy")
+offsets = Array[Vector2i]([Vector2i(-2, 0), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(0, 2), Vector2i(0, -2), Vector2i(1, 1), Vector2i(1, -1), Vector2i(2, 0)])
+damage = 6
+element = ExtResource("2_n1275")
+
+[sub_resource type="Resource" id="Resource_bohrl"]
+script = ExtResource("1_ry0sy")
+offsets = Array[Vector2i]([Vector2i(-3, 0), Vector2i(-2, 1), Vector2i(-2, -1), Vector2i(-1, 2), Vector2i(-1, -2), Vector2i(0, 3), Vector2i(0, -3), Vector2i(1, 2), Vector2i(1, -2), Vector2i(2, 1), Vector2i(2, -1), Vector2i(3, 0)])
+damage = 4
+element = ExtResource("2_n1275")
+
+[sub_resource type="Resource" id="Resource_yfi6c"]
+script = ExtResource("1_ry0sy")
+offsets = Array[Vector2i]([Vector2i(-4, 0), Vector2i(-3, 1), Vector2i(-3, -1), Vector2i(-2, 2), Vector2i(-2, -2), Vector2i(-1, 3), Vector2i(-1, -3), Vector2i(0, 4), Vector2i(0, -4), Vector2i(1, 3), Vector2i(1, -3), Vector2i(2, 2), Vector2i(2, -2), Vector2i(3, 1), Vector2i(3, -1), Vector2i(4, 0)])
+damage = 2
+element = ExtResource("2_n1275")
+
+[resource]
+script = ExtResource("3_q3sv6")
+groups = Array[ExtResource("1_ry0sy")]([SubResource("Resource_ob7ea"), SubResource("Resource_xxb3o"), SubResource("Resource_ahubp"), SubResource("Resource_bohrl"), SubResource("Resource_yfi6c")])

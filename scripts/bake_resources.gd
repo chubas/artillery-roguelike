@@ -65,6 +65,16 @@ func _initialize() -> void:
 	_save(_elemental_diamond(load("res://data/elements/electric.tres")),
 			"res://data/shots/aoe/diamond_r2_electric.tres")
 
+	# ── M4 patterns ───────────────────────────────────────────────────────────
+	# R=3 cluster pellet (one of five); R=4 bypass unit-hit blast (heavy, 10→2 per ring).
+	var fire_el : ElementDef = load("res://data/elements/fire.tres")
+	var elec_el : ElementDef = load("res://data/elements/electric.tres")
+	for variant in [["", null], ["_fire", fire_el], ["_electric", elec_el]]:
+		_save(_diamond_pattern(3, 3, 1.0, variant[1]),
+				"res://data/shots/aoe/diamond_r3%s.tres" % variant[0])
+		_save(_diamond_pattern(4, 10, 2.0, variant[1]),
+				"res://data/shots/aoe/diamond_r4%s.tres" % variant[0])
+
 	# ── Phase F: shots ────────────────────────────────────────────────────────
 	var basic := ShotDefinition.new()
 	basic.id = "basic_shell"; basic.display_name = "Basic"
@@ -92,6 +102,14 @@ func _initialize() -> void:
 	var fire_ref : ShotDefinition = load("res://data/shots/fire_shell.tres")
 	var elec_ref : ShotDefinition = load("res://data/shots/electric_shell.tres")
 	var loadout : Array[ShotDefinition] = [basic_ref, fire_ref, elec_ref]
+
+	# ── M4: four shot-type families. Each unit fires one family; within it the player can
+	#    pick physical (0 AP), fire (+2 AP) or electric (+3 AP) — same behaviour, different
+	#    element + cost. _make_family writes the trio and returns it as a loadout. ──────────
+	var cluster_loadout := _make_family("cluster", "Cluster", 3)
+	var bypass_loadout  := _make_family("bypass",  "Drill",   4)
+	var pull_loadout    := _make_family("pull",    "Pull",    2)
+	var spiral_loadout  := _make_family("spiral",  "Spiral",  2)
 
 	# ── Phase G: units ────────────────────────────────────────────────────────
 	var heavy := UnitDefinition.new()
@@ -132,15 +150,91 @@ func _initialize() -> void:
 	mechanical.color = Color(0.7, 0.55, 0.85)
 	_save(mechanical, "res://data/units/enemy_mechanical.tres")
 
-	print("[bake] all M3 resources written")
+	# ── M4 player squad: one unit per shot family ─────────────────────────────
+	_save_player_unit("player_cluster", "Cluster", cluster_loadout,
+			Color(0.85, 0.7, 0.2))      # goldenrod
+	_save_player_unit("player_bypass", "Drill", bypass_loadout,
+			Color(0.2, 0.7, 0.65))      # teal
+	_save_player_unit("player_pull", "Magnet", pull_loadout,
+			Color(0.9, 0.45, 0.4))      # coral
+	_save_player_unit("player_spiral", "Spiral", spiral_loadout,
+			Color(0.6, 0.4, 0.85))      # purple
+
+	print("[bake] all M4 resources written")
 	quit()
 
 # Build a diamond R=2 pattern with every group carrying `element`.
 func _elemental_diamond(element: ElementDef) -> AoEPattern:
-	var p := AoEPattern.make_diamond(2, 3, 1.0)
-	for g in p.groups:
-		g.element = element
+	return _diamond_pattern(2, 3, 1.0, element)
+
+# Diamond pattern with an optional element on every ring (null = physical).
+func _diamond_pattern(radius: int, base: int, falloff: float, element: ElementDef) -> AoEPattern:
+	var p := AoEPattern.make_diamond(radius, base, falloff)
+	if element != null:
+		for g in p.groups:
+			g.element = element
 	return p
+
+# Write a shot-type family (physical / fire / electric) and return it as a typed loadout.
+# `type_id` selects both the M4 behaviour payload and which AoE pattern radius is used.
+func _make_family(type_id: String, label: String, base_cost_unused: int) -> Array[ShotDefinition]:
+	var trio : Array[ShotDefinition] = []
+	for variant in [["", "", 0], ["fire", "_fire", 2], ["electric", "_electric", 3]]:
+		var s := ShotDefinition.new()
+		s.id = type_id + ("_" + variant[0] if variant[0] != "" else "_basic")
+		s.display_name = label if variant[0] == "" else "%s %s" % [label, str(variant[0]).capitalize()]
+		s.base_speed = 600.0
+		s.gravity_scale = 1.0
+		s.action_cost = variant[2]
+		s.aoe_pattern = load("res://data/shots/aoe/%s%s.tres" %
+				[_family_pattern(type_id), variant[1]])
+		_apply_family_payload(s, type_id)
+		var path := "res://data/shots/%s.tres" % s.id
+		_save(s, path)
+		trio.append(load(path))
+	return trio
+
+# Which AoE pattern base each family detonates with.
+func _family_pattern(type_id: String) -> String:
+	match type_id:
+		"cluster": return "diamond_r3"   # each of 5 pellets
+		"bypass":  return "diamond_r4"   # heavy unit-hit blast
+		_:         return "diamond_r2"   # pull / spiral per-projectile
+
+# Stamp the M4 behaviour fields onto a shot for its family.
+func _apply_family_payload(s: ShotDefinition, type_id: String) -> void:
+	match type_id:
+		"cluster":
+			s.projectile_count = 5
+			s.spread_deg = 1.0
+		"bypass":
+			s.bypass_terrain = true
+		"pull":
+			s.pull_near_radius = 4
+			s.pull_far_radius = 8
+			s.pull_near_voxels = 2
+			s.pull_far_voxels = 1
+		"spiral":
+			s.spiral_arms = 2
+			s.spiral_amplitude = 24.0
+			s.spiral_frequency = 2.0
+
+func _save_player_unit(id: String, dname: String,
+		loadout: Array[ShotDefinition], color: Color) -> void:
+	var u := UnitDefinition.new()
+	u.id = id
+	u.display_name = dname
+	u.width_voxels = 2
+	u.height_voxels = 3
+	u.max_hp = 6
+	u.move_range = 99
+	u.climb_max = 1
+	u.default_shot = loadout[0]
+	u.available_shots = loadout
+	u.tags = []
+	u.element_affinities = {}
+	u.color = color
+	_save(u, "res://data/units/%s.tres" % id)
 
 func _save(res: Resource, path: String) -> void:
 	var err := ResourceSaver.save(res, path)

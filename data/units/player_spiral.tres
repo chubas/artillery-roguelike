@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UnitDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_bvb8g"]
+[ext_resource type="Resource" path="res://data/shots/spiral_basic.tres" id="2_prse3"]
+[ext_resource type="Resource" path="res://data/shots/spiral_fire.tres" id="3_ub6j3"]
+[ext_resource type="Resource" path="res://data/shots/spiral_electric.tres" id="4_2b4kd"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="5_xc7oy"]
+
+[resource]
+script = ExtResource("5_xc7oy")
+id = "player_spiral"
+display_name = "Spiral"
+default_shot = ExtResource("2_prse3")
+available_shots = Array[ExtResource("1_bvb8g")]([ExtResource("2_prse3"), ExtResource("3_ub6j3"), ExtResource("4_2b4kd")])
+color = Color(0.6, 0.4, 0.85, 1)

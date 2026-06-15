@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r3_fire.tres" id="1_vhdf0"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="2_l64jm"]
+
+[resource]
+script = ExtResource("2_l64jm")
+id = "cluster_fire"
+display_name = "Cluster Fire"
+aoe_pattern = ExtResource("1_vhdf0")
+action_cost = 2
+projectile_count = 5
+spread_deg = 1.0

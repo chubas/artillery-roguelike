@@ -8,7 +8,7 @@ signal unit_focused(unit: Unit)   # selection changed → CombatScene pans the c
 
 enum GameState { PLAYER_TURN, ENEMY_TURN, STAGE_CLEAR, GAME_OVER }
 
-const NO_MOVE := Vector2i(-9999, -9999)
+const NO_MOVE := UnitMovement.NO_MOVE
 
 var game_state : GameState = GameState.PLAYER_TURN
 var actions_left : int = Const.MAX_ACTIONS
@@ -54,14 +54,18 @@ func get_units() -> Array:
 
 # --- Spawning (M2 spec §9.3, surface-snap + no-overlap per plan §1.5) -----------
 func _spawn_all_units() -> void:
-	# M3 test scenario (§10), adapted to the 120-wide map: players at 12/15, an
-	# ORGANIC enemy (weak to fire) and a MECHANICAL enemy (weak to electric) to the east.
-	var heavy : UnitDefinition = load("res://data/units/player_heavy.tres")
-	var light : UnitDefinition = load("res://data/units/player_light.tres")
+	# M4 squad: four player units, one per shot family (cluster / drill / pull / spiral),
+	# vs the ORGANIC (weak fire) and MECHANICAL (weak electric) enemies to the east.
+	var cluster : UnitDefinition = load("res://data/units/player_cluster.tres")
+	var bypass : UnitDefinition = load("res://data/units/player_bypass.tres")
+	var pull : UnitDefinition = load("res://data/units/player_pull.tres")
+	var spiral : UnitDefinition = load("res://data/units/player_spiral.tres")
 	var organic : UnitDefinition = load("res://data/units/enemy_organic.tres")
 	var mechanical : UnitDefinition = load("res://data/units/enemy_mechanical.tres")
-	player_units.append(_spawn(heavy, "Unit1", 12, true))
-	player_units.append(_spawn(light, "Unit2", 15, true))
+	player_units.append(_spawn(cluster, "Cluster", 8, true))
+	player_units.append(_spawn(bypass, "Drill", 11, true))
+	player_units.append(_spawn(pull, "Magnet", 14, true))
+	player_units.append(_spawn(spiral, "Spiral", 17, true))
 	enemy_units.append(_spawn(organic, "EnemyA", Const.MAP_WIDTH - 20, false))
 	enemy_units.append(_spawn(mechanical, "EnemyB", Const.MAP_WIDTH - 14, false))
 	all_units = player_units + enemy_units
@@ -91,9 +95,10 @@ func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 		var top_left := Vector2i(col, surface - def.height_voxels)
 		if top_left.y < 0:
 			continue
-		if not _bbox_terrain_clear(top_left, def.width_voxels, def.height_voxels):
+		if not UnitMovement.bbox_terrain_clear(_terrain, top_left,
+				def.width_voxels, def.height_voxels):
 			continue
-		if _overlaps_any_unit(top_left, def, null):
+		if UnitMovement.overlaps_any_unit(all_units, top_left, def, null):
 			continue
 		return top_left
 	push_error("No valid spawn near col %d" % preferred_col)
@@ -234,7 +239,8 @@ func try_move(unit: Unit, direction: int) -> void:
 		return
 	if unit.actions_spent_moving >= unit.definition.move_range:
 		return
-	var dest := _resolve_move(unit, direction)
+	# Movement geometry lives in UnitMovement (shared with effect-driven shoves, M4).
+	var dest := UnitMovement.resolve_move(unit, direction, _terrain, all_units)
 	if dest == NO_MOVE:
 		return
 	unit.set_vox_position(dest)
@@ -242,57 +248,6 @@ func try_move(unit: Unit, direction: int) -> void:
 	actions_left -= 1
 	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
 	EventBus.unit_moved.emit(unit)
-
-func _resolve_move(unit: Unit, direction: int) -> Vector2i:
-	var w := unit.definition.width_voxels
-	var h := unit.definition.height_voxels
-	var new_x := unit.vox_position.x + direction
-	if new_x < 0 or new_x + w > Const.MAP_WIDTH:
-		return NO_MOVE
-	var foot := unit.vox_position.y + h - 1
-	# Flat / fall candidate.
-	if _bbox_terrain_clear(Vector2i(new_x, foot - h + 1), w, h):
-		var f := foot
-		while f < Const.MAP_HEIGHT - 1 and not _grounded(new_x, f, w):
-			f += 1
-		return _final_if_unit_free(new_x, f, unit)
-	# Climb candidate: 1 voxel up (climb_max; 2+ is blocked).
-	if unit.definition.climb_max >= 1 \
-			and _bbox_terrain_clear(Vector2i(new_x, foot - h), w, h):
-		return _final_if_unit_free(new_x, foot - 1, unit)
-	return NO_MOVE
-
-func _bbox_terrain_clear(top_left: Vector2i, w: int, h: int) -> bool:
-	for col in range(top_left.x, top_left.x + w):
-		for row in range(top_left.y, top_left.y + h):
-			if _terrain.is_blocked(col, row):
-				return false
-	return true
-
-func _grounded(x: int, foot: int, w: int) -> bool:
-	if foot >= Const.MAP_HEIGHT - 1:
-		return true   # map bottom counts as support
-	for col in range(x, x + w):
-		if _terrain.is_solid(col, foot + 1):
-			return true
-	return false
-
-func _final_if_unit_free(x: int, foot: int, unit: Unit) -> Vector2i:
-	var top_left := Vector2i(x, foot - unit.definition.height_voxels + 1)
-	if _overlaps_any_unit(top_left, unit.definition, unit):
-		return NO_MOVE
-	return top_left
-
-func _overlaps_any_unit(top_left: Vector2i, def: UnitDefinition, exclude: Unit) -> bool:
-	var rect := Rect2i(top_left, Vector2i(def.width_voxels, def.height_voxels))
-	for u in all_units:
-		if u == exclude or u.hp <= 0:   # dead wrecks don't block
-			continue
-		var other := Rect2i(u.vox_position,
-			Vector2i(u.definition.width_voxels, u.definition.height_voxels))
-		if rect.intersects(other):
-			return true
-	return false
 
 # --- Checkpoint save: called at turn start and after each firing event ------------
 func _save_checkpoint() -> void:
@@ -333,6 +288,7 @@ func _fire_active() -> void:
 	# Player full-charge speed is boosted (Const.PLAYER_POWER_MULT); enemies use raw IK.
 	var speed := lerpf(Const.MIN_PROJECTILE_SPEED,
 			shot.base_speed * Const.PLAYER_POWER_MULT, charge_frac)
+	u.last_power_frac = charge_frac   # Gunbound power memory (M4): marker on next charge
 	charge_frac = 0.0
 	if shot.action_cost > 0:
 		actions_left -= shot.action_cost
@@ -372,12 +328,7 @@ func _on_aoe_resolved(_center: Vector2i, _radius: int, _affected: Array) -> void
 		_settle_unit(u)
 
 func _settle_unit(u: Unit) -> void:
-	var w := u.definition.width_voxels
-	var h := u.definition.height_voxels
-	var foot := u.vox_position.y + h - 1
-	while foot < Const.MAP_HEIGHT - 1 and not _grounded(u.vox_position.x, foot, w):
-		foot += 1
-	var new_pos := Vector2i(u.vox_position.x, foot - h + 1)
+	var new_pos := UnitMovement.settle(u, _terrain)
 	if new_pos != u.vox_position:
 		u.set_vox_position(new_pos)
 
@@ -449,13 +400,15 @@ func _push_hud_state() -> void:
 			_hud.set_end_turn_alert(false)
 		_:
 			pass   # terminal text set on transition
+	var last_power := -1.0   # no marker when nothing is selected
 	if active_unit != null and active_unit.hp > 0:
 		_hud.set_unit_info("%s — %d / %d" % [active_unit.display_name,
 				active_unit.hp, active_unit.definition.max_hp])
 		_hud.set_angle(active_unit.aim_angle_deg)
 		_hud.set_shots(active_unit.available_shots(), active_unit.get_active_shot(), actions_left)
+		last_power = active_unit.last_power_frac
 	else:
 		_hud.set_unit_info("")
 		_hud.set_angle_none()
 		_hud.set_shots([], null, actions_left)
-	_hud.set_power(charge_frac, charging)
+	_hud.set_power(charge_frac, charging, last_power)

@@ -160,8 +160,80 @@ func _smoke_test() -> void:
 			[ea.definition.max_hp - ea.hp, _stacks(ea, "burn")])
 	Features.elements_enabled = true
 
+	_m4_smoke()
+
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
+
+# M4 §12 checklist (deterministic, no flight required): shot-family data, salvo spawn counts,
+# gravity-pull bands/ordering/blocking, and the action economy.
+func _m4_smoke() -> void:
+	print("[smoke] -- M4 shot families (data) --")
+	var cluster : ShotDefinition = load("res://data/shots/cluster_basic.tres")
+	var bypass : ShotDefinition = load("res://data/shots/bypass_basic.tres")
+	var pull : ShotDefinition = load("res://data/shots/pull_basic.tres")
+	var spiral : ShotDefinition = load("res://data/shots/spiral_basic.tres")
+	print("  cluster: count=%d spread=%.1f (expect 5, 1.0)" %
+			[cluster.projectile_count, cluster.spread_deg])
+	print("  bypass: terrain=%s (expect true)" % bypass.bypass_terrain)
+	print("  pull: near=%d/%d far=%d/%d (expect 4/2, 8/1)" %
+			[pull.pull_near_radius, pull.pull_near_voxels,
+			pull.pull_far_radius, pull.pull_far_voxels])
+	print("  spiral: arms=%d amp=%.0f (expect 2, 24)" %
+			[spiral.spiral_arms, spiral.spiral_amplitude])
+
+	print("[smoke] -- M4 action economy --")
+	var cf : ShotDefinition = load("res://data/shots/cluster_fire.tres")
+	var ce : ShotDefinition = load("res://data/shots/cluster_electric.tres")
+	print("  costs: basic=%d fire=%d electric=%d (expect 0, 2, 3)" %
+			[cluster.action_cost, cf.action_cost, ce.action_cost])
+	print("  MAX_ACTIONS=%d (expect 10)" % Const.MAX_ACTIONS)
+
+	print("[smoke] -- M4 salvo spawn counts --")
+	projectiles.fire(Vector2(100, 100), Vector2.RIGHT, 1.0, cluster, false)
+	print("  cluster members=%d (expect 5)" % projectiles.debug_member_count())
+	projectiles.fire(Vector2(120, 100), Vector2.RIGHT, 1.0, spiral, false)
+	print("  +spiral members=%d (expect 8 = 5 + main + 2 arms)" %
+			projectiles.debug_member_count())
+
+	print("[smoke] -- M4 gravity pull (band + closest-first + block) --")
+	_pull_smoke(pull)
+
+# Build a flat indestructible shelf, drop two units on it, fire a pull centred to the right,
+# and check each is hauled the right number of steps — closest first, blocked unit stays put.
+func _pull_smoke(pull: ShotDefinition) -> void:
+	var row := 30
+	var c0 := 45
+	for c in range(c0, c0 + 20):
+		terrain.set_tile(c, row, _floor_tile())   # walking surface
+		for r in range(row - 4, row):
+			terrain.clear_tile(c, r)               # clear the air above
+	var near_u : Unit = combat.enemy_units[0]
+	var far_u : Unit = combat.enemy_units[1]
+	near_u.hp = near_u.definition.max_hp
+	far_u.hp = far_u.definition.max_hp
+	# near_u at impact-2 (inner band), far_u at impact-6 (outer band). Impact to their right.
+	var impact := Vector2i(c0 + 16, row - 1)
+	near_u.set_vox_position(Vector2i(impact.x - 2, row - near_u.definition.height_voxels))
+	far_u.set_vox_position(Vector2i(impact.x - 6, row - far_u.definition.height_voxels))
+	var near_x0 := near_u.vox_position.x
+	var far_x0 := far_u.vox_position.x
+	GravityPullResolver.resolve(terrain, combat.all_units, impact, pull)
+	print("  near unit moved +%d (expect +2, inner band)" % (near_u.vox_position.x - near_x0))
+	print("  far unit moved +%d (expect +1, outer band)" % (far_u.vox_position.x - far_x0))
+	# Blocked case: wall a unit in with a 2-high column on the pull side; it shouldn't move.
+	far_u.set_vox_position(Vector2i(c0 + 2, row - far_u.definition.height_voxels))
+	for r in range(row - 2, row):
+		terrain.set_tile(c0 + 3, r, _floor_tile())   # 2-voxel wall toward the impact
+	var blocked_x0 := far_u.vox_position.x
+	GravityPullResolver.resolve(terrain, combat.all_units, Vector2i(c0 + 16, row - 1), pull)
+	print("  walled unit moved +%d (expect +0, blocked by 2-voxel wall)" %
+			(far_u.vox_position.x - blocked_x0))
+
+func _floor_tile() -> Tile:
+	var t := Tile.new().setup(Tile.TileType.SOLID, 99, 0)
+	t.flags = Tile.FLAG_INDESTRUCTIBLE
+	return t
 
 func _reset(u: Unit) -> void:
 	u.hp = u.definition.max_hp

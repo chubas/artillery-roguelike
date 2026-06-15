@@ -37,7 +37,7 @@ func _build_top_left() -> void:
 	_power_bar.custom_minimum_size = Vector2(220, 14)
 	box.add_child(_power_bar)
 	_action_pips = ActionPips.new()
-	_action_pips.custom_minimum_size = Vector2(5 * 24, 20)
+	_action_pips.custom_minimum_size = Vector2(Const.MAX_ACTIONS * 20, 18)
 	box.add_child(_action_pips)
 	_shot_box = HBoxContainer.new()
 	_shot_box.add_theme_constant_override("separation", 4)
@@ -95,10 +95,13 @@ func set_angle(deg: float) -> void:
 func set_angle_none() -> void:
 	_set_text(_angle_label, "Angle: —")
 
-func set_power(frac: float, charging: bool) -> void:
-	if _power_bar.frac != frac or _power_bar.charging != charging:
+# last_frac (0–1) draws a Gunbound-style marker at the unit's previous shot power; < 0 hides it.
+func set_power(frac: float, charging: bool, last_frac: float = -1.0) -> void:
+	if _power_bar.frac != frac or _power_bar.charging != charging \
+			or _power_bar.last_frac != last_frac:
 		_power_bar.frac = frac
 		_power_bar.charging = charging
+		_power_bar.last_frac = last_frac
 		_power_bar.queue_redraw()
 	_set_text(_power_label, "Power: %d%%" % roundi(frac * 100.0) if charging else "Power: —")
 
@@ -161,6 +164,7 @@ class PowerBar:
 
 	var frac := 0.0
 	var charging := false
+	var last_frac := -1.0   # previous-shot power memory marker; < 0 = hidden
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
@@ -169,6 +173,12 @@ class PowerBar:
 			var fill := Rect2(Vector2(1, 1), Vector2((size.x - 2) * frac, size.y - 2))
 			draw_rect(fill, Color(0.2, 0.9, 0.3).lerp(Color(1.0, 0.25, 0.15), frac))
 		draw_rect(r, Color(1, 1, 1, 0.6), false, 1.0)
+		# Last-power marker: a small downward triangle straddling the top edge (M4).
+		if last_frac >= 0.0:
+			var x := 1.0 + (size.x - 2.0) * last_frac
+			var pts := PackedVector2Array([
+				Vector2(x, 3), Vector2(x - 4, -4), Vector2(x + 4, -4)])
+			draw_colored_polygon(pts, Color(1.0, 0.95, 0.5))
 
 
 class ActionPips:
@@ -178,8 +188,9 @@ class ActionPips:
 	var maximum := 5
 
 	func _draw() -> void:
+		# 20px stride keeps a 10-AP bar (M4) compact; pips shrink to 16px wide.
 		for i in range(maximum):
-			var rect := Rect2(i * 24, 0, 20, 20)
+			var rect := Rect2(i * 20, 0, 16, 18)
 			if i < current:
 				draw_rect(rect, Color(0.95, 0.85, 0.3))
 			else:

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UnitDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_djryg"]
+[ext_resource type="Resource" path="res://data/shots/cluster_basic.tres" id="2_w383l"]
+[ext_resource type="Resource" path="res://data/shots/cluster_fire.tres" id="3_75jx8"]
+[ext_resource type="Resource" path="res://data/shots/cluster_electric.tres" id="4_gljdb"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="5_0yy3i"]
+
+[resource]
+script = ExtResource("5_0yy3i")
+id = "player_cluster"
+display_name = "Cluster"
+default_shot = ExtResource("2_w383l")
+available_shots = Array[ExtResource("1_djryg")]([ExtResource("2_w383l"), ExtResource("3_75jx8"), ExtResource("4_gljdb")])
+color = Color(0.85, 0.7, 0.2, 1)

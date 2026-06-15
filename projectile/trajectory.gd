@@ -20,8 +20,11 @@ static func check_segment(terrain: TerrainManager, from: Vector2, to: Vector2) -
 # Full-arc simulation at the physics timestep. Mirrors Projectile._physics_process
 # exactly (velocity integrated before position, same collision stepping).
 # Returns { hit: bool, impact_voxel: Vector2i, points: PackedVector2Array }.
+# ignore_terrain (M4 bypass preview): never stops on terrain — the ghost flies through to the
+# map edge, mirroring a drill shot. The footprint is then placed by the caller (e.g. at a unit).
 static func simulate_arc(terrain: TerrainManager, origin: Vector2, direction: Vector2,
-		speed: float, gravity_scale: float = 1.0, max_time: float = 8.0) -> Dictionary:
+		speed: float, gravity_scale: float = 1.0, max_time: float = 8.0,
+		ignore_terrain: bool = false) -> Dictionary:
 	var dt := 1.0 / 60.0
 	var pos := origin
 	var vel := direction.normalized() * speed
@@ -31,10 +34,11 @@ static func simulate_arc(terrain: TerrainManager, origin: Vector2, direction: Ve
 	while t < max_time:
 		vel.y += Const.GRAVITY * gravity_scale * dt
 		var next := pos + vel * dt
-		var hit := check_segment(terrain, pos, next)
-		if hit["collided"]:
-			points.append(hit["contact_point"])
-			return { "hit": true, "impact_voxel": hit["impact_voxel"], "points": points }
+		if not ignore_terrain:
+			var hit := check_segment(terrain, pos, next)
+			if hit["collided"]:
+				points.append(hit["contact_point"])
+				return { "hit": true, "impact_voxel": hit["impact_voxel"], "points": points }
 		pos = next
 		points.append(pos)
 		if pos.x < 0 or pos.x > w.x or pos.y > w.y:

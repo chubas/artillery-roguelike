@@ -39,13 +39,47 @@ func _draw_charge_preview(barrel: Vector2) -> void:
 	var shot := active_unit.get_active_shot()
 	var speed := lerpf(Const.MIN_PROJECTILE_SPEED,
 			shot.base_speed * Const.PLAYER_POWER_MULT, power_frac)
+	if shot.bypass_terrain:
+		_draw_bypass_preview(barrel, shot, speed)
+	elif shot.projectile_count > 1:
+		_draw_cluster_preview(barrel, shot, speed)
+	else:
+		_draw_single_preview(barrel, shot, speed)
+
+func _draw_single_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
 			speed, shot.gravity_scale)
-	var points : PackedVector2Array = sim["points"]
-	for i in range(0, points.size(), 3):
-		draw_circle(points[i], 2.0, Color(1, 1, 1, 0.65))
+	_draw_arc_dots(sim["points"], 3)
 	if sim["hit"]:
 		_draw_pattern_footprint(sim["impact_voxel"], shot.aoe_pattern)
+
+# Cluster: ghost every pellet's arc so the player reads the fan and each footprint (M4).
+func _draw_cluster_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
+	var n := shot.projectile_count
+	var mid := float(n - 1) * 0.5
+	for i in range(n):
+		var off_deg := (float(i) - mid) * shot.spread_deg
+		var dir := active_unit.aim_dir().rotated(deg_to_rad(off_deg))
+		var sim := Trajectory.simulate_arc(terrain, barrel, dir, speed, shot.gravity_scale)
+		_draw_arc_dots(sim["points"], 4)
+		if sim["hit"]:
+			_draw_pattern_footprint(sim["impact_voxel"], shot.aoe_pattern)
+
+# Bypass: the ghost flies through terrain; mark the first opposing unit it would strike (M4).
+func _draw_bypass_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
+	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
+			speed, shot.gravity_scale, 8.0, true)
+	var points : PackedVector2Array = sim["points"]
+	_draw_arc_dots(points, 3)
+	for p in points:
+		var vox := Const.world_to_voxel(p)
+		if _hits_damageable_unit(vox):
+			_draw_pattern_footprint(vox, shot.aoe_pattern)
+			return
+
+func _draw_arc_dots(points: PackedVector2Array, stride: int) -> void:
+	for i in range(0, points.size(), stride):
+		draw_circle(points[i], 2.0, Color(1, 1, 1, 0.65))
 
 func _draw_pattern_footprint(center: Vector2i, pattern: AoEPattern) -> void:
 	var vs := float(Const.VOXEL_SIZE)

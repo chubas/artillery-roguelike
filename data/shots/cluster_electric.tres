@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r3_electric.tres" id="1_fx7bd"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="2_cr5nk"]
+
+[resource]
+script = ExtResource("2_cr5nk")
+id = "cluster_electric"
+display_name = "Cluster Electric"
+aoe_pattern = ExtResource("1_fx7bd")
+action_cost = 3
+projectile_count = 5
+spread_deg = 1.0

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r4.tres" id="1_ylyol"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="2_l81gl"]
+
+[resource]
+script = ExtResource("2_l81gl")
+id = "bypass_basic"
+display_name = "Drill"
+aoe_pattern = ExtResource("1_ylyol")
+bypass_terrain = true
