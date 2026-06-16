@@ -7,6 +7,7 @@
 script = ExtResource("2_cr5nk")
 id = "cluster_electric"
 display_name = "Cluster Electric"
+description = "Five shells fan out and detonate together. Shocks on impact; strong vs mechanical."
 aoe_pattern = ExtResource("1_fx7bd")
 action_cost = 3
 projectile_count = 5

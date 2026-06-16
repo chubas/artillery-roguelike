@@ -20,13 +20,15 @@ var _shot_box : HBoxContainer
 var _shot_buttons : Array = []
 var _shot_sig : String = ""   # cache: rebuild chips only when the shot list changes
 var _card_box : HBoxContainer
-var _card_buttons : Array = []
+var _card_chips : Array = []
 var _card_sig : String = ""   # cache: rebuild chips only when the card list changes
+var _inspector : UnitInspector
 
 func _ready() -> void:
 	_build_top_left()
 	_build_top_center()
 	_build_top_right()
+	_build_bottom_right()
 
 func _build_top_left() -> void:
 	var box := VBoxContainer.new()
@@ -85,6 +87,23 @@ func _build_top_right() -> void:
 	_undo_btn.focus_mode = Control.FOCUS_NONE
 	_undo_btn.pressed.connect(func(): undo_pressed.emit())
 	box.add_child(_undo_btn)
+
+# Unit Inspector (M5 polish): bottom-right panel showing whichever unit (ally or enemy)
+# is currently inspected — name, HP/shield, active shot + description, status effects.
+func _build_bottom_right() -> void:
+	_inspector = UnitInspector.new()
+	_inspector.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_inspector.offset_left = -240
+	_inspector.offset_right = -12
+	_inspector.offset_top = -150
+	_inspector.offset_bottom = -12
+	_inspector.visible = false
+	add_child(_inspector)
+
+func set_inspected_unit(unit: Unit) -> void:
+	_inspector.unit = unit
+	_inspector.visible = unit != null and is_instance_valid(unit)
+	_inspector.queue_redraw()
 
 func _make_label(font_size: int) -> Label:
 	var l := Label.new()
@@ -149,32 +168,28 @@ func set_shots(shots: Array, active: ShotDefinition, actions_left: int) -> void:
 		var is_active := active != null and s == active
 		btn.modulate = Color(1.0, 0.95, 0.5) if is_active else Color(1, 1, 1, 0.85)
 
-# Card chips (M5). Same rebuild-only-on-identity-change pattern as set_shots(); greys
-# out cards the shared pool can't currently afford, and highlights the pending one.
-func set_cards(cards: Array, pending: CardDefinition, actions_left: int) -> void:
+# Card chips (M5). Little card-faces (description + AP cost) instead of text buttons.
+# Same rebuild-only-on-identity-change pattern as set_shots(); greys out unaffordable
+# cards and draws a green outline on the currently selected (pending) card.
+func set_cards(cards: Array, pending: CardDefinition, actions_left: int, used: Array = []) -> void:
 	var sig := ""
 	for c in cards:
 		sig += (c.id if c != null else "?") + "|"
 	if sig != _card_sig:
 		_card_sig = sig
-		for b in _card_buttons:
-			b.queue_free()
-		_card_buttons.clear()
+		for chip in _card_chips:
+			chip.queue_free()
+		_card_chips.clear()
 		for i in range(cards.size()):
-			var btn := Button.new()
-			btn.focus_mode = Control.FOCUS_NONE
-			btn.add_theme_font_size_override("font_size", 11)
-			btn.pressed.connect(func(): card_selected.emit(i))
-			_card_box.add_child(btn)
-			_card_buttons.append(btn)
-	for i in range(_card_buttons.size()):
+			var chip := CardChip.new()
+			chip.card = cards[i]
+			chip.clicked.connect(func(): card_selected.emit(i))
+			_card_box.add_child(chip)
+			_card_chips.append(chip)
+	for i in range(_card_chips.size()):
 		var c : CardDefinition = cards[i]
-		var btn : Button = _card_buttons[i]
-		var afford := actions_left >= c.action_cost
-		btn.text = "%s (%d)" % [c.display_name, c.action_cost]
-		btn.disabled = not afford
-		var is_pending := pending != null and c == pending
-		btn.modulate = Color(1.0, 0.95, 0.5) if is_pending else Color(1, 1, 1, 0.85)
+		var chip : CardChip = _card_chips[i]
+		chip.set_state(actions_left >= c.action_cost, pending != null and c == pending, c in used)
 
 func set_turn_text(text: String) -> void:
 	_set_text(_turn_label, text)
@@ -230,3 +245,119 @@ class ActionPips:
 			else:
 				draw_rect(rect, Color(0, 0, 0, 0.45))
 			draw_rect(rect, Color(1, 1, 1, 0.5), false, 1.0)
+
+
+# A single card face (M5): a small coloured rectangle showing the card's description and
+# its action-point cost. Clicking it selects the card; a green outline marks the selected
+# one, and an unaffordable card is greyed out.
+class CardChip:
+	extends Control
+
+	signal clicked
+
+	const W := 66.0
+	const H := 84.0
+
+	var card : CardDefinition
+	var _affordable := true
+	var _selected := false
+	var _used := false   # played this turn → deactivated, unclickable
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(W, H)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		tooltip_text = card.display_name
+
+	func set_state(affordable: bool, selected: bool, used: bool) -> void:
+		if affordable == _affordable and selected == _selected and used == _used:
+			return
+		_affordable = affordable
+		_selected = selected
+		_used = used
+		queue_redraw()
+
+	func _gui_input(event: InputEvent) -> void:
+		if _used:
+			return   # spent cards swallow clicks but don't re-select
+		if event is InputEventMouseButton and event.pressed \
+				and event.button_index == MOUSE_BUTTON_LEFT:
+			clicked.emit()
+			accept_event()
+
+	func _draw() -> void:
+		var r := Rect2(Vector2.ZERO, Vector2(W, H))
+		var face := card.color
+		var text_col := Color.WHITE
+		if _used:
+			face = face.lerp(Color(0.5, 0.5, 0.5), 0.6)   # spent: desaturated like a done unit
+			text_col = Color(1, 1, 1, 0.4)
+		elif not _affordable:
+			face = face.lerp(Color(0.22, 0.22, 0.26), 0.7)
+			text_col = Color(1, 1, 1, 0.45)
+		# Card body: a darker border frame around the tinted face.
+		draw_rect(r, face.darkened(0.45))
+		draw_rect(r.grow(-2.0), face.darkened(0.15))
+		var font := ThemeDB.fallback_font
+		# Description, wrapped within the card width.
+		draw_multiline_string(font, Vector2(5, 16), card.display_name,
+				HORIZONTAL_ALIGNMENT_LEFT, W - 10, 12, 3, text_col)
+		# Action-point cost badge, bottom-left.
+		var badge := Rect2(4, H - 22, 18, 18)
+		draw_rect(badge, Color(0.08, 0.09, 0.14, 0.92))
+		draw_rect(badge, Color(1, 1, 1, 0.35), false, 1.0)
+		draw_string(font, Vector2(9, H - 8), str(card.action_cost),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, text_col)
+		# Spent veil + diagonal slash read as "deactivated" (selection outline suppressed).
+		if _used:
+			draw_rect(r, Color(0, 0, 0, 0.35))
+			draw_line(Vector2(5, 5), Vector2(W - 5, H - 5), Color(0.85, 0.3, 0.25, 0.85), 2.5)
+		elif _selected:
+			draw_rect(r, Color(0.3, 0.95, 0.4), false, 3.0)
+
+
+# Unit Inspector panel (M5 polish): text-only readout of whichever unit is currently
+# inspected (ally via selection, enemy via click). Drawn rather than Label-based to
+# match the rest of this file's placeholder-quality custom-draw widgets.
+class UnitInspector:
+	extends Control
+
+	var unit : Unit = null
+
+	func _draw() -> void:
+		if unit == null or not is_instance_valid(unit):
+			return
+		var r := Rect2(Vector2.ZERO, size)
+		draw_rect(r, Color(0.06, 0.07, 0.1, 0.85))
+		draw_rect(r, Color(1, 1, 1, 0.25), false, 1.0)
+		var font := ThemeDB.fallback_font
+		var y := 18.0
+		var name_col := Color(0.4, 0.75, 1.0) if unit.is_player else Color(1.0, 0.45, 0.4)
+		draw_string(font, Vector2(10, y), unit.display_name,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 15, name_col)
+		y += 20
+		draw_string(font, Vector2(10, y), "HP: %d / %d" % [unit.hp, unit.definition.max_hp],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
+		y += 16
+		var shield_txt := "Shield: %d" % unit.shield if unit.shield > 0 else "Shield: —"
+		draw_string(font, Vector2(10, y), shield_txt,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.6, 0.85, 1.0))
+		y += 18
+		var shot := unit.get_active_shot()
+		if shot != null:
+			draw_string(font, Vector2(10, y), "Shot: %s" % shot.display_name,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.85, 0.5))
+			y += 14
+			if shot.description != "":
+				draw_multiline_string(font, Vector2(10, y), shot.description,
+						HORIZONTAL_ALIGNMENT_LEFT, size.x - 20, 11, 3, Color(1, 1, 1, 0.75))
+				y += 38
+		if unit.active_statuses.is_empty():
+			draw_string(font, Vector2(10, y), "Status: none",
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 1, 1, 0.5))
+		else:
+			var parts : Array = []
+			for id in unit.active_statuses:
+				var inst : StatusInstance = unit.active_statuses[id]
+				parts.append("%s x%d" % [inst.definition.display_name, inst.stacks])
+			draw_string(font, Vector2(10, y), "Status: " + ", ".join(parts),
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 0.85, 0.4))

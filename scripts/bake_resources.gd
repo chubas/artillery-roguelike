@@ -78,6 +78,7 @@ func _initialize() -> void:
 	# ── Phase F: shots ────────────────────────────────────────────────────────
 	var basic := ShotDefinition.new()
 	basic.id = "basic_shell"; basic.display_name = "Basic"
+	basic.description = "A plain explosive shell. Free to fire, no element."
 	basic.base_speed = 600.0; basic.gravity_scale = 1.0; basic.action_cost = 0
 	basic.aoe_pattern = load("res://data/shots/aoe/diamond_r2.tres")
 	basic.trajectory = ShotDefinition.TrajectoryType.ARC
@@ -85,6 +86,7 @@ func _initialize() -> void:
 
 	var fire_shell := ShotDefinition.new()
 	fire_shell.id = "fire_shell"; fire_shell.display_name = "Fire"
+	fire_shell.description = "Burns on impact; strong vs organic, ignites flammable terrain."
 	fire_shell.base_speed = 580.0; fire_shell.gravity_scale = 1.0; fire_shell.action_cost = 1
 	fire_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_fire.tres")
 	fire_shell.trajectory = ShotDefinition.TrajectoryType.ARC
@@ -92,6 +94,7 @@ func _initialize() -> void:
 
 	var electric_shell := ShotDefinition.new()
 	electric_shell.id = "electric_shell"; electric_shell.display_name = "Electric"
+	electric_shell.description = "Shocks on impact; strong vs mechanical, chains through conductive terrain."
 	electric_shell.base_speed = 650.0; electric_shell.gravity_scale = 0.85
 	electric_shell.action_cost = 1
 	electric_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_electric.tres")
@@ -177,7 +180,10 @@ func _initialize() -> void:
 	strike_card.color = Color(0.9, 0.3, 0.25)
 	_save(strike_card, "res://data/cards/direct_strike.tres")
 
-	print("[bake] all M5 resources written")
+	# ── M6: deployables ────────────────────────────────────────────────────────
+	_save(AoEPattern.make_diamond(2, 4, 1.0), "res://data/shots/aoe/diamond_mine.tres")
+
+	print("[bake] all M6 resources written")
 	quit()
 
 # Build a diamond R=2 pattern with every group carrying `element`.
@@ -200,6 +206,7 @@ func _make_family(type_id: String, label: String, base_cost_unused: int) -> Arra
 		var s := ShotDefinition.new()
 		s.id = type_id + ("_" + variant[0] if variant[0] != "" else "_basic")
 		s.display_name = label if variant[0] == "" else "%s %s" % [label, str(variant[0]).capitalize()]
+		s.description = _family_description(type_id, variant[0])
 		s.base_speed = 600.0
 		s.gravity_scale = 1.0
 		s.action_cost = variant[2]
@@ -210,6 +217,19 @@ func _make_family(type_id: String, label: String, base_cost_unused: int) -> Arra
 		_save(s, path)
 		trio.append(load(path))
 	return trio
+
+# Short flavor phrase per family + element variant, shown in the unit inspector (M5 polish).
+func _family_description(type_id: String, element: String) -> String:
+	var base := ""
+	match type_id:
+		"cluster": base = "Five shells fan out and detonate together."
+		"bypass":  base = "Drills straight through terrain, exploding on the first enemy hit."
+		"pull":    base = "Explodes normally, then drags nearby units toward the impact."
+		"spiral":  base = "Main shell plus two arms that weave around its flight path."
+	match element:
+		"fire": return base + " Burns on impact; strong vs organic."
+		"electric": return base + " Shocks on impact; strong vs mechanical."
+		_: return base
 
 # Which AoE pattern base each family detonates with.
 func _family_pattern(type_id: String) -> String:

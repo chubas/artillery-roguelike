@@ -14,17 +14,48 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-15)
+## Current state (2026-06-16)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
-  M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements).
+  M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
+  M6 (turn-phase logging, deployables: mines + shield generators).
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 + M5 §10 checklists
-  headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 + M5 §10 + M6 §11
+  checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-16 — Milestone 6: Turn-phase clarity & deployable objects
+
+Made the 5-phase turn structure explicit via console banners, and introduced the first non-unit
+on-map entities (mines, shield generators). Full design + deviations in
+[milestone-6-plan.md](milestone-6-plan.md).
+
+- **Turn-phase logging.** `CombatManager._log_phase()` prints a banner at round start, player-turn
+  start/end, and enemy-turn start/end — no new signals, just loud console markers next to the
+  existing `round_started`/`turn_started`/`turn_ended` emits. Future phase-triggered card/artifact
+  effects hook in at the same points (shield generators are the first example).
+- **`Deployable`** (`world/deployable.gd`): a sibling type to `Unit` — HP, voxel position/bbox,
+  damage, and falling, but none of `Unit`'s action economy or shot loadout. Falling physics is
+  shared via the new `UnitMovement.settle_at(pos, w, h, terrain)`, extracted from `settle()`.
+- **Mines** (`world/mine.gd`): 1 HP, explode in a radius (`diamond_mine.tres`) on either being hit
+  by a projectile's AoE or a player unit stepping within `trigger_radius` — both paths funnel
+  through the same `_die()`, which only signals `EventBus.mine_detonated`; `CombatManager` runs
+  the actual blast (no direct cross-system calls, per house rule). Enemies don't trigger mines.
+- **Shield generators** (`world/shield_generator.gd`): 5 HP, destructible like a unit; grant
+  `shield_amount` to every living ally within `aura_radius` at player-turn start
+  (`_pulse_shield_generators()`), reusing `Unit.add_shield()`.
+- **Generalized `unit_moved`.** The signal now fires from the single `Unit.set_vox_position()`
+  chokepoint (gained `from`/`to` params) instead of only `try_move()`, so mine proximity triggers
+  react uniformly to player movement, knockback, gravity pull, and falling alike.
+- **`AoEResolver.resolve()`** gained an optional `deployables` param and a parallel
+  dominant-hit-per-blast pass for them (no element/affinity logic — deployables are inert).
+- **Hardcoded test placements** (2 mines, 1 shield generator at fixed columns), mirroring the M5
+  reinforcement-schedule pattern. New `Features.deployables_enabled` kill switch.
 
 ---
 

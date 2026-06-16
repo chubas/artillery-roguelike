@@ -12,10 +12,11 @@
 class_name AoEResolver
 
 static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
-		pattern: AoEPattern, is_enemy: bool) -> Array:
+		pattern: AoEPattern, is_enemy: bool, deployables: Array = []) -> Array:
 	var aoe_map := pattern.to_map()
 	var affected : Array = []
-	var unit_hit : Dictionary = {}   # Unit -> { "dmg": int, "element": ElementDef }
+	var unit_hit : Dictionary = {}         # Unit -> { "dmg": int, "element": ElementDef }
+	var deployable_hit : Dictionary = {}   # Deployable -> dmg (M6: no element/affinity — inert)
 	var max_dist := 0
 	for offset in aoe_map:
 		var target : Vector2i = origin + offset
@@ -37,6 +38,13 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 			var prev = unit_hit.get(unit, null)
 			if prev == null or group.damage > prev["dmg"]:
 				unit_hit[unit] = { "dmg": group.damage, "element": element }
+		# Same dominant-hit rule for deployables (mines, shield generators), flat damage.
+		for d in deployables:
+			if d.hp <= 0 or not d.contains_voxel(target):
+				continue
+			var prev_dmg = deployable_hit.get(d, null)
+			if prev_dmg == null or group.damage > prev_dmg:
+				deployable_hit[d] = group.damage
 	# Apply the dominant hit to each unit: affinity damage + status.
 	for unit in unit_hit:
 		var element : ElementDef = unit_hit[unit]["element"]
@@ -46,6 +54,8 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 				element.id if element else "physical", null)
 		if element and element.unit_status and Features.unit_statuses_enabled:
 			UnitStatusSystem.apply(unit, element.unit_status, 1)
+	for d in deployable_hit:
+		d.take_damage(deployable_hit[d])
 	# Collapse once, after the whole blast (terrain + unit damage applied).
 	terrain.flush_collapses()
 	terrain.aoe_resolved.emit(origin, max_dist, affected)

@@ -12,10 +12,10 @@ signal unit_died(unit: Unit)
 var display_name : String = ""          # per-instance (e.g. "EnemyA" / "EnemyB")
 var hp : int = 0
 # Shield (M5): a flat, per-combat absorb pool that sits above HP in the mitigation
-# stack. Granted by cards for now (no baseline/regen yet). Armor would slot in
-# above shield later — see the seam comment in take_damage().
+# stack. Unbounded (no max) — unlike HP, it's not drawn as a proportional bar.
+# Granted by cards for now (no baseline/regen yet). Armor would slot in above
+# shield later — see the seam comment in take_damage().
 var shield : int = 0
-var max_shield : int = 0
 var vox_position : Vector2i = Vector2i.ZERO
 var aim_angle_deg : float = 45.0        # positive-up convention; preserved per unit
 # Gunbound-style power memory (M4): the charge fraction of this unit's last shot. The HUD
@@ -24,7 +24,8 @@ var last_power_frac : float = 0.5
 var is_done : bool = false              # true after firing this turn
 var move_origin : Vector2i              # vox_position at turn start (for undo)
 var actions_spent_moving : int = 0
-var selected : bool = false
+var selected : bool = false     # the controllable unit (white outline) — see set_selected
+var inspected : bool = false    # whichever unit the inspector panel shows — see set_inspected
 
 ## Active status instances (M3 §4.4). Key = status id, value = StatusInstance.
 var active_statuses : Dictionary = {}
@@ -59,7 +60,7 @@ func take_damage(dmg: int) -> void:
 		var absorbed := mini(shield, remaining)
 		shield -= absorbed
 		remaining -= absorbed
-		EventBus.unit_shield_changed.emit(self, shield, max_shield)
+		EventBus.unit_shield_changed.emit(self, shield)
 	hp = maxi(0, hp - remaining)
 	queue_redraw()
 	unit_damaged.emit(self, dmg, hp)
@@ -68,6 +69,12 @@ func take_damage(dmg: int) -> void:
 		active_statuses.clear()
 		unit_died.emit(self)
 		EventBus.unit_died.emit(self)
+
+# Grants shield (M5 card effect). A method (not direct field access) so the redraw
+# always happens — direct field writes were the cause of the "bar doesn't update" bug.
+func add_shield(amount: int) -> void:
+	shield += amount
+	queue_redraw()
 
 func reset_for_turn() -> void:
 	if hp <= 0:
@@ -86,9 +93,23 @@ func set_selected(v: bool) -> void:
 	selected = v
 	queue_redraw()
 
+# Inspector-panel focus (M5 polish): a distinct cyan outline, separate from the
+# white "controllable unit" outline, so allies and enemies can both be inspected.
+func set_inspected(v: bool) -> void:
+	if inspected == v:
+		return
+	inspected = v
+	queue_redraw()
+
+# Single chokepoint for every position change (move, knockback, gravity pull, fall) —
+# emitting unit_moved here (rather than at each call site) lets listeners like mine
+# proximity triggers (M6) react uniformly no matter what caused the move.
 func set_vox_position(p: Vector2i) -> void:
+	var from := vox_position
 	vox_position = p
 	position = Const.voxel_to_world(p)
+	if from != p:
+		EventBus.unit_moved.emit(self, from, p)
 
 # --- Geometry --------------------------------------------------------------------
 func aim_dir() -> Vector2:
@@ -131,6 +152,8 @@ func _draw() -> void:
 	draw_rect(body, col.darkened(0.4), false, 1.0)
 	if selected and hp > 0:
 		draw_rect(body.grow(2.0), Color.WHITE, false, 2.0)
+	elif inspected and hp > 0:
+		draw_rect(body.grow(2.0), Color(0.3, 0.85, 0.95), false, 2.0)
 	if hp > 0:
 		_draw_hp_bar(w)
 		_draw_shield_bar(w)
@@ -145,14 +168,23 @@ func _draw_hp_bar(w: float) -> void:
 	elif frac <= 0.5:
 		c = Color(0.95, 0.6, 0.15)         # orange 25–50%
 	draw_rect(Rect2(1, -6, maxf(0.0, (w - 2) * frac), 2), c)
+	_draw_bar_value(w, -7, "%d/%d" % [hp, definition.max_hp])
 
-# Shield bar (M5): a thin strip above the HP bar, only drawn while shield > 0.
+# Shield bar (M5): unbounded, so unlike HP it's NOT a proportional fill — just a fixed,
+# full-width bar (same width as the HP bar) that's either shown or not, plus the raw
+# number alongside it (no max to compare against).
 func _draw_shield_bar(w: float) -> void:
 	if shield <= 0:
 		return
-	var frac := clampf(float(shield) / maxf(1.0, float(max_shield)), 0.0, 1.0)
 	draw_rect(Rect2(0, -11, w, 3), Color(0, 0, 0, 0.7))
-	draw_rect(Rect2(1, -10.5, maxf(0.0, (w - 2) * frac), 2), Color(0.4, 0.75, 1.0))
+	draw_rect(Rect2(1, -10.5, maxf(0.0, w - 2), 2), Color(0.4, 0.75, 1.0))
+	_draw_bar_value(w, -11, str(shield))
+
+func _draw_bar_value(w: float, bar_top_y: float, text: String) -> void:
+	var font := ThemeDB.fallback_font
+	var pos := Vector2(w + 3.0, bar_top_y + 6.0)
+	draw_string(font, pos + Vector2(1, 1), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0, 0, 0, 0.8))
+	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color.WHITE)
 
 # Placeholder status badges (M3 §15): a small colour-coded square per active status with
 # its stack count. Colour by element tag — fire = orange, electric = cyan.

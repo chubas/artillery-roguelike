@@ -7,6 +7,7 @@
 script = ExtResource("2_5g35u")
 id = "spiral_fire"
 display_name = "Spiral Fire"
+description = "Main shell plus two arms that weave around its flight path. Burns on impact; strong vs organic."
 aoe_pattern = ExtResource("1_634du")
 action_cost = 2
 spiral_arms = 2

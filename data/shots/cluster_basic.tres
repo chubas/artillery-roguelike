@@ -7,6 +7,7 @@
 script = ExtResource("2_vphus")
 id = "cluster_basic"
 display_name = "Cluster"
+description = "Five shells fan out and detonate together."
 aoe_pattern = ExtResource("1_ue8vg")
 projectile_count = 5
 spread_deg = 1.0

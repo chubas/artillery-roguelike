@@ -7,6 +7,7 @@
 script = ExtResource("2_jakju")
 id = "spiral_basic"
 display_name = "Spiral"
+description = "Main shell plus two arms that weave around its flight path."
 aoe_pattern = ExtResource("1_p1oyl")
 spiral_arms = 2
 spiral_amplitude = 24.0

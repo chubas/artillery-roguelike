@@ -13,14 +13,14 @@ signal turn_ended(side: String)
 signal round_started(round_index: int)
 
 # ── Unit signals ─────────────────────────────────────────────────────────────
-signal unit_moved(unit: Unit)
+signal unit_moved(unit: Unit, from: Vector2i, to: Vector2i)
 signal unit_fired(unit: Unit, shot: ShotDefinition)
 signal unit_hit_dealt(unit: Unit, target: Unit, damage: int, element: String)
 signal unit_hit_taken(unit: Unit, damage: int, element: String, source: Unit)
 signal unit_killed(unit: Unit, killer: Unit)
 signal unit_died(unit: Unit)
 signal unit_tile_entered(unit: Unit, tile_pos: Vector2i)
-signal unit_shield_changed(unit: Unit, shield: int, max_shield: int)
+signal unit_shield_changed(unit: Unit, shield: int)
 
 # ── Status signals ───────────────────────────────────────────────────────────
 signal status_applied(target: Unit, status_id: String, stacks: int)
@@ -37,3 +37,7 @@ signal tile_status_ticked(col: int, row: int, status_id: String)
 # ── Projectile signals ───────────────────────────────────────────────────────
 signal projectile_impact(world_pos: Vector2, impact_voxel: Vector2i, element: String)
 signal aoe_resolved(center: Vector2i, radius: int, affected_tiles: Array)
+
+# ── Deployable signals (M6) ────────────────────────────────────────────────────
+signal deployable_died(deployable: Deployable)
+signal mine_detonated(mine: Deployable)

@@ -29,11 +29,14 @@ class Salvo extends RefCounted:
 
 var _terrain : TerrainManager
 var _units_provider : Callable   # returns Array[Unit]; set by CombatScene
+var _deployables_provider : Callable = func(): return []   # returns Array[Deployable] (M6)
 var _salvos : Array = []
 
-func setup(terrain: TerrainManager, units_provider: Callable) -> void:
+func setup(terrain: TerrainManager, units_provider: Callable,
+		deployables_provider: Callable = func(): return []) -> void:
 	_terrain = terrain
 	_units_provider = units_provider
+	_deployables_provider = deployables_provider
 
 # --- Firing entry point (unchanged signature; branches on the shot's M4 payload) ----
 func fire(origin: Vector2, direction: Vector2, speed: float,
@@ -189,7 +192,8 @@ func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i) -> void:
 		element_id = pattern.groups[0].element.id
 	EventBus.projectile_impact.emit(world_pos, voxel, element_id)
 	# 1. Area damage to terrain + units (and element statuses).
-	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, salvo.is_enemy)
+	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, salvo.is_enemy,
+			_deployables_provider.call())
 	# 2. Explosion FX.
 	var fx := ExplosionFX.new()
 	fx.position = world_pos

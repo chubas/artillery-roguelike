@@ -32,12 +32,16 @@ static func resolve_move(unit: Unit, direction: int,
 # Vertical-only fall: where the unit lands if terrain under it gives way. Returns the
 # settled top-left (may equal the current position).
 static func settle(unit: Unit, terrain: TerrainManager) -> Vector2i:
-	var w := unit.definition.width_voxels
-	var h := unit.definition.height_voxels
-	var foot := unit.vox_position.y + h - 1
-	while foot < Const.MAP_HEIGHT - 1 and not grounded(terrain, unit.vox_position.x, foot, w):
+	return settle_at(unit.vox_position, unit.definition.width_voxels,
+			unit.definition.height_voxels, terrain)
+
+# Position-only core of settle(), extracted (M6) so non-Unit entities (Deployable)
+# can fall using the same rules without needing a UnitDefinition.
+static func settle_at(pos: Vector2i, w: int, h: int, terrain: TerrainManager) -> Vector2i:
+	var foot := pos.y + h - 1
+	while foot < Const.MAP_HEIGHT - 1 and not grounded(terrain, pos.x, foot, w):
 		foot += 1
-	return Vector2i(unit.vox_position.x, foot - h + 1)
+	return Vector2i(pos.x, foot - h + 1)
 
 # --- Shared predicates ------------------------------------------------------------
 static func bbox_terrain_clear(terrain: TerrainManager, top_left: Vector2i,

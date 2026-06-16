@@ -4,6 +4,8 @@ extends Resource
 
 @export var id : String = ""
 @export var display_name : String = "Shell"
+## Short flavor/mechanic phrase shown in the unit inspector panel (M5 polish).
+@export var description : String = ""
 
 ## Physics
 @export var base_speed : float = 600.0     # px/s at full charge

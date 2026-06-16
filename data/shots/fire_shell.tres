@@ -7,6 +7,7 @@
 script = ExtResource("2_rvpop")
 id = "fire_shell"
 display_name = "Fire"
+description = "Burns on impact; strong vs organic, ignites flammable terrain."
 base_speed = 580.0
 aoe_pattern = ExtResource("1_705pi")
 action_cost = 1

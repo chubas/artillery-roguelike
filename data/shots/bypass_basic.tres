@@ -7,5 +7,6 @@
 script = ExtResource("2_l81gl")
 id = "bypass_basic"
 display_name = "Drill"
+description = "Drills straight through terrain, exploding on the first enemy hit."
 aoe_pattern = ExtResource("1_ylyol")
 bypass_terrain = true

@@ -18,6 +18,10 @@ var player_units : Array = []
 var enemy_units : Array = []
 var all_units : Array = []
 var active_unit : Unit = null
+# Inspector-panel focus (M5 polish): whichever unit (ally OR enemy) was last clicked,
+# shown in the bottom-right info panel. Distinct from active_unit, which is only ever
+# the player's controllable unit (move/fire/Tab cycle).
+var inspected_unit : Unit = null
 
 var charging : bool = false
 var charge_frac : float = 0.0
@@ -25,6 +29,7 @@ var charge_frac : float = 0.0
 # --- Cards (M5) ---------------------------------------------------------------
 var available_cards : Array[CardDefinition] = []
 var _pending_card : CardDefinition = null   # non-null while choosing a target
+var _used_cards : Array[CardDefinition] = []   # spent this turn — unselectable until reset
 
 # --- Reinforcements (M5): a tiny hardcoded schedule, round_index → wave. ----------
 # Landing collision is intentionally NOT checked (enemies don't move, per design) —
@@ -38,17 +43,30 @@ var _reinforcements_spawned : Dictionary = {}   # round int -> true
 var _checkpoint_positions : Dictionary = {}  # Unit -> Vector2i
 var _checkpoint_actions_left : int = 0
 
+# --- Deployables (M6): mines + shield generators, hand-placed for this milestone -----
+var deployables : Array = []
+const _DEPLOYABLE_PLACEMENTS : Array[Dictionary] = [
+	{ "type": "mine", "col": 40 },
+	{ "type": "mine", "col": 60 },
+	{ "type": "shield_generator", "col": 95 },
+]
+
 var _terrain : TerrainManager
 var _projectiles : ProjectileManager
 var _unit_layer : Node2D
+var _deployable_layer_back : Node2D
+var _deployable_layer_front : Node2D
 var _hud : HUD
 var _targeting : TargetingUI
 
 func setup(terrain: TerrainManager, projectiles: ProjectileManager,
-		unit_layer: Node2D, hud: HUD, targeting: TargetingUI) -> void:
+		unit_layer: Node2D, hud: HUD, targeting: TargetingUI,
+		deployable_layer_back: Node2D = null, deployable_layer_front: Node2D = null) -> void:
 	_terrain = terrain
 	_projectiles = projectiles
 	_unit_layer = unit_layer
+	_deployable_layer_back = deployable_layer_back
+	_deployable_layer_front = deployable_layer_front
 	_hud = hud
 	_targeting = targeting
 	_hud.end_turn_pressed.connect(end_player_turn)
@@ -60,7 +78,13 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_projectiles.shot_resolved.connect(_on_shot_resolved)
 	# Gameplay events route through EventBus (M3): the resolver emits aoe_resolved there.
 	EventBus.aoe_resolved.connect(_on_aoe_resolved)
+	# Deployables (M6): mine proximity triggers off any unit move; deaths route back here.
+	EventBus.unit_moved.connect(_check_mine_triggers)
+	EventBus.deployable_died.connect(_on_deployable_died)
+	EventBus.mine_detonated.connect(_on_mine_detonated)
 	_spawn_all_units()
+	if Features.deployables_enabled:
+		_spawn_deployables()
 	available_cards = [
 		load("res://data/cards/shield_buff.tres"),
 		load("res://data/cards/direct_strike.tres"),
@@ -69,6 +93,9 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 
 func get_units() -> Array:
 	return all_units
+
+func get_deployables() -> Array:
+	return deployables
 
 # --- Spawning (M2 spec §9.3, surface-snap + no-overlap per plan §1.5) -----------
 func _spawn_all_units() -> void:
@@ -122,6 +149,57 @@ func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 	push_error("No valid spawn near col %d" % preferred_col)
 	return Vector2i(preferred_col, 0)
 
+# --- Deployables (M6): mines + shield generators, hand-placed at fixed columns -----
+func _spawn_deployables() -> void:
+	for entry in _DEPLOYABLE_PLACEMENTS:
+		var d : Deployable
+		var layer : Node2D
+		match entry["type"]:
+			"mine":
+				d = Mine.new()
+				d.explosion_pattern = load("res://data/shots/aoe/diamond_mine.tres")
+				layer = _deployable_layer_back
+			"shield_generator":
+				d = ShieldGenerator.new()
+				layer = _deployable_layer_front
+			_:
+				push_error("Unknown deployable type: %s" % entry["type"])
+				continue
+		var col : int = entry["col"]
+		var surface := _terrain.get_surface_row(col)
+		var top_left := Vector2i(col, surface - d.height_voxels) if surface != -1 else Vector2i(col, 0)
+		d.set_vox_position(top_left)
+		layer.add_child(d)
+		deployables.append(d)
+
+func _chebyshev(a: Vector2i, b: Vector2i) -> int:
+	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+
+func _pulse_shield_generators() -> void:
+	for d in deployables:
+		if d is ShieldGenerator and d.hp > 0:
+			for u in player_units:
+				if u.hp > 0 and _chebyshev(d.vox_position, u.vox_position) <= d.aura_radius:
+					u.add_shield(d.shield_amount)
+					EventBus.unit_shield_changed.emit(u, u.shield)
+
+func _check_mine_triggers(unit: Unit, _from: Vector2i, to: Vector2i) -> void:
+	if not Features.deployables_enabled:
+		return
+	if not unit.is_player or unit.hp <= 0:
+		return
+	for d in deployables:
+		if d is Mine and d.hp > 0 and _chebyshev(d.vox_position, to) <= d.trigger_radius:
+			d.take_damage(d.hp)
+
+func _on_mine_detonated(mine: Deployable) -> void:
+	AoEResolver.resolve(_terrain, all_units, mine.vox_position,
+			mine.explosion_pattern, false, deployables)
+
+func _on_deployable_died(d: Deployable) -> void:
+	deployables.erase(d)
+	d.queue_free()
+
 # --- Reinforcements (M5): telegraphed enemy drops on a fixed round schedule -------
 func _check_reinforcements() -> void:
 	for wave in _REINFORCEMENT_SCHEDULE:
@@ -159,10 +237,14 @@ func _reinforcement_warnings() -> Array:
 # --- Turn loop (M2 §4.1 + M3 §6 resolution order) --------------------------------
 # Round start → tile statuses tick → player turn (unit statuses tick, shock AP cut) →
 # player actions → enemy turn (enemy statuses tick → enemy fire) → next round.
+func _log_phase(label: String) -> void:
+	print("\n=== [PHASE] %s ===" % label)
+
 func _begin_round() -> void:
 	if _is_terminal():
 		return
 	round_index += 1
+	_log_phase("ROUND %d START" % round_index)
 	EventBus.round_started.emit(round_index)
 	_check_reinforcements()
 	# 1. Tile statuses tick (burning damages/spreads, electrified chains/decays).
@@ -186,8 +268,12 @@ func _start_player_turn() -> void:
 	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
 	for u in player_units:
 		u.reset_for_turn()
+	_used_cards.clear()   # each card is playable once per turn (M5)
 	_save_checkpoint()
+	if Features.deployables_enabled:
+		_pulse_shield_generators()
 	_select_first_available()
+	_log_phase("PLAYER TURN START")
 	EventBus.turn_started.emit("player")
 
 func end_player_turn() -> void:
@@ -199,11 +285,13 @@ func end_player_turn() -> void:
 		if u.hp > 0:
 			u.mark_done()
 	_set_selection(null)
+	_log_phase("PLAYER TURN END")
 	EventBus.turn_ended.emit("player")
 	game_state = GameState.ENEMY_TURN
 	_run_enemy_turn()
 
 func _run_enemy_turn() -> void:
+	_log_phase("ENEMY TURN START")
 	EventBus.turn_started.emit("enemy")
 	# 5. Enemy unit statuses tick (burn on enemies). No enemy action pool in M3, so Shock
 	#    AP reduction is moot for enemies (spec §6 step 6 is post-M2).
@@ -224,6 +312,7 @@ func _run_enemy_turn() -> void:
 		# Wait for the shot to fully resolve (flight + resolution routine + settle beat).
 		while _projectiles.is_busy():
 			await get_tree().create_timer(0.1).timeout
+	_log_phase("ENEMY TURN END")
 	EventBus.turn_ended.emit("enemy")
 	if _is_terminal():
 		return
@@ -257,6 +346,19 @@ func _set_selection(u: Unit) -> void:
 		# Focus = pan the camera to this (allied) unit. Tab cycle, click, first-available
 		# and post-fire auto-advance all flow through here, so all of them focus.
 		unit_focused.emit(u)
+		_inspect(u, false)   # the controllable unit is also shown in the inspector panel
+
+# Inspector-panel focus (M5 polish): tracks whichever unit — ally or enemy — the info
+# panel currently shows. `pan_camera` is false when _set_selection already emitted
+# unit_focused for the same unit (avoids a redundant signal).
+func _inspect(u: Unit, pan_camera: bool = true) -> void:
+	if inspected_unit != null and is_instance_valid(inspected_unit) and inspected_unit != u:
+		inspected_unit.set_inspected(false)
+	inspected_unit = u
+	if u != null:
+		u.set_inspected(true)
+		if pan_camera:
+			unit_focused.emit(u)
 
 func _select_first_available() -> void:
 	for u in player_units:
@@ -281,6 +383,12 @@ func _try_click_select(world_pos: Vector2) -> void:
 		if u.bounds_rect_world().has_point(world_pos):
 			_set_selection(u)
 			return
+	# Enemies aren't controllable, but clicking one focuses + inspects it (M5 polish) —
+	# Tab still only cycles allies.
+	for u in enemy_units:
+		if u.bounds_rect_world().has_point(world_pos):
+			_inspect(u)
+			return
 
 # --- Movement (M2 spec §5.2 + unit-collision rule from plan §1.5) -----------------
 func try_move(unit: Unit, direction: int) -> void:
@@ -300,7 +408,6 @@ func try_move(unit: Unit, direction: int) -> void:
 	unit.actions_spent_moving += 1
 	actions_left -= 1
 	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
-	EventBus.unit_moved.emit(unit)
 
 # --- Checkpoint save: called at turn start and after each firing event ------------
 func _save_checkpoint() -> void:
@@ -385,6 +492,8 @@ func _select_card(idx: int) -> void:
 	if idx < 0 or idx >= available_cards.size():
 		return
 	var card : CardDefinition = available_cards[idx]
+	if card in _used_cards:   # already played this turn — deactivated
+		return
 	if actions_left < card.action_cost:
 		return
 	charging = false   # selecting a card suspends any in-progress shot charge
@@ -406,11 +515,11 @@ func _try_click_target_card(world_pos: Vector2) -> void:
 func _apply_card(card: CardDefinition, target: Unit) -> void:
 	actions_left -= card.action_cost
 	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+	_used_cards.append(card)   # one play per turn; reset in _start_player_turn
 	match card.effect_type:
 		CardDefinition.EffectType.SHIELD_BUFF:
-			target.shield += card.magnitude
-			target.max_shield = maxi(target.max_shield, target.shield)
-			EventBus.unit_shield_changed.emit(target, target.shield, target.max_shield)
+			target.add_shield(card.magnitude)
+			EventBus.unit_shield_changed.emit(target, target.shield)
 		CardDefinition.EffectType.DIRECT_DAMAGE:
 			target.take_damage(card.magnitude)   # routes through shield, like any other hit
 	_pending_card = null
@@ -421,11 +530,18 @@ func _apply_card(card: CardDefinition, target: Unit) -> void:
 func _on_aoe_resolved(_center: Vector2i, _radius: int, _affected: Array) -> void:
 	for u in all_units:
 		_settle_unit(u)
+	for d in deployables:
+		_settle_deployable(d)
 
 func _settle_unit(u: Unit) -> void:
 	var new_pos := UnitMovement.settle(u, _terrain)
 	if new_pos != u.vox_position:
 		u.set_vox_position(new_pos)
+
+func _settle_deployable(d: Deployable) -> void:
+	var new_pos := UnitMovement.settle_at(d.vox_position, d.width_voxels, d.height_voxels, _terrain)
+	if new_pos != d.vox_position:
+		d.set_vox_position(new_pos)
 
 # --- Input (M2 spec §5 adapted to Gunbound model) ---------------------------------
 func _unhandled_input(event: InputEvent) -> void:
@@ -521,4 +637,5 @@ func _push_hud_state() -> void:
 		_hud.set_shots([], null, actions_left)
 	_hud.set_power(charge_frac, charging, last_power)
 	var cards := available_cards if Features.card_deck_enabled else []
-	_hud.set_cards(cards, _pending_card, actions_left)
+	_hud.set_cards(cards, _pending_card, actions_left, _used_cards)
+	_hud.set_inspected_unit(inspected_unit)

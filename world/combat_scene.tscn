@@ -16,10 +16,14 @@ script = ExtResource("2")
 [node name="TerrainRenderer" type="Node2D" parent="."]
 script = ExtResource("3")
 
+[node name="DeployableLayerBack" type="Node2D" parent="."]
+
 [node name="ProjectileManager" type="Node2D" parent="."]
 script = ExtResource("4")
 
 [node name="UnitLayer" type="Node2D" parent="."]
+
+[node name="DeployableLayerFront" type="Node2D" parent="."]
 
 [node name="CombatManager" type="Node2D" parent="."]
 script = ExtResource("5")
