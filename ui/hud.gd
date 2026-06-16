@@ -346,6 +346,8 @@ class UnitInspector:
 		if shot != null:
 			draw_string(font, Vector2(10, y), "Shot: %s" % shot.display_name,
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.85, 0.5))
+			if shot.aoe_pattern != null:
+				_draw_pattern_glyph(shot.aoe_pattern, Rect2(Vector2(size.x - 58, 6), Vector2(50, 50)))
 			y += 14
 			if shot.description != "":
 				draw_multiline_string(font, Vector2(10, y), shot.description,
@@ -361,3 +363,28 @@ class UnitInspector:
 				parts.append("%s x%d" % [inst.definition.display_name, inst.stacks])
 			draw_string(font, Vector2(10, y), "Status: " + ", ".join(parts),
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 0.85, 0.4))
+
+	# Pattern-zone glyph (M7): small grid of the active shot's footprint, colored by
+	# zone (orange = full strength, yellow = half) via the same palette the in-world
+	# targeting preview uses (AoEPattern.zone_color), so both views read consistently.
+	func _draw_pattern_glyph(pattern: AoEPattern, rect: Rect2) -> void:
+		var aoe_map := pattern.to_map()
+		if aoe_map.is_empty():
+			return
+		var min_c := 0
+		var max_c := 0
+		var min_r := 0
+		var max_r := 0
+		for offset in aoe_map:
+			min_c = mini(min_c, offset.x)
+			max_c = maxi(max_c, offset.x)
+			min_r = mini(min_r, offset.y)
+			max_r = maxi(max_r, offset.y)
+		var span := maxi(max_c - min_c, max_r - min_r) + 1
+		var cell := clampf(floorf(minf(rect.size.x, rect.size.y) / span), 3.0, 8.0)
+		var origin := rect.position + rect.size * 0.5 - Vector2(cell, cell) * 0.5
+		for offset in aoe_map:
+			var group : AoEGroup = aoe_map[offset]
+			var pos := origin + Vector2(offset.x, offset.y) * cell
+			draw_rect(Rect2(pos, Vector2(cell, cell)), AoEPattern.zone_color(group.multiplier))
+		draw_rect(Rect2(origin, Vector2(cell, cell)), Color(1, 1, 1, 0.9), false, 1.0)

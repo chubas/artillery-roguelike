@@ -114,7 +114,6 @@ func _draw_arc_dots(points: PackedVector2Array, stride: int) -> void:
 func _draw_pattern_footprint(center: Vector2i, pattern: AoEPattern) -> void:
 	var vs := float(Const.VOXEL_SIZE)
 	var aoe_map := pattern.to_map()
-	var max_dmg := pattern.max_damage()
 	for offset in aoe_map:
 		var vox : Vector2i = center + offset
 		var rect := Rect2(Const.voxel_to_world(vox), Vector2(vs, vs))
@@ -122,14 +121,10 @@ func _draw_pattern_footprint(center: Vector2i, pattern: AoEPattern) -> void:
 			draw_rect(rect, Color(1.0, 0.45, 0.1, 0.75))   # unit voxel in blast
 		else:
 			var group : AoEGroup = aoe_map[offset]
-			# Tint by element so the player reads the payload at a glance (M3).
-			var base := Color(1.0, 0.15, 0.15)             # physical = red
-			if group.element != null and Features.elements_enabled:
-				match group.element.id:
-					"fire": base = Color(1.0, 0.5, 0.1)    # orange
-					"electric": base = Color(0.4, 0.7, 1.0) # blue
-			# Damage gradient: stronger groups read as more opaque.
-			base.a = 0.2 + 0.35 * float(group.damage) / max_dmg
+			# Discrete zone fill (M7): core/edge color, never a continuous gradient — the
+			# player reads strength tier, not an exact number (design doc §2.3).
+			var base := AoEPattern.zone_color(group.multiplier)
+			base.a = 0.55
 			draw_rect(rect, base)
 	var c := Const.voxel_center_world(center)
 	draw_line(c + Vector2(-vs * 0.4, 0), c + Vector2(vs * 0.4, 0), Color.WHITE, 1.5)

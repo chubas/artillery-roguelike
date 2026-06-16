@@ -5,19 +5,13 @@
 
 [sub_resource type="Resource" id="Resource_3rm1l"]
 script = ExtResource("1_0j1gb")
-offsets = Array[Vector2i]([Vector2i(0, 0)])
-damage = 4
+offsets = Array[Vector2i]([Vector2i(0, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0)])
 
 [sub_resource type="Resource" id="Resource_jjpda"]
 script = ExtResource("1_0j1gb")
-offsets = Array[Vector2i]([Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0)])
-damage = 3
-
-[sub_resource type="Resource" id="Resource_xufyw"]
-script = ExtResource("1_0j1gb")
 offsets = Array[Vector2i]([Vector2i(-2, 0), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(0, 2), Vector2i(0, -2), Vector2i(1, 1), Vector2i(1, -1), Vector2i(2, 0)])
-damage = 2
+multiplier = 0.5
 
 [resource]
 script = ExtResource("2_dkwky")
-groups = Array[ExtResource("1_0j1gb")]([SubResource("Resource_3rm1l"), SubResource("Resource_jjpda"), SubResource("Resource_xufyw")])
+groups = Array[ExtResource("1_0j1gb")]([SubResource("Resource_3rm1l"), SubResource("Resource_jjpda")])

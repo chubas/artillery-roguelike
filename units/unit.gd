@@ -11,6 +11,10 @@ signal unit_died(unit: Unit)
 
 var display_name : String = ""          # per-instance (e.g. "EnemyA" / "EnemyB")
 var hp : int = 0
+# Multiplies every shot this unit fires (M7 zone model): final strength =
+# shot.strength * power. Mutable so future upgrades can scale it without re-baking
+# any AoE pattern.
+var power : float = 1.0
 # Shield (M5): a flat, per-combat absorb pool that sits above HP in the mitigation
 # stack. Unbounded (no max) — unlike HP, it's not drawn as a proportional bar.
 # Granted by cards for now (no baseline/regen yet). Armor would slot in above
@@ -44,6 +48,7 @@ func available_shots() -> Array:
 
 func _ready() -> void:
 	hp = definition.max_hp
+	power = definition.base_power
 	move_origin = vox_position
 	if display_name == "":
 		display_name = definition.display_name

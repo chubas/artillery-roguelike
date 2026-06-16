@@ -18,16 +18,45 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
-  M6 (turn-phase logging, deployables: mines + shield generators).
+  M6 (turn-phase logging, deployables: mines + shield generators), M7 (AoE zone model & pattern
+  indicator).
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 + M5 §10 + M6 §11
-  checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 + M5 §10 + M6 §11 +
+  M7 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-06-16 — Milestone 7: AoE zone model & pattern indicator
+
+Decoupled AoE shape from magnitude. Full design + deviations in
+[milestone-7-plan.md](milestone-7-plan.md).
+
+- **Zone model.** `AoEGroup.damage: int` → `AoEGroup.multiplier: float` (core = 1.0, edge = 0.5;
+  a third zone is just another group, no schema change). `AoEPattern.make_diamond(core_radius,
+  edge_radius)` replaces the old `(radius, base_dmg, falloff)` signature — it's shape-only now.
+  `AoEPattern.zone_color(multiplier)` is the single shared palette (orange ≥1.0, yellow ≥0.5,
+  gray→yellow lerp below that) used by both the in-world targeting preview and the new card glyph.
+- **Strength sourcing.** `ShotDefinition.strength: int` (shot's baseline) × `Unit.power: float`
+  (mutable per-unit multiplier, from `UnitDefinition.base_power`) for normal shots; `Mine.strength`
+  is a fixed value with no unit-power factor. Computed once at fire/detonate time and passed as a
+  plain `int` into `AoEResolver.resolve(..., strength, ...)`, which does
+  `maxi(1, round(strength * group.multiplier))` per zone.
+  Files: `data/shots/aoe_group.gd`, `data/shots/aoe_pattern.gd`, `data/shots/shot_definition.gd`,
+  `data/units/unit_definition.gd`, `units/unit.gd`, `world/mine.gd`, `terrain/aoe_resolver.gd`,
+  `projectile/projectile_manager.gd` (`Salvo.strength`).
+- **World preview.** `targeting_overlay.gd` now fills each footprint voxel with a flat, discrete
+  zone color via `AoEPattern.zone_color()` instead of a continuous damage-gradient opacity.
+- **Unit-card glyph.** `UnitInspector._draw_pattern_glyph()` (in `ui/hud.gd`) draws a small
+  fixed-size grid of the active shot's pattern in the inspector card's top-right corner, colored
+  per zone with a white outline on the impact cell — same visual language as the world preview.
+- **Re-baked** all AoE patterns + shots with the new two-arg `make_diamond` and explicit
+  `strength` values (basic/fire/electric/cluster/pull/spiral = 3, bypass = 10, mine = 4).
+- Extended the headless smoke harness with `_m7_smoke()` (zone-strength split, `Unit.power`
+  scaling, mine strength independence, `zone_color()` distinctness).
 
 ## 2026-06-16 — Milestone 6: Turn-phase clarity & deployable objects
 

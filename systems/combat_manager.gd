@@ -194,7 +194,7 @@ func _check_mine_triggers(unit: Unit, _from: Vector2i, to: Vector2i) -> void:
 
 func _on_mine_detonated(mine: Deployable) -> void:
 	AoEResolver.resolve(_terrain, all_units, mine.vox_position,
-			mine.explosion_pattern, false, deployables)
+			mine.explosion_pattern, mine.strength, false, deployables)
 
 func _on_deployable_died(d: Deployable) -> void:
 	deployables.erase(d)
@@ -321,11 +321,20 @@ func _run_enemy_turn() -> void:
 func _is_terminal() -> bool:
 	return game_state == GameState.STAGE_CLEAR or game_state == GameState.GAME_OVER
 
+# All scheduled reinforcement waves have been spawned (not just the ones due so far) —
+# stage clear must wait for this, otherwise killing the current enemies before a later
+# wave lands would end the stage with reinforcements never shown.
+func _all_waves_spawned() -> bool:
+	for wave in _REINFORCEMENT_SCHEDULE:
+		if not _reinforcements_spawned.has(wave["round"]):
+			return false
+	return true
+
 # --- Win / loss (M2 spec §8): checked on every death, mid-turn included -----------
 func _on_unit_died(_unit: Unit) -> void:
 	var enemies_alive := enemy_units.any(func(u): return u.hp > 0)
 	var players_alive := player_units.any(func(u): return u.hp > 0)
-	if not enemies_alive:
+	if not enemies_alive and _all_waves_spawned():
 		print("[STAGE CLEAR] All enemies defeated.")
 		game_state = GameState.STAGE_CLEAR
 		_hud.set_turn_text("STAGE CLEAR")
@@ -453,7 +462,7 @@ func _fire_active() -> void:
 	if shot.action_cost > 0:
 		actions_left -= shot.action_cost
 		action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
-	_projectiles.fire(u.barrel_origin_world(), u.aim_dir(), speed, shot, false)
+	_projectiles.fire(u.barrel_origin_world(), u.aim_dir(), speed, shot, false, u)
 	EventBus.unit_fired.emit(u, shot)
 	u.mark_done()
 	_save_checkpoint()

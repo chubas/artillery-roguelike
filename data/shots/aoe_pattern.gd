@@ -13,24 +13,37 @@ func to_map() -> Dictionary:
 			result[offset] = group
 	return result
 
-func max_damage() -> int:
-	var m := 1
-	for group in groups:
-		m = maxi(m, group.damage)
-	return m
+## Shared zone→color palette (M7): orange = full strength, yellow = half strength,
+## anything below that fades toward gray. Used by both the world AoE preview and the
+## unit-card pattern glyph so zone colors stay consistent everywhere. Add a threshold
+## here if a future pattern introduces a third zone.
+static func zone_color(multiplier: float) -> Color:
+	if multiplier >= 1.0:
+		return Color(1.0, 0.55, 0.1)
+	if multiplier >= 0.5:
+		return Color(0.95, 0.85, 0.2)
+	return Color(0.6, 0.6, 0.6).lerp(Color(0.95, 0.85, 0.2), multiplier / 0.5)
 
 # ── Static generator helpers ─────────────────────────────────────────────────
 # Authoring aids: build patterns programmatically, bake to .tres via
 # scripts/bake_resources.gd. The runtime always uses the baked .tres.
 
-static func make_diamond(radius: int, base_dmg: int, falloff: float = 1.0) -> AoEPattern:
-	# falloff: damage reduction per ring. 1.0 = reduce by 1 per ring.
+## Two-zone diamond: rings 0..core_radius are full strength (1.0x), rings
+## core_radius+1..edge_radius are half strength (0.5x). Shape only — magnitude comes
+## from whatever fires the shot (see ShotDefinition.strength / Unit.power).
+static func make_diamond(core_radius: int, edge_radius: int) -> AoEPattern:
 	var p := AoEPattern.new()
-	for dist in range(0, radius + 1):
-		var g := AoEGroup.new()
-		g.damage = maxi(1, base_dmg - int(dist * falloff))
-		g.offsets = _ring_offsets(dist)
-		p.groups.append(g)
+	var core := AoEGroup.new()
+	core.multiplier = 1.0
+	for dist in range(0, core_radius + 1):
+		core.offsets.append_array(_ring_offsets(dist))
+	p.groups.append(core)
+	if edge_radius > core_radius:
+		var edge := AoEGroup.new()
+		edge.multiplier = 0.5
+		for dist in range(core_radius + 1, edge_radius + 1):
+			edge.offsets.append_array(_ring_offsets(dist))
+		p.groups.append(edge)
 	return p
 
 static func _ring_offsets(dist: int) -> Array[Vector2i]:

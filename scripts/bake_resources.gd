@@ -58,21 +58,22 @@ func _initialize() -> void:
 	electric.strong_vs_tag = "MECHANICAL"; electric.vs_shielded_mult = 2.0
 	_save(electric, "res://data/elements/electric.tres")
 
-	# ── AoE patterns (diamond R=2, 3/2/1 per ring) ────────────────────────────
-	_save(AoEPattern.make_diamond(2, 3, 1.0), "res://data/shots/aoe/diamond_r2.tres")
+	# ── AoE patterns (M7: shape only — core/edge zones, magnitude comes from
+	#    ShotDefinition.strength * Unit.power, set below) ─────────────────────
+	_save(AoEPattern.make_diamond(1, 2), "res://data/shots/aoe/diamond_r2.tres")
 	_save(_elemental_diamond(load("res://data/elements/fire.tres")),
 			"res://data/shots/aoe/diamond_r2_fire.tres")
 	_save(_elemental_diamond(load("res://data/elements/electric.tres")),
 			"res://data/shots/aoe/diamond_r2_electric.tres")
 
 	# ── M4 patterns ───────────────────────────────────────────────────────────
-	# R=3 cluster pellet (one of five); R=4 bypass unit-hit blast (heavy, 10→2 per ring).
+	# r3: cluster pellet (one of five); r4: bypass unit-hit blast (heavier strength below).
 	var fire_el : ElementDef = load("res://data/elements/fire.tres")
 	var elec_el : ElementDef = load("res://data/elements/electric.tres")
 	for variant in [["", null], ["_fire", fire_el], ["_electric", elec_el]]:
-		_save(_diamond_pattern(3, 3, 1.0, variant[1]),
+		_save(_diamond_pattern(1, 3, variant[1]),
 				"res://data/shots/aoe/diamond_r3%s.tres" % variant[0])
-		_save(_diamond_pattern(4, 10, 2.0, variant[1]),
+		_save(_diamond_pattern(2, 4, variant[1]),
 				"res://data/shots/aoe/diamond_r4%s.tres" % variant[0])
 
 	# ── Phase F: shots ────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ func _initialize() -> void:
 	basic.base_speed = 600.0; basic.gravity_scale = 1.0; basic.action_cost = 0
 	basic.aoe_pattern = load("res://data/shots/aoe/diamond_r2.tres")
 	basic.trajectory = ShotDefinition.TrajectoryType.ARC
+	basic.strength = 3
 	_save(basic, "res://data/shots/basic_shell.tres")
 
 	var fire_shell := ShotDefinition.new()
@@ -90,6 +92,7 @@ func _initialize() -> void:
 	fire_shell.base_speed = 580.0; fire_shell.gravity_scale = 1.0; fire_shell.action_cost = 1
 	fire_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_fire.tres")
 	fire_shell.trajectory = ShotDefinition.TrajectoryType.ARC
+	fire_shell.strength = 3
 	_save(fire_shell, "res://data/shots/fire_shell.tres")
 
 	var electric_shell := ShotDefinition.new()
@@ -99,6 +102,7 @@ func _initialize() -> void:
 	electric_shell.action_cost = 1
 	electric_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_electric.tres")
 	electric_shell.trajectory = ShotDefinition.TrajectoryType.ARC
+	electric_shell.strength = 3
 	_save(electric_shell, "res://data/shots/electric_shell.tres")
 
 	var basic_ref : ShotDefinition = load("res://data/shots/basic_shell.tres")
@@ -181,18 +185,18 @@ func _initialize() -> void:
 	_save(strike_card, "res://data/cards/direct_strike.tres")
 
 	# ── M6: deployables ────────────────────────────────────────────────────────
-	_save(AoEPattern.make_diamond(2, 4, 1.0), "res://data/shots/aoe/diamond_mine.tres")
+	_save(AoEPattern.make_diamond(1, 2), "res://data/shots/aoe/diamond_mine.tres")
 
-	print("[bake] all M6 resources written")
+	print("[bake] all M7 resources written")
 	quit()
 
-# Build a diamond R=2 pattern with every group carrying `element`.
+# Build a core1/edge2 diamond pattern with every group carrying `element`.
 func _elemental_diamond(element: ElementDef) -> AoEPattern:
-	return _diamond_pattern(2, 3, 1.0, element)
+	return _diamond_pattern(1, 2, element)
 
 # Diamond pattern with an optional element on every ring (null = physical).
-func _diamond_pattern(radius: int, base: int, falloff: float, element: ElementDef) -> AoEPattern:
-	var p := AoEPattern.make_diamond(radius, base, falloff)
+func _diamond_pattern(core_radius: int, edge_radius: int, element: ElementDef) -> AoEPattern:
+	var p := AoEPattern.make_diamond(core_radius, edge_radius)
 	if element != null:
 		for g in p.groups:
 			g.element = element
@@ -212,6 +216,7 @@ func _make_family(type_id: String, label: String, base_cost_unused: int) -> Arra
 		s.action_cost = variant[2]
 		s.aoe_pattern = load("res://data/shots/aoe/%s%s.tres" %
 				[_family_pattern(type_id), variant[1]])
+		s.strength = _family_strength(type_id)
 		_apply_family_payload(s, type_id)
 		var path := "res://data/shots/%s.tres" % s.id
 		_save(s, path)
@@ -237,6 +242,12 @@ func _family_pattern(type_id: String) -> String:
 		"cluster": return "diamond_r3"   # each of 5 pellets
 		"bypass":  return "diamond_r4"   # heavy unit-hit blast
 		_:         return "diamond_r2"   # pull / spiral per-projectile
+
+# Baseline strength (M7) per family — independent of pattern shape.
+func _family_strength(type_id: String) -> int:
+	match type_id:
+		"bypass": return 10   # heavy unit-hit blast
+		_:        return 3    # cluster / pull / spiral
 
 # Stamp the M4 behaviour fields onto a shot for its family.
 func _apply_family_payload(s: ShotDefinition, type_id: String) -> void:

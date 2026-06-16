@@ -12,7 +12,7 @@
 class_name AoEResolver
 
 static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
-		pattern: AoEPattern, is_enemy: bool, deployables: Array = []) -> Array:
+		pattern: AoEPattern, strength: int, is_enemy: bool, deployables: Array = []) -> Array:
 	var aoe_map := pattern.to_map()
 	var affected : Array = []
 	var unit_hit : Dictionary = {}         # Unit -> { "dmg": int, "element": ElementDef }
@@ -22,29 +22,30 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 		var target : Vector2i = origin + offset
 		var group : AoEGroup = aoe_map[offset]
 		var element : ElementDef = group.element if Features.elements_enabled else null
+		var zone_dmg := _zone_damage(strength, group.multiplier)
 		max_dist = maxi(max_dist, absi(offset.x) + absi(offset.y))
 		# Terrain damage (physical component always applies).
-		terrain.damage_tile(target.x, target.y, group.damage)
+		terrain.damage_tile(target.x, target.y, zone_dmg)
 		affected.append(target)
 		# Tile status from the element (e.g. fire → Burning) on surviving tiles.
 		if element and element.tile_status and Features.tile_statuses_enabled:
 			TileStatusSystem.apply(terrain, target, element.tile_status)
-		# Record dominant group per damageable unit (highest base group damage wins).
+		# Record dominant group per damageable unit (highest zone damage wins).
 		for unit in units:
 			if not _should_damage(unit, is_enemy):
 				continue
 			if not _voxel_in_bbox(target, unit):
 				continue
 			var prev = unit_hit.get(unit, null)
-			if prev == null or group.damage > prev["dmg"]:
-				unit_hit[unit] = { "dmg": group.damage, "element": element }
+			if prev == null or zone_dmg > prev["dmg"]:
+				unit_hit[unit] = { "dmg": zone_dmg, "element": element }
 		# Same dominant-hit rule for deployables (mines, shield generators), flat damage.
 		for d in deployables:
 			if d.hp <= 0 or not d.contains_voxel(target):
 				continue
 			var prev_dmg = deployable_hit.get(d, null)
-			if prev_dmg == null or group.damage > prev_dmg:
-				deployable_hit[d] = group.damage
+			if prev_dmg == null or zone_dmg > prev_dmg:
+				deployable_hit[d] = zone_dmg
 	# Apply the dominant hit to each unit: affinity damage + status.
 	for unit in unit_hit:
 		var element : ElementDef = unit_hit[unit]["element"]
@@ -74,6 +75,11 @@ static func _should_damage(unit: Unit, is_enemy: bool) -> bool:
 
 static func _voxel_in_bbox(vox: Vector2i, unit: Unit) -> bool:
 	return unit.contains_voxel(vox)
+
+## Source strength * zone multiplier (M7), minimum 1 — pattern shape stays untouched
+## by magnitude; magnitude comes entirely from the caller's `strength` value.
+static func _zone_damage(strength: int, multiplier: float) -> int:
+	return maxi(1, int(round(strength * multiplier)))
 
 ## Final damage after element affinity (M3 §3.4). Tag rules stack; a unit-specific
 ## affinity-table entry OVERRIDES tag rules entirely. Minimum 1 damage on any hit.

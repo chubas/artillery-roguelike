@@ -9,5 +9,6 @@ id = "bypass_fire"
 display_name = "Drill Fire"
 description = "Drills straight through terrain, exploding on the first enemy hit. Burns on impact; strong vs organic."
 aoe_pattern = ExtResource("1_ryj4w")
+strength = 10
 action_cost = 2
 bypass_terrain = true

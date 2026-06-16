@@ -9,6 +9,9 @@ extends Deployable
 
 @export var trigger_radius : int = 3
 @export var explosion_pattern : AoEPattern
+## Fixed blast magnitude (M7 zone model) — mines aren't fired by a unit, so they
+## carry their own strength directly rather than going through Unit.power.
+@export var strength : int = 4
 
 func _init() -> void:
 	max_hp = 1

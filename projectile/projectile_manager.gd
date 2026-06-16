@@ -23,6 +23,7 @@ class Salvo extends RefCounted:
 	var is_enemy : bool = false
 	var shot : ShotDefinition = null
 	var pattern : AoEPattern = null
+	var strength : int = 0   # shot.strength * firing_unit.power, computed at fire time (M7)
 	var members : Array = []     # live Projectile / SpiralSatellite nodes
 	var pending : Array = []     # queued impacts: {node, world_pos, voxel, frame, index, force}
 	var settling : bool = false  # settle-beat coroutine running → don't re-enter
@@ -40,11 +41,12 @@ func setup(terrain: TerrainManager, units_provider: Callable,
 
 # --- Firing entry point (unchanged signature; branches on the shot's M4 payload) ----
 func fire(origin: Vector2, direction: Vector2, speed: float,
-		shot: ShotDefinition, is_enemy: bool) -> void:
+		shot: ShotDefinition, is_enemy: bool, firing_unit: Unit = null) -> void:
 	var salvo := Salvo.new()
 	salvo.is_enemy = is_enemy
 	salvo.shot = shot
 	salvo.pattern = shot.aoe_pattern
+	salvo.strength = roundi(shot.strength * (firing_unit.power if firing_unit != null else 1.0))
 	_salvos.append(salvo)
 	if shot.spiral_arms > 0:
 		_spawn_spiral(salvo, origin, direction, speed, shot)
@@ -192,8 +194,8 @@ func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i) -> void:
 		element_id = pattern.groups[0].element.id
 	EventBus.projectile_impact.emit(world_pos, voxel, element_id)
 	# 1. Area damage to terrain + units (and element statuses).
-	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, salvo.is_enemy,
-			_deployables_provider.call())
+	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, salvo.strength,
+			salvo.is_enemy, _deployables_provider.call())
 	# 2. Explosion FX.
 	var fx := ExplosionFX.new()
 	fx.position = world_pos

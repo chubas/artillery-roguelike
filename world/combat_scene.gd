@@ -107,10 +107,10 @@ func _smoke_test() -> void:
 
 	print("[smoke] -- affinity (center dmg = 3 base) --")
 	_reset(ea)
-	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), phys_pat, false)
+	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), phys_pat, 3, false)
 	print("  basic on organic: -%d (expect -3, x1.0)" % (ea.definition.max_hp - ea.hp))
 	_reset(ea)
-	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), fire_pat, false)
+	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), fire_pat, 3, false)
 	print("  fire on organic:  -%d (expect -4, x1.5) burn_stacks=%d (expect 1)" %
 			[ea.definition.max_hp - ea.hp, _stacks(ea, "burn")])
 
@@ -121,7 +121,7 @@ func _smoke_test() -> void:
 
 	print("[smoke] -- electric affinity --")
 	_reset(eb)
-	AoEResolver.resolve(terrain, combat.all_units, eb.center_voxel(), elec_pat, false)
+	AoEResolver.resolve(terrain, combat.all_units, eb.center_voxel(), elec_pat, 3, false)
 	print("  electric on mechanical: -%d (expect -4, x1.5) shock_stacks=%d (expect 1)" %
 			[eb.definition.max_hp - eb.hp, _stacks(eb, "shock")])
 
@@ -158,7 +158,7 @@ func _smoke_test() -> void:
 	print("[smoke] -- feature flag: elements_enabled=false --")
 	Features.elements_enabled = false
 	_reset(ea); ea.active_statuses.clear()
-	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), fire_pat, false)
+	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), fire_pat, 3, false)
 	print("  fire on organic (elements OFF): -%d (expect -3, physical) burn_stacks=%d (expect 0)" %
 			[ea.definition.max_hp - ea.hp, _stacks(ea, "burn")])
 	Features.elements_enabled = true
@@ -166,6 +166,7 @@ func _smoke_test() -> void:
 	_m4_smoke()
 	_m5_smoke()
 	_m6_smoke()
+	_m7_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -338,7 +339,7 @@ func _m5_smoke() -> void:
 	var new_enemy : Unit = combat.enemy_units[-1]
 	_reset(new_enemy)
 	AoEResolver.resolve(terrain, combat.all_units, new_enemy.center_voxel(),
-			load("res://data/shots/aoe/diamond_r2.tres"), false)
+			load("res://data/shots/aoe/diamond_r2.tres"), 3, false)
 	print("  new enemy targetable by AoE: hp=%d (expect < max)" % new_enemy.hp)
 
 # M6 checklist: turn-phase banners (visual, see console), mine detonation (hit + proximity,
@@ -359,7 +360,7 @@ func _m6_smoke() -> void:
 	_reset(foe)
 	var deaths_pre := combat.deployables.size()
 	AoEResolver.resolve(terrain, combat.all_units, mine.vox_position,
-			load("res://data/shots/aoe/diamond_r2.tres"), false, combat.deployables)
+			load("res://data/shots/aoe/diamond_r2.tres"), 3, false, combat.deployables)
 	print("  mine hit: removed_from_list=%s (expect true) foe.hp=%d (expect < max, splash)" %
 			[combat.deployables.size() == deaths_pre - 1, foe.hp])
 
@@ -424,6 +425,37 @@ func _m6_smoke() -> void:
 	# call sites in CombatManager already gate on it, so just confirm no shield is granted.
 	print("  flag off → no aura pulse if caller respects gate: shield=%d (expect 0)" % near_ally.shield)
 	Features.deployables_enabled = true
+
+# M7 checklist: zone-multiplier damage (core vs. edge), Unit.power scaling both zones
+# proportionally, mine strength independent of any unit's power, and zone_color() returning
+# distinct colors per tier.
+func _m7_smoke() -> void:
+	print("[smoke] -- M7 zone strength: core vs edge --")
+	var ea : Unit = combat.enemy_units[0]
+	var phys_pat : AoEPattern = load("res://data/shots/aoe/diamond_r2.tres")
+	_reset(ea)
+	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), phys_pat, 5, false)
+	print("  strength=5 on core voxel: -%d (expect -5)" % (ea.definition.max_hp - ea.hp))
+
+	print("[smoke] -- M7 Unit.power scales both zones --")
+	var p : Unit = combat.player_units[0]
+	var base_pow := p.power
+	p.power = 2.0
+	var scaled_strength := roundi(3 * p.power)
+	print("  shot.strength=3 * power=2.0 -> salvo strength=%d (expect 6)" % scaled_strength)
+	p.power = base_pow
+
+	print("[smoke] -- M7 mine strength independent of unit power --")
+	var mine := Mine.new()
+	mine.explosion_pattern = phys_pat
+	print("  mine.strength=%d (expect 4, no unit-power factor)" % mine.strength)
+	mine.queue_free()
+
+	print("[smoke] -- M7 zone_color distinct per tier --")
+	var core_col := AoEPattern.zone_color(1.0)
+	var edge_col := AoEPattern.zone_color(0.5)
+	print("  core=%s edge=%s distinct=%s (expect true)" %
+			[core_col, edge_col, core_col != edge_col])
 
 func _floor_tile() -> Tile:
 	var t := Tile.new().setup(Tile.TileType.SOLID, 99, 0)

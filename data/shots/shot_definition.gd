@@ -13,6 +13,9 @@ extends Resource
 
 ## Payload
 @export var aoe_pattern : AoEPattern = null
+## Baseline magnitude before zone multipliers (M7). Final per-voxel damage =
+## strength * firing_unit.power * group.multiplier. Independent of aoe_pattern's shape.
+@export var strength : int = 3
 
 ## Action economy
 @export var action_cost : int = 0          # 0 = free basic shot

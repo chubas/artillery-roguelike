@@ -6,28 +6,15 @@
 
 [sub_resource type="Resource" id="Resource_sohpe"]
 script = ExtResource("1_jmguy")
-offsets = Array[Vector2i]([Vector2i(0, 0)])
-damage = 3
+offsets = Array[Vector2i]([Vector2i(0, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0)])
 element = ExtResource("2_8v04s")
 
 [sub_resource type="Resource" id="Resource_tgt6k"]
 script = ExtResource("1_jmguy")
-offsets = Array[Vector2i]([Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0)])
-damage = 2
-element = ExtResource("2_8v04s")
-
-[sub_resource type="Resource" id="Resource_j0v61"]
-script = ExtResource("1_jmguy")
-offsets = Array[Vector2i]([Vector2i(-2, 0), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(0, 2), Vector2i(0, -2), Vector2i(1, 1), Vector2i(1, -1), Vector2i(2, 0)])
-damage = 1
-element = ExtResource("2_8v04s")
-
-[sub_resource type="Resource" id="Resource_31osj"]
-script = ExtResource("1_jmguy")
-offsets = Array[Vector2i]([Vector2i(-3, 0), Vector2i(-2, 1), Vector2i(-2, -1), Vector2i(-1, 2), Vector2i(-1, -2), Vector2i(0, 3), Vector2i(0, -3), Vector2i(1, 2), Vector2i(1, -2), Vector2i(2, 1), Vector2i(2, -1), Vector2i(3, 0)])
-damage = 1
+offsets = Array[Vector2i]([Vector2i(-2, 0), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(0, 2), Vector2i(0, -2), Vector2i(1, 1), Vector2i(1, -1), Vector2i(2, 0), Vector2i(-3, 0), Vector2i(-2, 1), Vector2i(-2, -1), Vector2i(-1, 2), Vector2i(-1, -2), Vector2i(0, 3), Vector2i(0, -3), Vector2i(1, 2), Vector2i(1, -2), Vector2i(2, 1), Vector2i(2, -1), Vector2i(3, 0)])
+multiplier = 0.5
 element = ExtResource("2_8v04s")
 
 [resource]
 script = ExtResource("3_x628f")
-groups = Array[ExtResource("1_jmguy")]([SubResource("Resource_sohpe"), SubResource("Resource_tgt6k"), SubResource("Resource_j0v61"), SubResource("Resource_31osj")])
+groups = Array[ExtResource("1_jmguy")]([SubResource("Resource_sohpe"), SubResource("Resource_tgt6k")])

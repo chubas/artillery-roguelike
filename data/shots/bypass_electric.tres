@@ -9,5 +9,6 @@ id = "bypass_electric"
 display_name = "Drill Electric"
 description = "Drills straight through terrain, exploding on the first enemy hit. Shocks on impact; strong vs mechanical."
 aoe_pattern = ExtResource("1_n88cq")
+strength = 10
 action_cost = 3
 bypass_terrain = true

@@ -14,6 +14,10 @@ extends Resource
 @export var move_range : int = 99  # max moves per activation (use 99 = unlimited for now)
 @export var climb_max : int = 1    # max voxel height climbed free
 
+## Multiplies every shot's strength when this unit fires (M7). 1.0 = no change;
+## future upgrades scale Unit.power at runtime without touching any AoE pattern.
+@export var base_power : float = 1.0
+
 ## Firing
 @export var default_shot : ShotDefinition = null
 ## All shots this unit may select before firing (M3 §8). default_shot is the always-free
