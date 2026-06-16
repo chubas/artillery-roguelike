@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/cards/card_definition.gd" id="1_te35k"]
+
+[resource]
+script = ExtResource("1_te35k")
+id = "shield_buff"
+display_name = "Shield Up"
+magnitude = 4
+action_cost = 2
+color = Color(0.35, 0.65, 0.95, 1)

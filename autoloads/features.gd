@@ -13,8 +13,9 @@ var fire_enabled            : bool = true
 var electric_enabled        : bool = true
 var burning_tile_enabled    : bool = true
 var electrified_tile_enabled: bool = true
+var shields_enabled         : bool = true   # M5: shield mitigation layer in Unit.take_damage
 
 # Future systems — false until implemented
 var wind_enabled            : bool = false
 var keywords_enabled        : bool = false
-var card_deck_enabled       : bool = false
+var card_deck_enabled       : bool = true   # M5: card UI + targeting input path

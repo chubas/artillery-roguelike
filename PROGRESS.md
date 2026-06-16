@@ -14,17 +14,41 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-14)
+## Current state (2026-06-15)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
-  M4 (shot varieties & 4-unit squad).
+  M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements).
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 checklists headless
-  (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 + M5 §10 checklists
+  headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-15 — Milestone 5: Card system & reinforcement waves
+
+First slice of the card-engine vision, scoped entirely inside the combat stage (no map/shops/
+deck progression yet). Full design + deviations in [milestone-5-plan.md](milestone-5-plan.md).
+
+- **Shield mitigation layer.** `Unit.shield`/`max_shield`; `take_damage()` now drains shield
+  before HP (armor would slot in above shield later — seam comment marks the spot). Gated by
+  new `Features.shields_enabled` kill switch. A thin shield bar draws above the HP bar.
+- **Two cards**, baked as `CardDefinition` resources: `shield_buff` (ally, +4 shield, 2 AP) and
+  `direct_strike` (enemy, 3 dmg routed through shield like any other hit, 3 AP). Both spend from
+  the shared `actions_left` pool and are captured by the existing turn-wide checkpoint/undo —
+  same as firing, a card's own spend isn't itself undone, only moves made after it are.
+- **Targeting flow.** `Q`/`E` or HUD chips arm a card; click a valid ally/enemy to apply it
+  (green/red highlight on valid targets), `Esc` cancels without spending AP. Doesn't require an
+  active unit or end any unit's turn.
+- **Reinforcements.** A hardcoded round → unit schedule (round 2 → EnemyC, round 5 → EnemyD)
+  spawns directly on the surface row with no collision-avoidance (enemies don't move, so the
+  landing space is assumed clear). A world-space guide line + countdown number telegraphs each
+  incoming drop before it lands.
+- **Feature flag:** `Features.card_deck_enabled` (previously an unused M3-era stub) now gates
+  the whole card UI/input path and is flipped on.
 
 ---
 

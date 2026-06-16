@@ -161,6 +161,7 @@ func _smoke_test() -> void:
 	Features.elements_enabled = true
 
 	_m4_smoke()
+	_m5_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -229,6 +230,92 @@ func _pull_smoke(pull: ShotDefinition) -> void:
 	GravityPullResolver.resolve(terrain, combat.all_units, Vector2i(c0 + 16, row - 1), pull)
 	print("  walled unit moved +%d (expect +0, blocked by 2-voxel wall)" %
 			(far_u.vox_position.x - blocked_x0))
+
+# M5 §8 checklist (deterministic, no flight required): shield mitigation, card play
+# (shield buff / direct damage / targeting / undo), and the reinforcement schedule.
+func _m5_smoke() -> void:
+	var ally : Unit = combat.player_units[0]
+	var foe : Unit = combat.enemy_units[0]
+	var shield_card : CardDefinition = load("res://data/cards/shield_buff.tres")
+	var strike_card : CardDefinition = load("res://data/cards/direct_strike.tres")
+
+	print("[smoke] -- M5 shield mitigation --")
+	_reset(ally); ally.shield = 0; ally.max_shield = 0
+	ally.shield = 4; ally.max_shield = 4
+	ally.take_damage(3)
+	print("  dmg 3 vs shield 4: shield=%d hp=%d (expect shield=1, hp=max)" %
+			[ally.shield, ally.hp])
+	ally.take_damage(3)
+	print("  dmg 3 vs shield 1: shield=%d hp=%d (expect shield=0, hp=max-2 spillover)" %
+			[ally.shield, ally.hp])
+	_reset(ally); ally.shield = 5; ally.max_shield = 5
+	Features.shields_enabled = false
+	ally.take_damage(3)
+	print("  shields_enabled=false: shield=%d hp=%d (expect shield=5 untouched, hp=max-3)" %
+			[ally.shield, ally.hp])
+	Features.shields_enabled = true
+
+	print("[smoke] -- M5 cards: shield buff + direct damage --")
+	_reset(ally); ally.shield = 0; ally.max_shield = 0
+	var ap_pre := combat.actions_left
+	combat._select_card(0)   # shield_buff
+	combat._apply_card(shield_card, ally)
+	print("  shield buff on ally: shield=%d (expect %d) AP spent=%d (expect %d)" %
+			[ally.shield, shield_card.magnitude, ap_pre - combat.actions_left, shield_card.action_cost])
+
+	_reset(foe); foe.shield = 0; foe.max_shield = 0
+	ap_pre = combat.actions_left
+	var members_pre := projectiles.debug_member_count()
+	combat._select_card(1)   # direct_strike
+	combat._apply_card(strike_card, foe)
+	print("  direct strike on foe: hp=%d (expect max-%d) no projectile spawned=%s AP spent=%d (expect %d)" %
+			[foe.hp, strike_card.magnitude, projectiles.debug_member_count() == members_pre,
+			ap_pre - combat.actions_left, strike_card.action_cost])
+	print("  card play doesn't mark unit done: foe.is_done=%s (expect false)" % foe.is_done)
+
+	print("[smoke] -- M5 card targeting + cancel --")
+	_reset(ally); ally.shield = 0
+	combat._select_card(0)
+	combat._try_click_target_card(foe.center_world())   # wrong side: card wants ALLY
+	print("  wrong-side click no-op: ally.shield=%d (expect 0, _pending_card still set=%s)" %
+			[ally.shield, combat._pending_card != null])
+	combat._cancel_pending_card()
+	print("  escape clears pending without AP spend: pending=%s" % combat._pending_card)
+
+	print("[smoke] -- M5 undo: card play becomes the new checkpoint baseline (like a fire) --")
+	_reset(foe); foe.shield = 0
+	combat._select_card(1)
+	combat._apply_card(strike_card, foe)   # _apply_card's own _save_checkpoint locks this in
+	var ap_after_card := combat.actions_left
+	var hp_after_card := foe.hp
+	combat.try_move(ally, 1)               # a move made AFTER the card IS undoable
+	combat.try_undo()
+	print("  undo reverts the post-card move (actions_left=%d, expect %d) but not the card's own spend or foe.hp (unchanged=%s)" %
+			[combat.actions_left, ap_after_card, foe.hp == hp_after_card])
+
+	print("[smoke] -- M5 reinforcements --")
+	var enemy_count_pre := combat.enemy_units.size()
+	combat.round_index = 1
+	var warn := combat._reinforcement_warnings()
+	print("  round 1 warnings turns_left=%s (expect [1, 4])" %
+			[warn.map(func(w): return w["turns_left"])])
+	combat.round_index = 2
+	combat._check_reinforcements()
+	print("  round 2 spawn: enemy_units +%d (expect +1), new unit col=%d (expect %d)" %
+			[combat.enemy_units.size() - enemy_count_pre, combat.enemy_units[-1].vox_position.x,
+			Const.MAP_WIDTH - 26])
+	combat._check_reinforcements()
+	print("  round 2 re-check doesn't double-spawn: enemy_units=%d (expect %d)" %
+			[combat.enemy_units.size(), enemy_count_pre + 1])
+	combat.round_index = 5
+	combat._check_reinforcements()
+	print("  round 5 spawn: enemy_units +%d total (expect +2 vs original)" %
+			[combat.enemy_units.size() - enemy_count_pre])
+	var new_enemy : Unit = combat.enemy_units[-1]
+	_reset(new_enemy)
+	AoEResolver.resolve(terrain, combat.all_units, new_enemy.center_voxel(),
+			load("res://data/shots/aoe/diamond_r2.tres"), false)
+	print("  new enemy targetable by AoE: hp=%d (expect < max)" % new_enemy.hp)
 
 func _floor_tile() -> Tile:
 	var t := Tile.new().setup(Tile.TileType.SOLID, 99, 0)

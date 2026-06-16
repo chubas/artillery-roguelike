@@ -6,6 +6,7 @@ extends CanvasLayer
 signal end_turn_pressed
 signal undo_pressed
 signal shot_selected(index: int)
+signal card_selected(index: int)
 
 var _angle_label : Label
 var _power_label : Label
@@ -18,6 +19,9 @@ var _undo_btn : Button
 var _shot_box : HBoxContainer
 var _shot_buttons : Array = []
 var _shot_sig : String = ""   # cache: rebuild chips only when the shot list changes
+var _card_box : HBoxContainer
+var _card_buttons : Array = []
+var _card_sig : String = ""   # cache: rebuild chips only when the card list changes
 
 func _ready() -> void:
 	_build_top_left()
@@ -42,8 +46,11 @@ func _build_top_left() -> void:
 	_shot_box = HBoxContainer.new()
 	_shot_box.add_theme_constant_override("separation", 4)
 	box.add_child(_shot_box)
+	_card_box = HBoxContainer.new()
+	_card_box.add_theme_constant_override("separation", 4)
+	box.add_child(_card_box)
 	var hint := _make_label(11)
-	hint.text = "↑/↓ angle · ←/→ move · Space charge/fire · 1/2/3 shot · Tab select · WASD pan"
+	hint.text = "↑/↓ angle · ←/→ move · Space charge/fire · 1/2/3 shot · Q/E card · Esc cancel · Tab select · WASD pan"
 	hint.modulate = Color(1, 1, 1, 0.55)
 	box.add_child(hint)
 
@@ -141,6 +148,33 @@ func set_shots(shots: Array, active: ShotDefinition, actions_left: int) -> void:
 		btn.disabled = not afford
 		var is_active := active != null and s == active
 		btn.modulate = Color(1.0, 0.95, 0.5) if is_active else Color(1, 1, 1, 0.85)
+
+# Card chips (M5). Same rebuild-only-on-identity-change pattern as set_shots(); greys
+# out cards the shared pool can't currently afford, and highlights the pending one.
+func set_cards(cards: Array, pending: CardDefinition, actions_left: int) -> void:
+	var sig := ""
+	for c in cards:
+		sig += (c.id if c != null else "?") + "|"
+	if sig != _card_sig:
+		_card_sig = sig
+		for b in _card_buttons:
+			b.queue_free()
+		_card_buttons.clear()
+		for i in range(cards.size()):
+			var btn := Button.new()
+			btn.focus_mode = Control.FOCUS_NONE
+			btn.add_theme_font_size_override("font_size", 11)
+			btn.pressed.connect(func(): card_selected.emit(i))
+			_card_box.add_child(btn)
+			_card_buttons.append(btn)
+	for i in range(_card_buttons.size()):
+		var c : CardDefinition = cards[i]
+		var btn : Button = _card_buttons[i]
+		var afford := actions_left >= c.action_cost
+		btn.text = "%s (%d)" % [c.display_name, c.action_cost]
+		btn.disabled = not afford
+		var is_pending := pending != null and c == pending
+		btn.modulate = Color(1.0, 0.95, 0.5) if is_pending else Color(1, 1, 1, 0.85)
 
 func set_turn_text(text: String) -> void:
 	_set_text(_turn_label, text)

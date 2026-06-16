@@ -12,6 +12,10 @@ var active_unit : Unit = null
 var charging : bool = false
 var power_frac : float = 0.0
 
+# M5: card targeting + reinforcement countdown state, pushed each frame by CombatManager.
+var pending_card : CardDefinition = null
+var pending_reinforcements : Array = []   # [{ "col": int, "turns_left": int }]
+
 func _process(_delta: float) -> void:
 	queue_redraw()
 
@@ -21,12 +25,38 @@ func _draw() -> void:
 	for u in units:
 		if u.bounds_rect_world().has_point(mouse):
 			draw_rect(u.bounds_rect_world(), Color(1, 1, 1, 0.9), false, 1.0)
+	_draw_reinforcement_warnings()
+	if pending_card != null:
+		_draw_card_targets()
 	if active_unit == null or active_unit.hp <= 0:
 		return
 	var barrel := active_unit.barrel_origin_world()
 	_draw_barrel_indicator(barrel, active_unit.aim_dir())
 	if charging:
 		_draw_charge_preview(barrel)
+
+# Highlight valid targets for the pending card: green outline for allies, red for enemies.
+func _draw_card_targets() -> void:
+	var want_ally := pending_card.target_type == CardDefinition.TargetType.ALLY
+	var col := Color(0.3, 0.95, 0.4, 0.9) if want_ally else Color(0.95, 0.3, 0.25, 0.9)
+	for u in units:
+		if u.hp > 0 and u.is_player == want_ally:
+			draw_rect(u.bounds_rect_world(), col, false, 2.0)
+
+# Telegraphed reinforcement drops: a faint vertical guide line down the landing column,
+# capped with a downward-pointing arrow and a turns-remaining number near the top.
+func _draw_reinforcement_warnings() -> void:
+	for w in pending_reinforcements:
+		var x := Const.voxel_to_world(Vector2i(w["col"], 0)).x + Const.VOXEL_SIZE * 0.5
+		var top_y := 24.0
+		var bottom_y := float(Const.MAP_HEIGHT * Const.VOXEL_SIZE)
+		draw_line(Vector2(x, top_y), Vector2(x, bottom_y), Color(1.0, 0.25, 0.2, 0.18), 2.0)
+		var pts := PackedVector2Array([
+			Vector2(x, top_y + 14), Vector2(x - 6, top_y), Vector2(x + 6, top_y)])
+		draw_colored_polygon(pts, Color(1.0, 0.3, 0.25, 0.85))
+		var font := ThemeDB.fallback_font
+		draw_string(font, Vector2(x + 8, top_y + 12), str(w["turns_left"]),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 
 func _draw_barrel_indicator(barrel: Vector2, dir: Vector2) -> void:
 	var tip := barrel + dir * (2.5 * Const.VOXEL_SIZE)

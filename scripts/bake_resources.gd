@@ -10,7 +10,7 @@ extends SceneTree
 
 func _initialize() -> void:
 	for d in ["res://data/elements", "res://data/statuses", "res://data/tile_statuses",
-			"res://data/shots/aoe", "res://data/units"]:
+			"res://data/shots/aoe", "res://data/units", "res://data/cards"]:
 		DirAccess.make_dir_recursive_absolute(d)
 
 	# ── Unit statuses (leaf — no refs) ────────────────────────────────────────
@@ -160,7 +160,24 @@ func _initialize() -> void:
 	_save_player_unit("player_spiral", "Spiral", spiral_loadout,
 			Color(0.6, 0.4, 0.85))      # purple
 
-	print("[bake] all M4 resources written")
+	# ── M5: cards ─────────────────────────────────────────────────────────────
+	var shield_card := CardDefinition.new()
+	shield_card.id = "shield_buff"; shield_card.display_name = "Shield Up"
+	shield_card.target_type = CardDefinition.TargetType.ALLY
+	shield_card.effect_type = CardDefinition.EffectType.SHIELD_BUFF
+	shield_card.magnitude = 4; shield_card.action_cost = 2
+	shield_card.color = Color(0.35, 0.65, 0.95)
+	_save(shield_card, "res://data/cards/shield_buff.tres")
+
+	var strike_card := CardDefinition.new()
+	strike_card.id = "direct_strike"; strike_card.display_name = "Direct Strike"
+	strike_card.target_type = CardDefinition.TargetType.ENEMY
+	strike_card.effect_type = CardDefinition.EffectType.DIRECT_DAMAGE
+	strike_card.magnitude = 3; strike_card.action_cost = 3
+	strike_card.color = Color(0.9, 0.3, 0.25)
+	_save(strike_card, "res://data/cards/direct_strike.tres")
+
+	print("[bake] all M5 resources written")
 	quit()
 
 # Build a diamond R=2 pattern with every group carrying `element`.

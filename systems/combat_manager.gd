@@ -22,6 +22,19 @@ var active_unit : Unit = null
 var charging : bool = false
 var charge_frac : float = 0.0
 
+# --- Cards (M5) ---------------------------------------------------------------
+var available_cards : Array[CardDefinition] = []
+var _pending_card : CardDefinition = null   # non-null while choosing a target
+
+# --- Reinforcements (M5): a tiny hardcoded schedule, round_index → wave. ----------
+# Landing collision is intentionally NOT checked (enemies don't move, per design) —
+# only the surface row is snapped so the unit doesn't spawn floating/underground.
+const _REINFORCEMENT_SCHEDULE : Array[Dictionary] = [
+	{ "round": 2, "def": "res://data/units/enemy_organic.tres", "name": "EnemyC", "col": Const.MAP_WIDTH - 26 },
+	{ "round": 5, "def": "res://data/units/enemy_mechanical.tres", "name": "EnemyD", "col": Const.MAP_WIDTH - 6 },
+]
+var _reinforcements_spawned : Dictionary = {}   # round int -> true
+
 var _checkpoint_positions : Dictionary = {}  # Unit -> Vector2i
 var _checkpoint_actions_left : int = 0
 
@@ -41,12 +54,17 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_hud.end_turn_pressed.connect(end_player_turn)
 	_hud.undo_pressed.connect(try_undo)
 	_hud.shot_selected.connect(_select_shot)
+	_hud.card_selected.connect(_select_card)
 	# Auto-advance to the next unit only once a player shot has FULLY resolved (§ resolution
 	# routine in ProjectileManager), so the camera lingers on the impact before panning.
 	_projectiles.shot_resolved.connect(_on_shot_resolved)
 	# Gameplay events route through EventBus (M3): the resolver emits aoe_resolved there.
 	EventBus.aoe_resolved.connect(_on_aoe_resolved)
 	_spawn_all_units()
+	available_cards = [
+		load("res://data/cards/shield_buff.tres"),
+		load("res://data/cards/direct_strike.tres"),
+	]
 	_begin_round()
 
 func get_units() -> Array:
@@ -104,6 +122,40 @@ func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 	push_error("No valid spawn near col %d" % preferred_col)
 	return Vector2i(preferred_col, 0)
 
+# --- Reinforcements (M5): telegraphed enemy drops on a fixed round schedule -------
+func _check_reinforcements() -> void:
+	for wave in _REINFORCEMENT_SCHEDULE:
+		if wave["round"] == round_index and not _reinforcements_spawned.has(round_index):
+			_reinforcements_spawned[round_index] = true
+			_spawn_reinforcement(wave)
+
+# Spawns directly at the scheduled column, snapped to the surface row, with NO
+# unit-collision avoidance (enemies don't move, so the landing space is assumed
+# clear — unlike _spawn()/_find_valid_spawn(), deliberately).
+func _spawn_reinforcement(wave: Dictionary) -> void:
+	var def : UnitDefinition = load(wave["def"])
+	var u := Unit.new()
+	u.definition = def
+	u.is_player = false
+	u.display_name = wave["name"]
+	u.aim_angle_deg = 135.0
+	var col : int = wave["col"]
+	var surface := _terrain.get_surface_row(col)
+	var top_left := Vector2i(col, surface - def.height_voxels) if surface != -1 else Vector2i(col, 0)
+	u.set_vox_position(top_left)
+	_unit_layer.add_child(u)
+	u.unit_died.connect(_on_unit_died)
+	enemy_units.append(u)
+	all_units.append(u)
+
+# List of not-yet-spawned future waves, for the HUD/overlay countdown indicator.
+func _reinforcement_warnings() -> Array:
+	var out := []
+	for wave in _REINFORCEMENT_SCHEDULE:
+		if not _reinforcements_spawned.has(wave["round"]) and wave["round"] > round_index:
+			out.append({ "col": wave["col"], "turns_left": wave["round"] - round_index })
+	return out
+
 # --- Turn loop (M2 §4.1 + M3 §6 resolution order) --------------------------------
 # Round start → tile statuses tick → player turn (unit statuses tick, shock AP cut) →
 # player actions → enemy turn (enemy statuses tick → enemy fire) → next round.
@@ -112,6 +164,7 @@ func _begin_round() -> void:
 		return
 	round_index += 1
 	EventBus.round_started.emit(round_index)
+	_check_reinforcements()
 	# 1. Tile statuses tick (burning damages/spreads, electrified chains/decays).
 	TileStatusSystem.tick_all(_terrain, all_units)
 	if _is_terminal():
@@ -321,6 +374,48 @@ func _select_shot(idx: int) -> void:
 	if idx >= 0 and idx < shots.size():
 		active_unit.selected_shot = shots[idx]
 
+# --- Cards (M5): action-costed effects played from the shared pool, targeted at -----
+# an ally or enemy unit. Distinct from firing — playing a card does not require an
+# active unit and does not end any unit's turn.
+func _select_card(idx: int) -> void:
+	if not Features.card_deck_enabled:
+		return
+	if game_state != GameState.PLAYER_TURN or charging:
+		return
+	if idx < 0 or idx >= available_cards.size():
+		return
+	var card : CardDefinition = available_cards[idx]
+	if actions_left < card.action_cost:
+		return
+	charging = false   # selecting a card suspends any in-progress shot charge
+	_pending_card = card
+
+func _cancel_pending_card() -> void:
+	_pending_card = null
+
+func _try_click_target_card(world_pos: Vector2) -> void:
+	if _pending_card == null:
+		return
+	var pool := player_units if _pending_card.target_type == CardDefinition.TargetType.ALLY \
+			else enemy_units
+	for u in pool:
+		if u.hp > 0 and u.bounds_rect_world().has_point(world_pos):
+			_apply_card(_pending_card, u)
+			return
+
+func _apply_card(card: CardDefinition, target: Unit) -> void:
+	actions_left -= card.action_cost
+	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+	match card.effect_type:
+		CardDefinition.EffectType.SHIELD_BUFF:
+			target.shield += card.magnitude
+			target.max_shield = maxi(target.max_shield, target.shield)
+			EventBus.unit_shield_changed.emit(target, target.shield, target.max_shield)
+		CardDefinition.EffectType.DIRECT_DAMAGE:
+			target.take_damage(card.magnitude)   # routes through shield, like any other hit
+	_pending_card = null
+	_save_checkpoint()   # AP spend is undoable, like a shot or move
+
 # --- Settling: units fall when terrain under them is destroyed --------------------
 # (Not in the spec; without it units hover over craters. No fall damage in M2.)
 func _on_aoe_resolved(_center: Vector2i, _radius: int, _affected: Array) -> void:
@@ -359,12 +454,23 @@ func _unhandled_input(event: InputEvent) -> void:
 						and not active_unit.is_done and active_unit.hp > 0:
 					charging = true
 					charge_frac = 0.0
+			KEY_Q:
+				if not charging and Features.card_deck_enabled:
+					_select_card(0)
+			KEY_E:
+				if not charging and Features.card_deck_enabled:
+					_select_card(1)
+			KEY_ESCAPE:
+				_cancel_pending_card()
 	elif event is InputEventKey and not event.pressed \
 			and event.physical_keycode == KEY_SPACE and charging:
 		_fire_active()
 	elif event is InputEventMouseButton and event.pressed \
 			and event.button_index == MOUSE_BUTTON_LEFT and not charging:
-		_try_click_select(get_global_mouse_position())
+		if _pending_card != null:
+			_try_click_target_card(get_global_mouse_position())
+		else:
+			_try_click_select(get_global_mouse_position())
 
 func _process(delta: float) -> void:
 	if game_state == GameState.PLAYER_TURN and active_unit != null \
@@ -386,6 +492,8 @@ func _process(delta: float) -> void:
 				_fire_active()
 	_push_hud_state()
 	_targeting.set_aim_state(active_unit, charging, charge_frac)
+	_targeting.set_card_state(_pending_card)
+	_targeting.set_reinforcement_state(_reinforcement_warnings())
 
 func _push_hud_state() -> void:
 	_hud.set_actions(actions_left, Const.MAX_ACTIONS)
@@ -412,3 +520,5 @@ func _push_hud_state() -> void:
 		_hud.set_angle_none()
 		_hud.set_shots([], null, actions_left)
 	_hud.set_power(charge_frac, charging, last_power)
+	var cards := available_cards if Features.card_deck_enabled else []
+	_hud.set_cards(cards, _pending_card, actions_left)

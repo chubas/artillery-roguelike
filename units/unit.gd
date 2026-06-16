@@ -11,6 +11,11 @@ signal unit_died(unit: Unit)
 
 var display_name : String = ""          # per-instance (e.g. "EnemyA" / "EnemyB")
 var hp : int = 0
+# Shield (M5): a flat, per-combat absorb pool that sits above HP in the mitigation
+# stack. Granted by cards for now (no baseline/regen yet). Armor would slot in
+# above shield later — see the seam comment in take_damage().
+var shield : int = 0
+var max_shield : int = 0
 var vox_position : Vector2i = Vector2i.ZERO
 var aim_angle_deg : float = 45.0        # positive-up convention; preserved per unit
 # Gunbound-style power memory (M4): the charge fraction of this unit's last shot. The HUD
@@ -46,7 +51,16 @@ func _ready() -> void:
 func take_damage(dmg: int) -> void:
 	if hp <= 0:
 		return
-	hp = maxi(0, hp - dmg)
+	var remaining := dmg
+	# Mitigation pipeline (card-engine doc §5): armor → shield → HP.
+	# POST-M5 SEAM: an Armor layer would reduce `remaining` here, before shield.
+	# Not implemented yet — Shield is the only mitigation layer this milestone adds.
+	if Features.shields_enabled and shield > 0:
+		var absorbed := mini(shield, remaining)
+		shield -= absorbed
+		remaining -= absorbed
+		EventBus.unit_shield_changed.emit(self, shield, max_shield)
+	hp = maxi(0, hp - remaining)
 	queue_redraw()
 	unit_damaged.emit(self, dmg, hp)
 	if hp == 0:
@@ -119,6 +133,7 @@ func _draw() -> void:
 		draw_rect(body.grow(2.0), Color.WHITE, false, 2.0)
 	if hp > 0:
 		_draw_hp_bar(w)
+		_draw_shield_bar(w)
 		_draw_status_badges(w)
 
 func _draw_hp_bar(w: float) -> void:
@@ -130,6 +145,14 @@ func _draw_hp_bar(w: float) -> void:
 	elif frac <= 0.5:
 		c = Color(0.95, 0.6, 0.15)         # orange 25–50%
 	draw_rect(Rect2(1, -6, maxf(0.0, (w - 2) * frac), 2), c)
+
+# Shield bar (M5): a thin strip above the HP bar, only drawn while shield > 0.
+func _draw_shield_bar(w: float) -> void:
+	if shield <= 0:
+		return
+	var frac := clampf(float(shield) / maxf(1.0, float(max_shield)), 0.0, 1.0)
+	draw_rect(Rect2(0, -11, w, 3), Color(0, 0, 0, 0.7))
+	draw_rect(Rect2(1, -10.5, maxf(0.0, (w - 2) * frac), 2), Color(0.4, 0.75, 1.0))
 
 # Placeholder status badges (M3 §15): a small colour-coded square per active status with
 # its stack count. Colour by element tag — fire = orange, electric = cyan.
