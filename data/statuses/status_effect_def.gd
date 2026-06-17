@@ -14,6 +14,15 @@ extends Resource
 ## Action point reduction per stack per turn (applied to shared pool)
 @export var ap_reduction : int = 0
 
+## Effects framing (M10): the status system is the general "Effects" layer — burn/shock are
+## debuffs, but effects can also be buffs or triggers.
+## True = beneficial effect (drawn green). False = debuff (drawn by element tag).
+@export var is_buff : bool = false
+## False = persists indefinitely (tick_all never decrements turns_left). Boosted uses this.
+@export var decays_per_turn : bool = true
+## True = a voluntary AP-costing move spends one stack instead of an action point (Boosted).
+@export var consumed_by_move : bool = false
+
 ## Tags on this status; used by cleanse and interaction rules.
 ## Valid values: FIRE, ELECTRIC, POISON, SPREADABLE, ORGANIC
 @export var tags : Array[String] = []

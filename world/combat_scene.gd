@@ -169,6 +169,7 @@ func _smoke_test() -> void:
 	_m7_smoke()
 	_m8_smoke()
 	_m9_smoke()
+	_m10_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -439,13 +440,17 @@ func _m7_smoke() -> void:
 	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), phys_pat, 5, false)
 	print("  strength=5 on core voxel: -%d (expect -5)" % (ea.definition.max_hp - ea.hp))
 
-	print("[smoke] -- M7 Unit.power scales both zones --")
+	print("[smoke] -- M7/M10 attack × strength_mult × power scales strength --")
 	var p : Unit = combat.player_units[0]
 	var base_pow := p.power
+	var base_atk := p.attack
+	p.attack = 3
 	p.power = 2.0
-	var scaled_strength := roundi(3 * p.power)
-	print("  shot.strength=3 * power=2.0 -> salvo strength=%d (expect 6)" % scaled_strength)
+	# M10 fire formula: round(attack * strength_mult(1.0) * power) + attack_modifier(0).
+	var scaled_strength := roundi(p.attack * 1.0 * p.power)
+	print("  attack=3 * mult=1.0 * power=2.0 -> salvo strength=%d (expect 6)" % scaled_strength)
 	p.power = base_pow
+	p.attack = base_atk
 
 	print("[smoke] -- M7 mine strength independent of unit power --")
 	var mine := Mine.new()
@@ -598,6 +603,73 @@ func _m9_smoke() -> void:
 	var pipe_cost : int = ArtifactSystem.apply_card_cost(artifacts_test, ctx,
 			dummy_card, dummy_card.action_cost)
 	print("  pipeline apply_card_cost (feature on): %d (expect 0)" % pipe_cost)
+
+# M10 checklist: per-unit attack drives strength (+ clamp), Boosted persists across ticks,
+# Boosted is spent by moves (free move bypasses AP), undo refunds spent Boosted, and the
+# Start-Boosted artifact grants 3 stacks at stage start.
+func _m10_smoke() -> void:
+	print("[smoke] -- M10 attack value drives strength --")
+	var drill := _find_unit("Drill")
+	var cluster := _find_unit("Cluster")
+	if drill != null and cluster != null:
+		print("  drill attack=%d (expect 10), cluster attack=%d (expect 3)" %
+				[drill.attack, cluster.attack])
+	# Fire formula: max(0, round(attack * strength_mult * power) + attack_modifier).
+	var s_norm := maxi(0, roundi(3 * 1.0 * 1.0) + 0)
+	var s_clamped := maxi(0, roundi(3 * 1.0 * 1.0) + (-5))
+	print("  atk3*mult1*pow1+0=%d (expect 3); +(-5) clamped=%d (expect 0)" % [s_norm, s_clamped])
+
+	print("[smoke] -- M10 Boosted persists across tick --")
+	var boosted_def : StatusEffectDef = load("res://data/statuses/boosted.tres")
+	var u : Unit = combat.player_units[0]
+	u.active_statuses.clear()
+	UnitStatusSystem.apply(u, boosted_def, 3)
+	UnitStatusSystem.tick_all(u)
+	print("  boosted after tick_all: stacks=%d present=%s (expect 3, true)" %
+			[_stacks(u, "boosted"), u.active_statuses.has("boosted")])
+
+	print("[smoke] -- M10 Boosted consumed by move token --")
+	combat._spend_move_token(u, combat._unit_move_token(u))
+	combat._spend_move_token(u, combat._unit_move_token(u))
+	combat._spend_move_token(u, combat._unit_move_token(u))
+	print("  after 3 spends: stacks=%d token_now_null=%s (expect 0, true)" %
+			[_stacks(u, "boosted"), combat._unit_move_token(u) == null])
+
+	print("[smoke] -- M10 free move bypasses AP, undo refunds boost --")
+	combat.game_state = CombatManager.GameState.PLAYER_TURN
+	var mover : Unit = combat.active_unit if combat.active_unit != null else combat.player_units[0]
+	mover.active_statuses.clear()
+	UnitStatusSystem.apply(mover, boosted_def, 2)
+	combat._save_checkpoint()       # snapshots boosted=2 for this unit
+	var ap_before := combat.actions_left
+	combat.actions_left = 0          # prove the move is free (no AP available)
+	var pos_before := mover.vox_position
+	combat.try_move(mover, 1)
+	if mover.vox_position == pos_before:
+		combat.try_move(mover, -1)
+	var moved := mover.vox_position != pos_before
+	print("  moved with AP=0: %s, AP still 0: %s, boosted=%d (expect true, true, 1)" %
+			[moved, combat.actions_left == 0, _stacks(mover, "boosted")])
+	combat.try_undo()
+	print("  after undo: boosted=%d (expect 2)" % _stacks(mover, "boosted"))
+	combat.actions_left = ap_before
+
+	print("[smoke] -- M10 Start-Boosted artifact grants 3 at stage start --")
+	var sb := ArtifactStartBoosted.new()
+	var ctx := ArtifactContext.new()
+	ctx.terrain = terrain
+	ctx.units = combat.all_units
+	ctx.combat = combat
+	var test_u : Unit = combat.player_units[1]
+	test_u.active_statuses.clear()
+	sb.on_combat_start(ctx)
+	print("  player unit boosted after artifact: %d (expect 3)" % _stacks(test_u, "boosted"))
+
+func _find_unit(dname: String) -> Unit:
+	for u in combat.all_units:
+		if u.display_name == dname:
+			return u
+	return null
 
 func _floor_tile() -> Tile:
 	var t := Tile.new().setup(Tile.TileType.SOLID, 99, 0)

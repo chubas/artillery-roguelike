@@ -27,6 +27,13 @@ func _initialize() -> void:
 	shock.tags = ["ELECTRIC"]
 	_save(shock, "res://data/statuses/shock.tres")
 
+	# M10: Boosted — a persistent buff whose stacks are spent by moving (not by time).
+	var boosted := StatusEffectDef.new()
+	boosted.id = "boosted"; boosted.display_name = "Boosted"
+	boosted.max_stacks = 9; boosted.duration = -1; boosted.tick_damage = 0; boosted.ap_reduction = 0
+	boosted.is_buff = true; boosted.decays_per_turn = false; boosted.consumed_by_move = true
+	_save(boosted, "res://data/statuses/boosted.tres")
+
 	# ── Tile statuses (→ unit status to apply) ────────────────────────────────
 	var burning := TileStatusDef.new()
 	burning.id = "burning"; burning.display_name = "Burning"
@@ -141,6 +148,7 @@ func _initialize() -> void:
 	var organic := UnitDefinition.new()
 	organic.id = "enemy_organic"; organic.display_name = "Brute"
 	organic.width_voxels = 2; organic.height_voxels = 3; organic.max_hp = 8
+	organic.attack = 3
 	organic.move_range = 0; organic.climb_max = 1
 	organic.default_shot = basic_ref
 	organic.tags = ["ORGANIC"]
@@ -151,6 +159,7 @@ func _initialize() -> void:
 	var mechanical := UnitDefinition.new()
 	mechanical.id = "enemy_mechanical"; mechanical.display_name = "Drone"
 	mechanical.width_voxels = 2; mechanical.height_voxels = 3; mechanical.max_hp = 6
+	mechanical.attack = 3
 	mechanical.move_range = 0; mechanical.climb_max = 1
 	mechanical.default_shot = basic_ref
 	mechanical.tags = ["MECHANICAL"]
@@ -159,14 +168,16 @@ func _initialize() -> void:
 	_save(mechanical, "res://data/units/enemy_mechanical.tres")
 
 	# ── M4 player squad: one unit per shot family ─────────────────────────────
+	# M10: attack value is the source of projectile strength (× shot.strength_mult × power).
+	# Values mirror the old per-shot strengths so balance is unchanged: drill is the heavy hitter.
 	_save_player_unit("player_cluster", "Cluster", cluster_loadout,
-			Color(0.85, 0.7, 0.2))      # goldenrod
+			Color(0.85, 0.7, 0.2), 3)       # goldenrod
 	_save_player_unit("player_bypass", "Drill", bypass_loadout,
-			Color(0.2, 0.7, 0.65))      # teal
+			Color(0.2, 0.7, 0.65), 10)      # teal — heavy unit-hit blast
 	_save_player_unit("player_pull", "Magnet", pull_loadout,
-			Color(0.9, 0.45, 0.4))      # coral
+			Color(0.9, 0.45, 0.4), 3)       # coral
 	_save_player_unit("player_spiral", "Spiral", spiral_loadout,
-			Color(0.6, 0.4, 0.85))      # purple
+			Color(0.6, 0.4, 0.85), 3)       # purple
 
 	# ── M5: cards ─────────────────────────────────────────────────────────────
 	var shield_card := CardDefinition.new()
@@ -211,7 +222,12 @@ func _initialize() -> void:
 			"Projectiles airborne for more than 10 seconds deal 20% more damage.",
 			"res://data/artifacts/resources/long_flight.tres")
 
-	print("[bake] all M9 artifact resources written")
+	# ── M10: artifacts ─────────────────────────────────────────────────────────
+	_bake_artifact(ArtifactStartBoosted.new(), "Battle Drills",
+			"At the start of the stage, give your units Boosted (3).",
+			"res://data/artifacts/resources/start_boosted.tres")
+
+	print("[bake] all M10 resources written")
 	quit()
 
 # Build a core1/edge2 diamond pattern with every group carrying `element`.
@@ -292,13 +308,14 @@ func _apply_family_payload(s: ShotDefinition, type_id: String) -> void:
 			s.spiral_frequency = 2.0
 
 func _save_player_unit(id: String, dname: String,
-		loadout: Array[ShotDefinition], color: Color) -> void:
+		loadout: Array[ShotDefinition], color: Color, attack: int = 3) -> void:
 	var u := UnitDefinition.new()
 	u.id = id
 	u.display_name = dname
 	u.width_voxels = 2
 	u.height_voxels = 3
 	u.max_hp = 6
+	u.attack = attack
 	u.move_range = 99
 	u.climb_max = 1
 	u.default_shot = loadout[0]

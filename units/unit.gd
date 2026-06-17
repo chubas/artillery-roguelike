@@ -15,6 +15,9 @@ var hp : int = 0
 # shot.strength * power. Mutable so future upgrades can scale it without re-baking
 # any AoE pattern.
 var power : float = 1.0
+# Base attack value (M10): source of projectile strength (see ProjectileManager.fire()).
+# Mirrors definition.attack at spawn; mutable so buffs/upgrades can scale it at runtime.
+var attack : int = 3
 # Shield (M5): a flat, per-combat absorb pool that sits above HP in the mitigation
 # stack. Unbounded (no max) — unlike HP, it's not drawn as a proportional bar.
 # Granted by cards for now (no baseline/regen yet). Armor would slot in above
@@ -51,6 +54,7 @@ func available_shots() -> Array:
 func _ready() -> void:
 	hp = definition.max_hp
 	power = definition.base_power
+	attack = definition.attack
 	move_origin = vox_position
 	if display_name == "":
 		display_name = definition.display_name
@@ -162,9 +166,9 @@ func _draw() -> void:
 	elif inspected and hp > 0:
 		draw_rect(body.grow(2.0), Color(0.3, 0.85, 0.95), false, 2.0)
 	if hp > 0:
+		_draw_stat_icons(w)      # attack + shield icons, above the HP bar (M10)
 		_draw_hp_bar(w)
-		_draw_shield_bar(w)
-		_draw_status_badges(w)
+		_draw_effect_badges(h)   # effect icons, below the body (M10)
 
 func _draw_hp_bar(w: float) -> void:
 	var frac := float(hp) / definition.max_hp
@@ -177,39 +181,53 @@ func _draw_hp_bar(w: float) -> void:
 	draw_rect(Rect2(1, -6, maxf(0.0, (w - 2) * frac), 2), c)
 	_draw_bar_value(w, -7, "%d/%d" % [hp, definition.max_hp])
 
-# Shield bar (M5): unbounded, so unlike HP it's NOT a proportional fill — just a fixed,
-# full-width bar (same width as the HP bar) that's either shown or not, plus the raw
-# number alongside it (no max to compare against).
-func _draw_shield_bar(w: float) -> void:
-	if shield <= 0:
-		return
-	draw_rect(Rect2(0, -11, w, 3), Color(0, 0, 0, 0.7))
-	draw_rect(Rect2(1, -10.5, maxf(0.0, w - 2), 2), Color(0.4, 0.75, 1.0))
-	_draw_bar_value(w, -11, str(shield))
-
 func _draw_bar_value(w: float, bar_top_y: float, text: String) -> void:
 	var font := ThemeDB.fallback_font
 	var pos := Vector2(w + 3.0, bar_top_y + 6.0)
 	draw_string(font, pos + Vector2(1, 1), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0, 0, 0, 0.8))
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color.WHITE)
 
-# Placeholder status badges (M3 §15): a small colour-coded square per active status with
-# its stack count. Colour by element tag — fire = orange, electric = cyan.
-func _draw_status_badges(w: float) -> void:
+# Stat icons (M10): attack (always) + shield (when > 0) as placeholder circles with their
+# values, laid out left-to-right in a row just above the HP bar.
+func _draw_stat_icons(_w: float) -> void:
+	var cy := -16.0
+	var x := 2.0
+	x = _draw_icon_value(x, cy, Color(0.9, 0.4, 0.25), attack)   # attack — reddish
+	if shield > 0:
+		x = _draw_icon_value(x, cy, Color(0.4, 0.75, 1.0), shield)   # shield — blue
+
+# Effect badges (M10): one placeholder circle + stack value per active effect, in a row just
+# below the body. Replaces the M3 top-of-unit status squares. Buffs are green; debuffs use the
+# element-tag palette.
+func _draw_effect_badges(h: float) -> void:
 	if active_statuses.is_empty():
 		return
-	var font := ThemeDB.fallback_font
-	var bx := 0.0
+	var cy := h + 9.0
+	var x := 2.0
 	for id in active_statuses:
 		var inst : StatusInstance = active_statuses[id]
-		var c := Color(0.7, 0.7, 0.7)
-		if "FIRE" in inst.definition.tags:
-			c = Color(1.0, 0.5, 0.1)
-		elif "ELECTRIC" in inst.definition.tags:
-			c = Color(0.4, 0.8, 1.0)
-		var r := Rect2(bx, -22, 11, 11)
-		draw_rect(r, c)
-		draw_rect(r, Color(0, 0, 0, 0.6), false, 1.0)
-		draw_string(font, Vector2(bx + 2.5, -13), str(inst.stacks),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color.BLACK)
-		bx += 13.0
+		x = _draw_icon_value(x, cy, _effect_color(inst.definition), inst.stacks)
+
+# Shared placeholder glyph: a filled circle (with a faint outline) and its integer value to
+# the right. Returns the next free x so callers can pack several in a row.
+func _draw_icon_value(x: float, cy: float, fill: Color, value: int) -> float:
+	var font := ThemeDB.fallback_font
+	var r := 4.5
+	draw_circle(Vector2(x + r, cy), r, fill)
+	draw_arc(Vector2(x + r, cy), r, 0.0, TAU, 14, Color(0, 0, 0, 0.5), 1.0)
+	var txt := str(value)
+	var tx := x + 2.0 * r + 2.0
+	var ty := cy + 4.0
+	draw_string(font, Vector2(tx + 1, ty + 1), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(tx, ty), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color.WHITE)
+	var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+	return tx + tw + 6.0
+
+func _effect_color(def: StatusEffectDef) -> Color:
+	if def.is_buff:
+		return Color(0.3, 0.85, 0.4)        # buff — green
+	if "FIRE" in def.tags:
+		return Color(1.0, 0.5, 0.1)
+	if "ELECTRIC" in def.tags:
+		return Color(0.4, 0.8, 1.0)
+	return Color(0.75, 0.75, 0.75)

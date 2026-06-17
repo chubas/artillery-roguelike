@@ -384,14 +384,14 @@ class UnitInspector:
 						HORIZONTAL_ALIGNMENT_LEFT, size.x - 20, 11, 3, Color(1, 1, 1, 0.75))
 				y += 38
 		if unit.active_statuses.is_empty():
-			draw_string(font, Vector2(10, y), "Status: none",
+			draw_string(font, Vector2(10, y), "Effects: none",
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 1, 1, 0.5))
 		else:
 			var parts : Array = []
 			for id in unit.active_statuses:
 				var inst : StatusInstance = unit.active_statuses[id]
 				parts.append("%s x%d" % [inst.definition.display_name, inst.stacks])
-			draw_string(font, Vector2(10, y), "Status: " + ", ".join(parts),
+			draw_string(font, Vector2(10, y), "Effects: " + ", ".join(parts),
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 0.85, 0.4))
 
 	# Pattern-zone glyph (M7): small grid of the active shot's footprint, colored by

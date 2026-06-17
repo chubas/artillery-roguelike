@@ -14,19 +14,48 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-16)
+## Current state (2026-06-17)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
   M6 (turn-phase logging, deployables: mines + shield generators), M7 (AoE zone model & pattern
   indicator), M8 (wind mechanic: physics, fire spread, HUD indicator),
-  **M9 (artifact system: engine + 7 initial artifacts)**.
+  M9 (artifact system: engine + initial artifacts),
+  **M10 (unit attack value, Effects system + Boosted, attack/shield/effect HUD icons)**.
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M9 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M10 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-17 — Milestone 10: Unit attack, Effects system & Boosted
+
+Per-unit attack stat as the source of projectile strength, plus a generalized "Effects" layer
+(the status system reframed) with the first new effect, Boosted. Full design in
+[milestone-10-plan.md](milestone-10-plan.md).
+
+- **Strength model.** Projectile strength now derives from the firing unit:
+  `max(0, round(unit.attack × shot.strength_mult × power) + attack_modifier)`, then scaled
+  per-zone by the AoE multiplier. `UnitDefinition.attack` (mirrored to `Unit.attack`) and
+  `ShotDefinition.strength_mult` are new; the old `ShotDefinition.strength` int is dormant.
+  Baked attack values preserve prior balance (drill 10, others 3).
+- **Effects = the status system, generalized.** `StatusEffectDef` gained `is_buff`,
+  `decays_per_turn`, and `consumed_by_move`. `UnitStatusSystem.tick_all()` skips the
+  turns-left decrement for persistent effects (`decays_per_turn=false`). Burn/shock are now
+  framed as effects; the inspector label reads "Effects:".
+- **Boosted (X).** A persistent buff (`boosted.tres`): the first X voluntary moves cost no AP —
+  each spends a stack instead (`CombatManager._unit_move_token` / `_spend_move_token` in
+  `try_move`). Stacks persist across turns. Undo refunds spent stacks via a new
+  `_checkpoint_move_tokens` snapshot, and `can_undo()` now keys off a `_dirty_since_checkpoint`
+  flag (a free move spends no AP, so the old AP-delta check missed it).
+- **Unit HUD.** `unit.gd` `_draw` reworked: attack + shield placeholder circles with values sit
+  above the HP bar (shield bar removed); effect placeholder circles with stack values sit below
+  the body (relocated from the old top-of-unit status squares). Buffs draw green.
+- **Artifact "Battle Drills"** (`artifact_start_boosted.gd`): grants every player unit
+  Boosted(3) on combat start. Baked to `start_boosted.tres`, added to `_ARTIFACT_LOADOUT`.
 
 ---
 

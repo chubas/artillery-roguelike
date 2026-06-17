@@ -14,6 +14,11 @@ extends Resource
 @export var move_range : int = 99  # max moves per activation (use 99 = unlimited for now)
 @export var climb_max : int = 1    # max voxel height climbed free
 
+## Base attack value (M10): the source of projectile strength. Final salvo strength =
+## attack * shot.strength_mult * power + attack_modifier (clamped ≥ 0), then scaled per AoE
+## zone. Per-unit so a heavy drill hits harder than a light cluster.
+@export var attack : int = 3
+
 ## Multiplies every shot's strength when this unit fires (M7). 1.0 = no change;
 ## future upgrades scale Unit.power at runtime without touching any AoE pattern.
 @export var base_power : float = 1.0

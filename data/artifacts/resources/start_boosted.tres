@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactStartBoosted" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_start_boosted.gd" id="1_invl7"]
+
+[resource]
+script = ExtResource("1_invl7")
+artifact_name = "Battle Drills"
+description = "At the start of the stage, give your units Boosted (3)."

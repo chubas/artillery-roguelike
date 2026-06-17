@@ -44,6 +44,12 @@ var _reinforcements_spawned : Dictionary = {}   # round int -> true
 
 var _checkpoint_positions : Dictionary = {}  # Unit -> Vector2i
 var _checkpoint_actions_left : int = 0
+# M10: per-unit snapshot of consumed-by-move effect stacks (Boosted) so undo refunds them.
+# Unit -> { effect_id: { "def": StatusEffectDef, "stacks": int } }
+var _checkpoint_move_tokens : Dictionary = {}
+# A free (Boosted) move spends no AP, so undo can't infer "something changed" from the action
+# count alone — this flag tracks any undoable move since the last checkpoint.
+var _dirty_since_checkpoint : bool = false
 
 # --- Artifacts (M9): passive squad-wide effects, loaded from resource paths -------
 const _ARTIFACT_LOADOUT : Array = [
@@ -54,6 +60,7 @@ const _ARTIFACT_LOADOUT : Array = [
 	"res://data/artifacts/resources/idle_actions.tres",
 	"res://data/artifacts/resources/death_explosion.tres",
 	"res://data/artifacts/resources/long_flight.tres",
+	"res://data/artifacts/resources/start_boosted.tres",
 ]
 var artifacts : Array[ArtifactDef] = []
 var _artifact_ctx : ArtifactContext = null
@@ -500,7 +507,9 @@ func try_move(unit: Unit, direction: int) -> void:
 		return
 	if unit == null or unit.is_done or unit.hp <= 0:
 		return
-	if actions_left < 1:
+	# Boosted (M10): a move token makes this move free, bypassing the AP requirement.
+	var token := _unit_move_token(unit)
+	if token == null and actions_left < 1:
 		return
 	if unit.actions_spent_moving >= unit.definition.move_range:
 		return
@@ -511,21 +520,50 @@ func try_move(unit: Unit, direction: int) -> void:
 	unit.set_vox_position(dest)
 	unit.moved_this_turn = true
 	unit.actions_spent_moving += 1
-	actions_left -= 1
+	if token != null:
+		_spend_move_token(unit, token)   # Boosted absorbs the cost instead of the AP pool
+	else:
+		actions_left -= 1
+	_dirty_since_checkpoint = true
 	action_bar_changed.emit(actions_left, _turn_max_actions)
+
+# Boosted (M10): the first consumed_by_move effect on `unit` with stacks left, or null.
+func _unit_move_token(unit: Unit) -> StatusInstance:
+	if not Features.unit_statuses_enabled:
+		return null
+	for id in unit.active_statuses:
+		var inst : StatusInstance = unit.active_statuses[id]
+		if inst.definition.consumed_by_move and inst.stacks > 0:
+			return inst
+	return null
+
+func _spend_move_token(unit: Unit, token: StatusInstance) -> void:
+	token.stacks -= 1
+	if token.stacks <= 0:
+		unit.active_statuses.erase(token.definition.id)
+		EventBus.status_removed.emit(unit, token.definition.id)
+	unit.queue_redraw()
 
 # --- Checkpoint save: called at turn start and after each firing event ------------
 func _save_checkpoint() -> void:
 	_checkpoint_positions.clear()
+	_checkpoint_move_tokens.clear()
 	_checkpoint_actions_left = actions_left
+	_dirty_since_checkpoint = false
 	for u in player_units:
 		if u.hp > 0 and not u.is_done:
 			_checkpoint_positions[u] = u.vox_position
+			var tokens := {}
+			for id in u.active_statuses:
+				var inst : StatusInstance = u.active_statuses[id]
+				if inst.definition.consumed_by_move:
+					tokens[id] = { "def": inst.definition, "stacks": inst.stacks }
+			_checkpoint_move_tokens[u] = tokens
 
 # --- Undo: restores ALL unfired player units to the last checkpoint ---------------
 func can_undo() -> bool:
 	return game_state == GameState.PLAYER_TURN and not charging \
-		and actions_left < _checkpoint_actions_left
+		and _dirty_since_checkpoint
 
 func try_undo() -> void:
 	if not can_undo():
@@ -534,9 +572,23 @@ func try_undo() -> void:
 		if is_instance_valid(u) and u.hp > 0 and not u.is_done:
 			u.set_vox_position(_checkpoint_positions[u])
 			u.actions_spent_moving = 0
+			_restore_move_tokens(u)
 			_settle_unit(u)
 	actions_left = _checkpoint_actions_left
+	_dirty_since_checkpoint = false
 	action_bar_changed.emit(actions_left, _turn_max_actions)
+
+# Restore a unit's consumed-by-move effect stacks (Boosted) to their checkpoint values,
+# re-creating an instance that was fully spent during the undone moves.
+func _restore_move_tokens(unit: Unit) -> void:
+	var snap : Dictionary = _checkpoint_move_tokens.get(unit, {})
+	for id in snap:
+		var entry : Dictionary = snap[id]
+		if unit.active_statuses.has(id):
+			unit.active_statuses[id].stacks = entry["stacks"]
+		else:
+			unit.active_statuses[id] = StatusInstance.new(entry["def"], entry["stacks"])
+	unit.queue_redraw()
 
 # --- Firing (Gunbound model; ends activation per spec §5.4, M3 §7 action cost) -----
 func _fire_active() -> void:

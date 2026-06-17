@@ -13,9 +13,14 @@ extends Resource
 
 ## Payload
 @export var aoe_pattern : AoEPattern = null
-## Baseline magnitude before zone multipliers (M7). Final per-voxel damage =
-## strength * firing_unit.power * group.multiplier. Independent of aoe_pattern's shape.
+## Baseline magnitude before zone multipliers (M7). DORMANT since M10 — the fire path now
+## derives strength from the firing unit's attack value (see strength_mult below). Kept so
+## existing .tres load cleanly and for any non-unit callers.
 @export var strength : int = 3
+## Per-shot relative multiplier on the firing unit's attack (M10). Final salvo strength =
+## unit.attack * strength_mult * unit.power + attack_modifier (clamped ≥ 0). 1.0 = the shot
+## deals the unit's flat attack; >1 = a heavier shell, <1 = a lighter one.
+@export var strength_mult : float = 1.0
 
 ## Action economy
 @export var action_cost : int = 0          # 0 = free basic shot

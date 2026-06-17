@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffectDef" format=3]
+
+[ext_resource type="Script" path="res://data/statuses/status_effect_def.gd" id="1_j1rf7"]
+
+[resource]
+script = ExtResource("1_j1rf7")
+id = "boosted"
+display_name = "Boosted"
+max_stacks = 9
+duration = -1
+is_buff = true
+decays_per_turn = false
+consumed_by_move = true

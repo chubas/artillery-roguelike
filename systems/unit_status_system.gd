@@ -34,7 +34,9 @@ static func tick_all(unit: Unit) -> int:
 		total_tick_damage += def.tick_damage * inst.stacks
 		total_ap_reduction += def.ap_reduction * inst.stacks
 		EventBus.status_ticked.emit(unit, id, inst.stacks)
-		if inst.tick():
+		# Persistent effects (M10, e.g. Boosted) never expire by time — only their per-stack
+		# damage/AP applies; non-persistent statuses count down and are removed at 0.
+		if def.decays_per_turn and inst.tick():
 			to_remove.append(id)
 	if total_tick_damage > 0:
 		unit.take_damage(total_tick_damage)

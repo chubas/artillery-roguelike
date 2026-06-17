@@ -23,7 +23,7 @@ class Salvo extends RefCounted:
 	var is_enemy : bool = false
 	var shot : ShotDefinition = null
 	var pattern : AoEPattern = null
-	var strength : int = 0   # shot.strength * firing_unit.power, computed at fire time (M7)
+	var strength : int = 0   # unit.attack * shot.strength_mult * power + modifier, at fire time (M10)
 	var firing_unit : Unit = null   # M9: for on_unit_killed killer reference
 	var members : Array = []     # live Projectile / SpiralSatellite nodes
 	var pending : Array = []     # queued impacts: {node, world_pos, voxel, frame, index, force}
@@ -50,9 +50,12 @@ func fire(origin: Vector2, direction: Vector2, speed: float,
 	salvo.shot = shot
 	salvo.pattern = shot.aoe_pattern
 	salvo.firing_unit = firing_unit
-	var base_str : int = roundi(shot.strength * (firing_unit.power if firing_unit != null else 1.0))
+	# M10: strength derives from the firing unit's attack value, scaled by the shot's relative
+	# multiplier and the unit's power, plus any flat attack_modifier (M9 debuffs). Clamped ≥ 0.
+	var atk : int = firing_unit.attack if firing_unit != null else 3
+	var pow : float = firing_unit.power if firing_unit != null else 1.0
 	var modifier : int = firing_unit.attack_modifier if firing_unit != null else 0
-	salvo.strength = maxi(0, base_str + modifier)
+	salvo.strength = maxi(0, roundi(atk * shot.strength_mult * pow) + modifier)
 	_salvos.append(salvo)
 	if shot.spiral_arms > 0:
 		_spawn_spiral(salvo, origin, direction, speed, shot)
