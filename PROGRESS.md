@@ -21,13 +21,38 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M6 (turn-phase logging, deployables: mines + shield generators), M7 (AoE zone model & pattern
   indicator), M8 (wind mechanic: physics, fire spread, HUD indicator),
   M9 (artifact system: engine + initial artifacts),
-  **M10 (unit attack value, Effects system + Boosted, attack/shield/effect HUD icons)**.
+  M10 (unit attack value, Effects system + Boosted, attack/shield/effect HUD icons),
+  **M11 (card deck: draw/hand/discard, 3 new card effects, deck indicator)**.
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M10 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M11 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-17 — Milestone 11: Card deck (draw / hand / discard)
+
+The fixed two-card hand becomes a real deck. Full design in
+[milestone-11-plan.md](milestone-11-plan.md).
+
+- **Deck lifecycle.** `CombatManager` now holds `_deck` / `_hand` / `_discard`. The starting deck
+  (`_DECK_LIST`) is 11 cards — Direct Strike ×3, Shield ×3, Mine ×2, Boosted ×2, Halve Wind ×1 —
+  built and shuffled in `setup()`. Each player turn `_draw_hand()` discards the old hand and draws
+  `HAND_SIZE = 5`; if the draw pile empties mid-draw, `_reshuffle_discard()` shuffles the discard
+  back in and drawing continues. The once-per-turn-per-card rule (`_used_cards`) is gone — **AP is
+  the only play limit**.
+- **Three new card effects** (`CardDefinition` gained TargetType.TILE/NONE and EffectType
+  ADD_BOOSTED / DEPLOY_MINE / HALVE_WIND): Overdrive (Boosted +2 to an ally), Drop Mine (deploy a
+  mine on a clicked column via `_deploy_mine_at`), Calm Winds (instant, no target — halves this
+  round's `wind_strength`).
+- **Targeting.** `_try_click_target_card` now branches on target type; TILE cards convert the click
+  to a column and the overlay (`_draw_tile_target`) shows a column guide + surface marker. NONE
+  cards apply immediately on select (no targeting step).
+- **HUD.** `set_cards` takes draw/discard counts; a `Deck N · Discard M` label sits under the hand.
+  CardChip lost its spent/slash visuals (no per-turn deactivation anymore).
+- Card play remains non-undoable (re-checkpoints), so deck state needs no undo snapshot.
 
 ---
 

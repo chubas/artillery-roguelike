@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/cards/card_definition.gd" id="1_16j3o"]
+
+[resource]
+script = ExtResource("1_16j3o")
+id = "halve_wind"
+display_name = "Calm Winds"
+target_type = 3
+effect_type = 4
+color = Color(0.4, 0.8, 0.95, 1)

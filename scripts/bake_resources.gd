@@ -196,6 +196,31 @@ func _initialize() -> void:
 	strike_card.color = Color(0.9, 0.3, 0.25)
 	_save(strike_card, "res://data/cards/direct_strike.tres")
 
+	# ── M11: deck cards ───────────────────────────────────────────────────────
+	var boosted_card := CardDefinition.new()
+	boosted_card.id = "boosted_card"; boosted_card.display_name = "Overdrive"
+	boosted_card.target_type = CardDefinition.TargetType.ALLY
+	boosted_card.effect_type = CardDefinition.EffectType.ADD_BOOSTED
+	boosted_card.magnitude = 2; boosted_card.action_cost = 2
+	boosted_card.color = Color(0.3, 0.8, 0.4)
+	_save(boosted_card, "res://data/cards/boosted_card.tres")
+
+	var mine_card := CardDefinition.new()
+	mine_card.id = "mine_card"; mine_card.display_name = "Drop Mine"
+	mine_card.target_type = CardDefinition.TargetType.TILE
+	mine_card.effect_type = CardDefinition.EffectType.DEPLOY_MINE
+	mine_card.magnitude = 0; mine_card.action_cost = 2
+	mine_card.color = Color(0.9, 0.55, 0.2)
+	_save(mine_card, "res://data/cards/mine_card.tres")
+
+	var wind_card := CardDefinition.new()
+	wind_card.id = "halve_wind"; wind_card.display_name = "Calm Winds"
+	wind_card.target_type = CardDefinition.TargetType.NONE
+	wind_card.effect_type = CardDefinition.EffectType.HALVE_WIND
+	wind_card.magnitude = 0; wind_card.action_cost = 1
+	wind_card.color = Color(0.4, 0.8, 0.95)
+	_save(wind_card, "res://data/cards/halve_wind.tres")
+
 	# ── M6: deployables ────────────────────────────────────────────────────────
 	_save(AoEPattern.make_diamond(1, 2), "res://data/shots/aoe/diamond_mine.tres")
 

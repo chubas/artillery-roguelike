@@ -28,10 +28,21 @@ var charging : bool = false
 var charge_frac : float = 0.0
 var _last_firing_unit : Unit = null   # M9: most recent unit to fire, for on_unit_killed
 
-# --- Cards (M5) ---------------------------------------------------------------
-var available_cards : Array[CardDefinition] = []
+# --- Cards (M5, deck added M11) -----------------------------------------------
+# A real deck: shuffled draw pile → 5-card hand drawn fresh each turn → discard pile.
+# When the draw pile empties mid-draw, the discard is reshuffled into a new draw pile.
+const HAND_SIZE := 5
+const _DECK_LIST : Array = [   # [resource path, copies] — built into _deck at setup
+	["res://data/cards/direct_strike.tres", 3],
+	["res://data/cards/shield_buff.tres",   3],
+	["res://data/cards/mine_card.tres",     2],
+	["res://data/cards/boosted_card.tres",  2],
+	["res://data/cards/halve_wind.tres",    1],
+]
+var _deck : Array[CardDefinition] = []      # draw pile (top = last element)
+var _hand : Array[CardDefinition] = []
+var _discard : Array[CardDefinition] = []
 var _pending_card : CardDefinition = null   # non-null while choosing a target
-var _used_cards : Array[CardDefinition] = []   # spent this turn — unselectable until reset
 
 # --- Reinforcements (M5): a tiny hardcoded schedule, round_index → wave. ----------
 # Landing collision is intentionally NOT checked (enemies don't move, per design) —
@@ -117,10 +128,7 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	if Features.deployables_enabled:
 		_spawn_deployables()
 	_init_artifacts()
-	available_cards = [
-		load("res://data/cards/shield_buff.tres"),
-		load("res://data/cards/direct_strike.tres"),
-	]
+	_build_deck()
 	_begin_round()
 
 func get_units() -> Array:
@@ -364,7 +372,8 @@ func _start_player_turn() -> void:
 	action_bar_changed.emit(actions_left, _turn_max_actions)
 	for u in player_units:
 		u.reset_for_turn()
-	_used_cards.clear()   # each card is playable once per turn (M5)
+	if Features.card_deck_enabled:
+		_draw_hand()   # M11: fresh 5-card hand each turn (old hand discarded)
 	_save_checkpoint()
 	if Features.deployables_enabled:
 		_pulse_shield_generators()
@@ -639,23 +648,52 @@ func _select_shot(idx: int) -> void:
 	if idx >= 0 and idx < shots.size():
 		active_unit.selected_shot = shots[idx]
 
-# --- Cards (M5): action-costed effects played from the shared pool, targeted at -----
-# an ally or enemy unit. Distinct from firing — playing a card does not require an
-# active unit and does not end any unit's turn.
+# --- Deck (M11): build, draw a fresh hand each turn, reshuffle discard when the draw pile runs out.
+func _build_deck() -> void:
+	_deck.clear()
+	_hand.clear()
+	_discard.clear()
+	for entry in _DECK_LIST:
+		var card : CardDefinition = load(entry[0])
+		for _i in range(entry[1]):
+			_deck.append(card)
+	_deck.shuffle()
+
+# Discard the unplayed hand, then draw HAND_SIZE fresh. If the draw pile empties mid-draw,
+# the discard is reshuffled into a new draw pile and drawing continues (user-specified rule).
+func _draw_hand() -> void:
+	_discard.append_array(_hand)
+	_hand.clear()
+	for _i in range(HAND_SIZE):
+		if _deck.is_empty():
+			_reshuffle_discard()
+			if _deck.is_empty():
+				break   # no cards anywhere (hand smaller than HAND_SIZE)
+		_hand.append(_deck.pop_back())
+
+func _reshuffle_discard() -> void:
+	_deck = _discard.duplicate()
+	_discard.clear()
+	_deck.shuffle()
+
+# --- Cards (M5, reworked M11): action-costed effects played from the hand. Distinct from
+# firing — playing a card does not require an active unit and does not end any unit's turn.
 func _select_card(idx: int) -> void:
 	if not Features.card_deck_enabled:
 		return
 	if game_state != GameState.PLAYER_TURN or charging:
 		return
-	if idx < 0 or idx >= available_cards.size():
+	if idx < 0 or idx >= _hand.size():
 		return
-	var card : CardDefinition = available_cards[idx]
-	if card in _used_cards:   # already played this turn — deactivated
-		return
+	var card : CardDefinition = _hand[idx]
 	if actions_left < card.action_cost:
 		return
 	charging = false   # selecting a card suspends any in-progress shot charge
-	_pending_card = card
+	# No-target cards (Halve Wind) resolve immediately; targeted cards await a click.
+	if card.target_type == CardDefinition.TargetType.NONE:
+		_apply_card(card, null, Vector2i.ZERO)
+	else:
+		_pending_card = card
 
 func _cancel_pending_card() -> void:
 	_pending_card = null
@@ -663,26 +701,57 @@ func _cancel_pending_card() -> void:
 func _try_click_target_card(world_pos: Vector2) -> void:
 	if _pending_card == null:
 		return
-	var pool := player_units if _pending_card.target_type == CardDefinition.TargetType.ALLY \
-			else enemy_units
-	for u in pool:
-		if u.hp > 0 and u.bounds_rect_world().has_point(world_pos):
-			_apply_card(_pending_card, u)
-			return
+	match _pending_card.target_type:
+		CardDefinition.TargetType.ALLY, CardDefinition.TargetType.ENEMY:
+			var pool := player_units if _pending_card.target_type == CardDefinition.TargetType.ALLY \
+					else enemy_units
+			for u in pool:
+				if u.hp > 0 and u.bounds_rect_world().has_point(world_pos):
+					_apply_card(_pending_card, u, Vector2i.ZERO)
+					return
+		CardDefinition.TargetType.TILE:
+			var col := Const.world_to_voxel(world_pos).x
+			if col >= 0 and col < Const.MAP_WIDTH and _terrain.get_surface_row(col) != -1:
+				_apply_card(_pending_card, null, Vector2i(col, 0))
 
-func _apply_card(card: CardDefinition, target: Unit) -> void:
+# Dispatch a card's effect. `target` is the unit for ALLY/ENEMY cards; `vox` carries the chosen
+# column for TILE cards; both are ignored by NONE cards. Played cards go to the discard pile.
+func _apply_card(card: CardDefinition, target: Unit, vox: Vector2i) -> void:
 	var cost := ArtifactSystem.apply_card_cost(artifacts, _artifact_ctx, card, card.action_cost)
 	actions_left -= cost
 	action_bar_changed.emit(actions_left, _turn_max_actions)
-	_used_cards.append(card)   # one play per turn; reset in _start_player_turn
 	match card.effect_type:
 		CardDefinition.EffectType.SHIELD_BUFF:
 			target.add_shield(card.magnitude)
 			EventBus.unit_shield_changed.emit(target, target.shield)
 		CardDefinition.EffectType.DIRECT_DAMAGE:
 			target.take_damage(card.magnitude)   # routes through shield, like any other hit
+		CardDefinition.EffectType.ADD_BOOSTED:
+			UnitStatusSystem.apply(target, load("res://data/statuses/boosted.tres"), card.magnitude)
+		CardDefinition.EffectType.DEPLOY_MINE:
+			_deploy_mine_at(vox.x)
+		CardDefinition.EffectType.HALVE_WIND:
+			_halve_wind()
+	_hand.erase(card)
+	_discard.append(card)
 	_pending_card = null
-	_save_checkpoint()   # AP spend is undoable, like a shot or move
+	_save_checkpoint()   # AP spend is undoable (deck state is not — card play re-checkpoints)
+
+# Deploy a player mine on the surface of `col` (M11 mine card). Mirrors the mine branch of
+# _spawn_deployables().
+func _deploy_mine_at(col: int) -> void:
+	var m := Mine.new()
+	m.explosion_pattern = load("res://data/shots/aoe/diamond_mine.tres")
+	var surface := _terrain.get_surface_row(col)
+	var top_left := Vector2i(col, surface - m.height_voxels) if surface != -1 else Vector2i(col, 0)
+	m.set_vox_position(top_left)
+	_deployable_layer_back.add_child(m)
+	deployables.append(m)
+
+func _halve_wind() -> void:
+	wind_strength *= 0.5
+	_projectiles.current_wind_force = wind_strength * Const.MAX_WIND_FORCE
+	EventBus.wind_changed.emit(wind_strength)
 
 # --- Settling: units fall when terrain under them is destroyed --------------------
 # (Not in the spec; without it units hover over craters. No fall damage in M2.)
@@ -795,6 +864,6 @@ func _push_hud_state() -> void:
 		_hud.set_angle_none()
 		_hud.set_shots([], null, actions_left)
 	_hud.set_power(charge_frac, charging, last_power)
-	var cards := available_cards if Features.card_deck_enabled else []
-	_hud.set_cards(cards, _pending_card, actions_left, _used_cards)
+	var cards := _hand if Features.card_deck_enabled else []
+	_hud.set_cards(cards, _pending_card, actions_left, _deck.size(), _discard.size())
 	_hud.set_inspected_unit(inspected_unit)

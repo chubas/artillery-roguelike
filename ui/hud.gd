@@ -22,6 +22,7 @@ var _shot_sig : String = ""   # cache: rebuild chips only when the shot list cha
 var _card_box : HBoxContainer
 var _card_chips : Array = []
 var _card_sig : String = ""   # cache: rebuild chips only when the card list changes
+var _deck_label : Label       # M11: draw-pile / discard counts
 var _inspector : UnitInspector
 var _wind_indicator : WindIndicator
 var _artifact_bar : HBoxContainer
@@ -53,6 +54,9 @@ func _build_top_left() -> void:
 	_card_box = HBoxContainer.new()
 	_card_box.add_theme_constant_override("separation", 4)
 	box.add_child(_card_box)
+	_deck_label = _make_label(12)
+	_deck_label.modulate = Color(1, 1, 1, 0.8)
+	box.add_child(_deck_label)
 	var hint := _make_label(11)
 	hint.text = "↑/↓ angle · ←/→ move · Space charge/fire · 1/2/3 shot · Q/E card · Esc cancel · Tab select · WASD pan"
 	hint.modulate = Color(1, 1, 1, 0.55)
@@ -192,7 +196,8 @@ func set_shots(shots: Array, active: ShotDefinition, actions_left: int) -> void:
 # Card chips (M5). Little card-faces (description + AP cost) instead of text buttons.
 # Same rebuild-only-on-identity-change pattern as set_shots(); greys out unaffordable
 # cards and draws a green outline on the currently selected (pending) card.
-func set_cards(cards: Array, pending: CardDefinition, actions_left: int, used: Array = []) -> void:
+func set_cards(cards: Array, pending: CardDefinition, actions_left: int,
+		deck_count: int = 0, discard_count: int = 0) -> void:
 	var sig := ""
 	for c in cards:
 		sig += (c.id if c != null else "?") + "|"
@@ -210,7 +215,8 @@ func set_cards(cards: Array, pending: CardDefinition, actions_left: int, used: A
 	for i in range(_card_chips.size()):
 		var c : CardDefinition = cards[i]
 		var chip : CardChip = _card_chips[i]
-		chip.set_state(actions_left >= c.action_cost, pending != null and c == pending, c in used)
+		chip.set_state(actions_left >= c.action_cost, pending != null and c == pending)
+	_deck_label.text = "Deck %d  ·  Discard %d" % [deck_count, discard_count]
 
 func set_artifacts(artifacts: Array) -> void:
 	for c in _artifact_bar.get_children():
@@ -291,24 +297,20 @@ class CardChip:
 	var card : CardDefinition
 	var _affordable := true
 	var _selected := false
-	var _used := false   # played this turn → deactivated, unclickable
 
 	func _ready() -> void:
 		custom_minimum_size = Vector2(W, H)
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		tooltip_text = card.display_name
 
-	func set_state(affordable: bool, selected: bool, used: bool) -> void:
-		if affordable == _affordable and selected == _selected and used == _used:
+	func set_state(affordable: bool, selected: bool) -> void:
+		if affordable == _affordable and selected == _selected:
 			return
 		_affordable = affordable
 		_selected = selected
-		_used = used
 		queue_redraw()
 
 	func _gui_input(event: InputEvent) -> void:
-		if _used:
-			return   # spent cards swallow clicks but don't re-select
 		if event is InputEventMouseButton and event.pressed \
 				and event.button_index == MOUSE_BUTTON_LEFT:
 			clicked.emit()
@@ -318,10 +320,7 @@ class CardChip:
 		var r := Rect2(Vector2.ZERO, Vector2(W, H))
 		var face := card.color
 		var text_col := Color.WHITE
-		if _used:
-			face = face.lerp(Color(0.5, 0.5, 0.5), 0.6)   # spent: desaturated like a done unit
-			text_col = Color(1, 1, 1, 0.4)
-		elif not _affordable:
+		if not _affordable:
 			face = face.lerp(Color(0.22, 0.22, 0.26), 0.7)
 			text_col = Color(1, 1, 1, 0.45)
 		# Card body: a darker border frame around the tinted face.
@@ -337,11 +336,7 @@ class CardChip:
 		draw_rect(badge, Color(1, 1, 1, 0.35), false, 1.0)
 		draw_string(font, Vector2(9, H - 8), str(card.action_cost),
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, text_col)
-		# Spent veil + diagonal slash read as "deactivated" (selection outline suppressed).
-		if _used:
-			draw_rect(r, Color(0, 0, 0, 0.35))
-			draw_line(Vector2(5, 5), Vector2(W - 5, H - 5), Color(0.85, 0.3, 0.25, 0.85), 2.5)
-		elif _selected:
+		if _selected:
 			draw_rect(r, Color(0.3, 0.95, 0.4), false, 3.0)
 
 

@@ -170,6 +170,7 @@ func _smoke_test() -> void:
 	_m8_smoke()
 	_m9_smoke()
 	_m10_smoke()
+	_m11_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -264,36 +265,27 @@ func _m5_smoke() -> void:
 	Features.shields_enabled = true
 
 	print("[smoke] -- M5 cards: shield buff + direct damage --")
+	# Isolate raw card mechanics from artifact effects (e.g. Free First Card zeroing a cost).
+	var saved_artifacts := combat.artifacts
+	combat.artifacts = [] as Array[ArtifactDef]
 	_reset(ally); ally.shield = 0
 	var ap_pre := combat.actions_left
-	combat._select_card(0)   # shield_buff
-	combat._apply_card(shield_card, ally)
+	combat._apply_card(shield_card, ally, Vector2i.ZERO)
 	print("  shield buff on ally: shield=%d (expect %d) AP spent=%d (expect %d)" %
 			[ally.shield, shield_card.magnitude, ap_pre - combat.actions_left, shield_card.action_cost])
 
 	_reset(foe); foe.shield = 0
 	ap_pre = combat.actions_left
 	var members_pre := projectiles.debug_member_count()
-	combat._select_card(1)   # direct_strike
-	combat._apply_card(strike_card, foe)
+	combat._apply_card(strike_card, foe, Vector2i.ZERO)
 	print("  direct strike on foe: hp=%d (expect max-%d) no projectile spawned=%s AP spent=%d (expect %d)" %
 			[foe.hp, strike_card.magnitude, projectiles.debug_member_count() == members_pre,
 			ap_pre - combat.actions_left, strike_card.action_cost])
 	print("  card play doesn't mark unit done: foe.is_done=%s (expect false)" % foe.is_done)
 
-	print("[smoke] -- M5 cards: once per turn --")
-	print("  strike now in _used_cards=%s (expect true)" % (strike_card in combat._used_cards))
-	_reset(foe); foe.shield = 0
-	ap_pre = combat.actions_left
-	combat._select_card(1)   # already used → should refuse to arm
-	print("  re-select used card: pending=%s (expect <null>)" % combat._pending_card)
-	combat._used_cards.clear()   # simulate a fresh turn
-	print("  after turn reset, strike selectable: used=%s (expect false)" %
-			(strike_card in combat._used_cards))
-
 	print("[smoke] -- M5 card targeting + cancel --")
 	_reset(ally); ally.shield = 0
-	combat._select_card(0)
+	combat._pending_card = shield_card   # arm an ALLY-target card
 	combat._try_click_target_card(foe.center_world())   # wrong side: card wants ALLY
 	print("  wrong-side click no-op: ally.shield=%d (expect 0, _pending_card still set=%s)" %
 			[ally.shield, combat._pending_card != null])
@@ -302,14 +294,14 @@ func _m5_smoke() -> void:
 
 	print("[smoke] -- M5 undo: card play becomes the new checkpoint baseline (like a fire) --")
 	_reset(foe); foe.shield = 0
-	combat._select_card(1)
-	combat._apply_card(strike_card, foe)   # _apply_card's own _save_checkpoint locks this in
+	combat._apply_card(strike_card, foe, Vector2i.ZERO)   # _apply_card's own _save_checkpoint locks this in
 	var ap_after_card := combat.actions_left
 	var hp_after_card := foe.hp
 	combat.try_move(ally, 1)               # a move made AFTER the card IS undoable
 	combat.try_undo()
 	print("  undo reverts the post-card move (actions_left=%d, expect %d) but not the card's own spend or foe.hp (unchanged=%s)" %
 			[combat.actions_left, ap_after_card, foe.hp == hp_after_card])
+	combat.artifacts = saved_artifacts   # restore the live loadout
 
 	print("[smoke] -- M5 inspector focus (ally selection vs. enemy click) --")
 	combat._set_selection(ally)
@@ -664,6 +656,57 @@ func _m10_smoke() -> void:
 	test_u.active_statuses.clear()
 	sb.on_combat_start(ctx)
 	print("  player unit boosted after artifact: %d (expect 3)" % _stacks(test_u, "boosted"))
+
+# M11 checklist: deck builds + draws a fresh 5-card hand, reshuffles the discard mid-draw when
+# the draw pile runs short, and the three new card effects (boosted / mine / halve-wind) apply.
+func _m11_smoke() -> void:
+	combat.game_state = CombatManager.GameState.PLAYER_TURN
+
+	print("[smoke] -- M11 deck: build + draw fresh hand --")
+	combat._build_deck()
+	var total := combat._deck.size()
+	combat._draw_hand()
+	print("  deck total=%d (expect 11); after draw hand=%d (expect 5) deck=%d (expect 6) discard=%d (expect 0)" %
+			[total, combat._hand.size(), combat._deck.size(), combat._discard.size()])
+	print("  invariant deck+hand+discard=%d (expect 11)" %
+			[combat._deck.size() + combat._hand.size() + combat._discard.size()])
+
+	print("[smoke] -- M11 reshuffle when draw pile runs short --")
+	combat._build_deck()
+	combat._hand.clear()
+	combat._discard = combat._deck.duplicate()   # 11 in discard
+	combat._deck.clear()
+	for _i in range(2):                          # leave only 2 in the draw pile
+		combat._deck.append(combat._discard.pop_back())
+	combat._draw_hand()                          # draws 2, reshuffles 9, draws 3 more
+	print("  after draw: hand=%d (expect 5), discard emptied by reshuffle=%s (expect true)" %
+			[combat._hand.size(), combat._discard.size() == 0])
+	print("  invariant total=%d (expect 11)" %
+			[combat._deck.size() + combat._hand.size() + combat._discard.size()])
+
+	print("[smoke] -- M11 Boosted card grants 2 stacks to an ally --")
+	var bcard : CardDefinition = load("res://data/cards/boosted_card.tres")
+	var ally : Unit = combat.player_units[0]
+	ally.active_statuses.clear()
+	combat._apply_card(bcard, ally, Vector2i.ZERO)
+	print("  ally boosted stacks=%d (expect 2)" % _stacks(ally, "boosted"))
+
+	print("[smoke] -- M11 Mine card deploys a mine --")
+	var mcard : CardDefinition = load("res://data/cards/mine_card.tres")
+	var before_dep := combat.deployables.size()
+	combat._apply_card(mcard, null, Vector2i(50, 0))
+	var after_dep := combat.deployables.size()
+	var last_dep = combat.deployables[after_dep - 1] if after_dep > 0 else null
+	print("  deployables %d->%d (expect +1), new is Mine=%s" %
+			[before_dep, after_dep, last_dep is Mine])
+
+	print("[smoke] -- M11 Halve Wind card --")
+	combat.wind_strength = 0.8
+	var wcard : CardDefinition = load("res://data/cards/halve_wind.tres")
+	combat._apply_card(wcard, null, Vector2i.ZERO)
+	print("  wind 0.80 -> %.2f (expect 0.40), force=%.0f (expect %.0f)" %
+			[combat.wind_strength, combat._projectiles.current_wind_force,
+			0.4 * Const.MAX_WIND_FORCE])
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

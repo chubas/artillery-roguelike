@@ -41,13 +41,32 @@ func _draw() -> void:
 	if charging:
 		_draw_charge_preview(barrel)
 
-# Highlight valid targets for the pending card: green outline for allies, red for enemies.
+# Highlight valid targets for the pending card: green outline for allies, red for enemies,
+# or (TILE cards, M11) a column guide + surface marker at the space under the cursor.
 func _draw_card_targets() -> void:
+	if pending_card.target_type == CardDefinition.TargetType.TILE:
+		_draw_tile_target()
+		return
 	var want_ally := pending_card.target_type == CardDefinition.TargetType.ALLY
 	var col := Color(0.3, 0.95, 0.4, 0.9) if want_ally else Color(0.95, 0.3, 0.25, 0.9)
 	for u in units:
 		if u.hp > 0 and u.is_player == want_ally:
 			draw_rect(u.bounds_rect_world(), col, false, 2.0)
+
+func _draw_tile_target() -> void:
+	var c := Const.world_to_voxel(get_global_mouse_position()).x
+	if c < 0 or c >= Const.MAP_WIDTH:
+		return
+	var surface := terrain.get_surface_row(c)
+	if surface == -1:
+		return
+	var x := Const.voxel_to_world(Vector2i(c, 0)).x + Const.VOXEL_SIZE * 0.5
+	var sy := Const.voxel_to_world(Vector2i(c, surface)).y
+	var col := Color(1.0, 0.7, 0.2, 0.85)
+	draw_line(Vector2(x, 24.0), Vector2(x, sy), col * Color(1, 1, 1, 0.4), 2.0)
+	# Surface marker box on the cell where the mine would land.
+	draw_rect(Rect2(Const.voxel_to_world(Vector2i(c, surface)), Vector2(Const.VOXEL_SIZE, Const.VOXEL_SIZE)),
+			col, false, 2.0)
 
 # Telegraphed reinforcement drops: a faint vertical guide line down the landing column,
 # capped with a downward-pointing arrow and a turns-remaining number near the top.
