@@ -26,6 +26,8 @@ var aim_angle_deg : float = 45.0        # positive-up convention; preserved per 
 # draws a marker on the charge bar at this position so the player can re-dial the same power.
 var last_power_frac : float = 0.5
 var is_done : bool = false              # true after firing this turn
+var attack_modifier : int = 0           # M9: cumulative buff/debuff to firing strength
+var moved_this_turn : bool = false      # M9: set true by CombatManager.try_move(), reset each round
 var move_origin : Vector2i              # vox_position at turn start (for undo)
 var actions_spent_moving : int = 0
 var selected : bool = false     # the controllable unit (white outline) — see set_selected

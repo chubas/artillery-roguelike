@@ -19,14 +19,74 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
   M6 (turn-phase logging, deployables: mines + shield generators), M7 (AoE zone model & pattern
-  indicator).
+  indicator), M8 (wind mechanic: physics, fire spread, HUD indicator),
+  **M9 (artifact system: engine + 7 initial artifacts)**.
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs the M3 §10 + M4 §12 + M5 §10 + M6 §11 +
-  M7 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M9 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-16 — Milestone 9: Artifact system
+
+Passive squad-wide effects driven by a hook engine. Full design in
+[milestone-9-plan.md](milestone-9-plan.md).
+
+- **Engine.** `ArtifactDef` (Resource subclass) declares virtual hooks: `on_round_start`,
+  `on_player_turn_end`, `on_unit_died`, `on_unit_killed`, `modify_card_cost`,
+  `modify_projectile_strength`, `bonus_actions_on_round_start`, `reset_per_combat`.
+  `ArtifactSystem` is a static dispatcher (same pattern as `TileStatusSystem`). `ArtifactContext`
+  is a `RefCounted` bag holding terrain, units, and a CombatManager ref passed to every hook.
+- **Integration.** `CombatManager._ARTIFACT_LOADOUT` (empty by default; populate to activate).
+  Hooks fire at: combat start (+ `reset_per_combat`), round start (+ idle-action bonus + move
+  reset), player turn end, unit died/killed. `ArtifactSystem.apply_card_cost` wraps every card
+  play; `apply_projectile_strength` wraps impact resolution in `ProjectileManager._resolve_impact`.
+- **New Unit fields.** `attack_modifier: int` (applied at fire time in ProjectileManager,
+  effective strength = `max(0, base + modifier)`). `moved_this_turn: bool` (set in `try_move`,
+  reset each `_begin_round`).
+- **New Projectile field.** `flight_time: float` — accumulated in `_physics_process`, stored in
+  the impact pending-dict so `modify_projectile_strength` can read it at resolution.
+- **7 initial artifacts** in `data/artifacts/`:
+  1. Squad Regen — +1 HP all player units on round start
+  2. Lifesteal — killer heals `(max-hp)/2` on enemy kill
+  3. Enemy Debuff — enemies lose 3 attack per player turn end (stacks, floor 0 effective)
+  4. Free First Card — first card each combat costs 0 actions (per-combat reset)
+  5. Idle Actions — +1 action per ally that didn't move last round
+  6. Death Explosion — first enemy death explodes (diamond 5×5, strength 5), once per combat
+  7. Long Flight — projectiles >10s airborne deal 20% more damage (floor)
+- **Baked resources.** `data/artifacts/resources/*.tres` — 7 files. `Features.artifacts_enabled = true`.
+- **Gotcha.** GDScript's `Resource` has a native `reset_state()` method — overriding it is an
+  error. Named the hook `reset_per_combat()` instead.
+
+---
+
+## 2026-06-16 — Milestone 8: Wind mechanic
+
+Wind as the first stage environmental force. Full design in
+[milestone-8-plan.md](milestone-8-plan.md).
+
+- **Physics.** `wind_strength: float` in `[-1.0, 1.0]` on `CombatManager`; multiplied by
+  `MAX_WIND_FORCE = 300.0` px/s² to get actual horizontal acceleration. Applied each frame in
+  `Projectile._physics_process()` and mirrored in `Trajectory.simulate_arc()` so the charge preview
+  matches the actual shot. `SpiralSatellite` requires no change — it derives position from the main
+  projectile. Files: `projectile/projectile.gd`, `projectile/projectile_manager.gd`,
+  `projectile/trajectory.gd`, `ui/targeting_overlay.gd`.
+- **Round ramp.** Wind is absent until round 3 then ramps ±5% per round (configurable per-stage
+  via `_WIND_CONFIG` dict on `CombatManager`). Updated in `_begin_round()` after
+  `_check_reinforcements()`, before tile-status tick. `EventBus.wind_changed` signal keeps HUD +
+  targeting overlay in sync. Files: `systems/combat_manager.gd`, `autoloads/event_bus.gd`.
+- **Fire spread.** When `abs(wind_strength) >= 0.2`, burning tiles spread one column in the wind
+  direction each round, blocked by walls taller than 1 voxel (vehicle movement rule). Bug found and
+  fixed during testing: `signi(float)` truncates the float to int before sign, so `signi(0.25) = 0`
+  — changed to `1 if wind_strength > 0.0 else -1`.
+- **HUD indicator.** `WindIndicator` inner class in `hud.gd` (same `_draw()` pattern as
+  `UnitInspector`). White 0–20%, orange 20–50%, red >50%. Hidden when calm.
+- **Feature flag.** `Features.wind_enabled = true` (was stubbed false).
+- **Bug fix (unrelated).** Stage-clear now gates on `_all_waves_spawned()` so killing all enemies
+  before the last wave spawns no longer prematurely clears the stage.
 
 ---
 

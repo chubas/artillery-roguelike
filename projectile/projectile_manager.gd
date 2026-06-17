@@ -24,6 +24,7 @@ class Salvo extends RefCounted:
 	var shot : ShotDefinition = null
 	var pattern : AoEPattern = null
 	var strength : int = 0   # shot.strength * firing_unit.power, computed at fire time (M7)
+	var firing_unit : Unit = null   # M9: for on_unit_killed killer reference
 	var members : Array = []     # live Projectile / SpiralSatellite nodes
 	var pending : Array = []     # queued impacts: {node, world_pos, voxel, frame, index, force}
 	var settling : bool = false  # settle-beat coroutine running → don't re-enter
@@ -32,6 +33,8 @@ var _terrain : TerrainManager
 var _units_provider : Callable   # returns Array[Unit]; set by CombatScene
 var _deployables_provider : Callable = func(): return []   # returns Array[Deployable] (M6)
 var _salvos : Array = []
+var current_wind_force : float = 0.0   # M8: px/s² horizontal; set by CombatManager each round
+var _combat : Node = null   # M9: CombatManager ref for artifact hooks; set by CombatManager
 
 func setup(terrain: TerrainManager, units_provider: Callable,
 		deployables_provider: Callable = func(): return []) -> void:
@@ -46,7 +49,10 @@ func fire(origin: Vector2, direction: Vector2, speed: float,
 	salvo.is_enemy = is_enemy
 	salvo.shot = shot
 	salvo.pattern = shot.aoe_pattern
-	salvo.strength = roundi(shot.strength * (firing_unit.power if firing_unit != null else 1.0))
+	salvo.firing_unit = firing_unit
+	var base_str : int = roundi(shot.strength * (firing_unit.power if firing_unit != null else 1.0))
+	var modifier : int = firing_unit.attack_modifier if firing_unit != null else 0
+	salvo.strength = maxi(0, base_str + modifier)
 	_salvos.append(salvo)
 	if shot.spiral_arms > 0:
 		_spawn_spiral(salvo, origin, direction, speed, shot)
@@ -59,7 +65,8 @@ func _spawn_projectile(salvo: Salvo, origin: Vector2, direction: Vector2, speed:
 		shot: ShotDefinition, index: int, bypass: bool) -> void:
 	var p := Projectile.new()
 	add_child(p)
-	p.launch(origin, direction, speed, shot.gravity_scale, _terrain, self, salvo, index, bypass)
+	p.launch(origin, direction, speed, shot.gravity_scale, _terrain, self, salvo, index, bypass,
+			current_wind_force)
 	salvo.members.append(p)
 
 func _spawn_cluster(salvo: Salvo, origin: Vector2, direction: Vector2, speed: float,
@@ -77,7 +84,8 @@ func _spawn_spiral(salvo: Salvo, origin: Vector2, direction: Vector2, speed: flo
 	# Main guide projectile (index 0) + oscillating arms riding it.
 	var main := Projectile.new()
 	add_child(main)
-	main.launch(origin, direction, speed, shot.gravity_scale, _terrain, self, salvo, 0, false)
+	main.launch(origin, direction, speed, shot.gravity_scale, _terrain, self, salvo, 0, false,
+			current_wind_force)
 	salvo.members.append(main)
 	for arm in range(shot.spiral_arms):
 		var sat := SpiralSatellite.new()
@@ -91,10 +99,11 @@ func _spawn_spiral(salvo: Salvo, origin: Vector2, direction: Vector2, speed: flo
 # A body hit something and paused; queue its impact for ordered resolution.
 func report_impact(salvo: RefCounted, node: Node2D, world_pos: Vector2,
 		voxel: Vector2i, force_resolve: bool) -> void:
+	var ft : float = node.flight_time if node is Projectile else 0.0
 	salvo.pending.append({
 		"node": node, "world_pos": world_pos, "voxel": voxel,
 		"frame": Engine.get_physics_frames(), "index": node.proj_index,
-		"force": force_resolve,
+		"force": force_resolve, "flight_time": ft,
 	})
 
 # A body left the map (or lost its guide) without an impact: retire it.
@@ -179,14 +188,14 @@ func _drain_salvo(salvo: Salvo) -> void:
 			continue
 		var vox : Vector2i = it["voxel"]
 		if it["force"] or _terrain.is_blocked(vox.x, vox.y):
-			_resolve_impact(salvo, it["world_pos"], vox)
+			_resolve_impact(salvo, it["world_pos"], vox, it.get("flight_time", 0.0))
 			salvo.members.erase(node)
 			node.queue_free()
 		else:
 			node.resume()   # blocker cleared by an earlier impact this drain → fly on
 
 # One impact's consequences. THIS is the pluggable seam — new resolve actions are added here.
-func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i) -> void:
+func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i, flight_time: float = 0.0) -> void:
 	var pattern := salvo.pattern
 	var element_id := "physical"
 	if Features.elements_enabled and pattern != null and not pattern.groups.is_empty() \
@@ -194,7 +203,13 @@ func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i) -> void:
 		element_id = pattern.groups[0].element.id
 	EventBus.projectile_impact.emit(world_pos, voxel, element_id)
 	# 1. Area damage to terrain + units (and element statuses).
-	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, salvo.strength,
+	var final_strength : int = salvo.strength
+	if _combat != null:
+		var cm := _combat as CombatManager
+		if cm != null and cm._artifact_ctx != null:
+			final_strength = ArtifactSystem.apply_projectile_strength(
+					cm.artifacts, cm._artifact_ctx, salvo.strength, flight_time)
+	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, final_strength,
 			salvo.is_enemy, _deployables_provider.call())
 	# 2. Explosion FX.
 	var fx := ExplosionFX.new()

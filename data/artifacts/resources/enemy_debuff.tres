@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactEnemyDebuff" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_enemy_debuff.gd" id="1_pynbh"]
+
+[resource]
+script = ExtResource("1_pynbh")
+artifact_name = "Enemy Debuff"
+description = "At the end of the player turn, all enemies lose 3 attack (stacks)."

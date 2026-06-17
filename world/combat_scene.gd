@@ -167,6 +167,8 @@ func _smoke_test() -> void:
 	_m5_smoke()
 	_m6_smoke()
 	_m7_smoke()
+	_m8_smoke()
+	_m9_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -456,6 +458,146 @@ func _m7_smoke() -> void:
 	var edge_col := AoEPattern.zone_color(0.5)
 	print("  core=%s edge=%s distinct=%s (expect true)" %
 			[core_col, edge_col, core_col != edge_col])
+
+# M8 checklist: wind_strength gated before start_round, ramp limits hold over many trials,
+# fire spreads only when wind > 0.2, Trajectory arc bends with wind force.
+func _m8_smoke() -> void:
+	print("[smoke] -- M8 wind: round 2 (before start_round=3) --")
+	combat.wind_strength = 0.0
+	combat._update_wind_for_round(2)
+	print("  round 2: wind_strength=%.4f (expect 0.0)" % combat.wind_strength)
+
+	print("[smoke] -- M8 wind: round 3 (first ramp step, range ±5%) --")
+	# elapsed=0 → range_frac = 0.05*1 = 0.05; all 30 trials must stay within that
+	var round3_ok := true
+	for _i in range(30):
+		combat._update_wind_for_round(3)
+		if abs(combat.wind_strength) > 0.05 + 0.001:
+			round3_ok = false
+	print("  round 3 (30 trials) abs<=0.05: %s (expect true)" % round3_ok)
+
+	print("[smoke] -- M8 wind: round 8 (elapsed=5, range ±30%) --")
+	# elapsed=5 → range_frac = 0.05*6 = 0.30
+	var round8_ok := true
+	for _i in range(30):
+		combat._update_wind_for_round(8)
+		if abs(combat.wind_strength) > 0.30 + 0.001:
+			round8_ok = false
+	print("  round 8 (30 trials) abs<=0.30: %s (expect true)" % round8_ok)
+
+	print("[smoke] -- M8 fire spread: triggers at wind=0.25, not at 0.1 --")
+	# Find two adjacent FLAMMABLE columns at the same surface height so the spread isn't blocked.
+	var spread_col := -1
+	var spread_row := -1
+	var burning_def2 : Resource = load("res://data/tile_statuses/burning.tres")
+	for c in range(5, Const.MAP_WIDTH - 2):
+		var r0 := terrain.get_surface_row(c)
+		var r1 := terrain.get_surface_row(c + 1)
+		if r0 == -1 or r1 == -1 or r0 != r1:
+			continue
+		var t0 := terrain.get_tile(c, r0)
+		var t1 := terrain.get_tile(c + 1, r1)
+		if t0 == null or t1 == null:
+			continue
+		if t0.tile_statuses.has("burning") or t1.tile_statuses.has("burning"):
+			continue
+		if t0.has_flag_tag("FLAMMABLE") and t1.has_flag_tag("FLAMMABLE"):
+			spread_col = c
+			spread_row = r0
+			break
+	if spread_col == -1:
+		print("  SKIPPED: no flat adjacent FLAMMABLE pair found")
+	else:
+		# Gate check: abs(0.1) < 0.2 threshold → no spread.
+		TileStatusSystem.apply(terrain, Vector2i(spread_col, spread_row), burning_def2)
+		var before_lo := _count_burning()
+		combat.wind_strength = 0.1
+		combat._wind_spread_fire()
+		var after_lo := _count_burning()
+		print("  wind=0.1 no spread: burning %d->%d (expect same)" % [before_lo, after_lo])
+		# Above-threshold: abs(0.25) >= 0.2 → spread to adjacent flat FLAMMABLE tile.
+		var before_hi := _count_burning()
+		combat.wind_strength = 0.25
+		combat._wind_spread_fire()
+		var after_hi := _count_burning()
+		print("  wind=0.25 spread at col=%d: burning %d->%d (expect increase)" %
+				[spread_col, before_hi, after_hi])
+
+	print("[smoke] -- M8 trajectory bends with wind --")
+	var t_origin := Vector2(300.0, 60.0)
+	var t_dir := Vector2(1.0, 0.15).normalized()
+	var t_speed := 400.0
+	var sim0 := Trajectory.simulate_arc(terrain, t_origin, t_dir, t_speed, 1.0, 8.0, false, 0.0)
+	var simw := Trajectory.simulate_arc(terrain, t_origin, t_dir, t_speed, 1.0, 8.0, false, 300.0)
+	var pts0 : PackedVector2Array = sim0["points"]
+	var ptsw : PackedVector2Array = simw["points"]
+	var end0 : Vector2 = pts0[-1] if pts0.size() > 0 else Vector2.ZERO
+	var endw : Vector2 = ptsw[-1] if ptsw.size() > 0 else Vector2.ZERO
+	var bends : bool = end0.x != endw.x or sim0["impact_voxel"] != simw["impact_voxel"]
+	print("  arc differs with wind=%s end_x: no_wind=%.0f wind300=%.0f (expect rightward shift)" %
+			[bends, end0.x, endw.x])
+
+func _m9_smoke() -> void:
+	print("[smoke] -- M9 artifacts: system checks --")
+
+	# Build a minimal context pointing at combat's terrain/units.
+	var ctx := ArtifactContext.new()
+	ctx.terrain = terrain
+	ctx.units = combat.all_units
+	ctx.combat = combat
+
+	# --- Artifact #4: first card costs 0, second costs base ---
+	var a4 := ArtifactFreeFirstCard.new()
+	a4.reset_per_combat()
+	var dummy_card : CardDefinition = load("res://data/cards/shield_buff.tres")
+	var cost1 : int = a4.modify_card_cost(ctx, dummy_card, dummy_card.action_cost)
+	var cost2 : int = a4.modify_card_cost(ctx, dummy_card, dummy_card.action_cost)
+	print("  free first card: cost1=%d (expect 0), cost2=%d (expect %d)" %
+			[cost1, cost2, dummy_card.action_cost])
+
+	# --- Artifact #7: long-flight strength boost ---
+	var a7 := ArtifactLongFlight.new()
+	var s_short : int = a7.modify_projectile_strength(ctx, 10, 9.0)
+	var s_long  : int = a7.modify_projectile_strength(ctx, 10, 11.0)
+	print("  long flight: flight=9s→%d (expect 10), flight=11s→%d (expect 12)" %
+			[s_short, s_long])
+
+	# --- Artifact #5: idle actions count ---
+	var a5 := ArtifactIdleActions.new()
+	for u in combat.player_units:
+		u.moved_this_turn = false
+	var bonus_all_idle : int = a5.bonus_actions_on_round_start(ctx)
+	combat.player_units[0].moved_this_turn = true
+	var bonus_one_moved : int = a5.bonus_actions_on_round_start(ctx)
+	combat.player_units[0].moved_this_turn = false
+	print("  idle actions: all_idle=%d (expect %d), one_moved=%d (expect %d)" %
+			[bonus_all_idle, combat.player_units.size(),
+			bonus_one_moved, combat.player_units.size() - 1])
+
+	# --- Artifact #3: enemy debuff stacks ---
+	var a3 := ArtifactEnemyDebuff.new()
+	var enemy : Unit = combat.enemy_units[0]
+	enemy.attack_modifier = 0
+	a3.on_player_turn_end(ctx)
+	a3.on_player_turn_end(ctx)
+	print("  enemy debuff after 2 turns: modifier=%d (expect -6)" % enemy.attack_modifier)
+	enemy.attack_modifier = 0
+
+	# --- Artifact #1: squad regen ---
+	var a1 := ArtifactSquadRegen.new()
+	var pu : Unit = combat.player_units[0]
+	pu.hp = pu.definition.max_hp - 2
+	a1.on_round_start(ctx)
+	print("  squad regen: hp before=%d, after=%d (expect +1)" %
+			[pu.definition.max_hp - 2, pu.hp])
+	_reset(pu)
+
+	# --- ArtifactSystem pipeline: apply_card_cost uses features flag ---
+	var artifacts_test : Array[ArtifactDef] = [a4 as ArtifactDef]
+	a4.reset_per_combat()
+	var pipe_cost : int = ArtifactSystem.apply_card_cost(artifacts_test, ctx,
+			dummy_card, dummy_card.action_cost)
+	print("  pipeline apply_card_cost (feature on): %d (expect 0)" % pipe_cost)
 
 func _floor_tile() -> Tile:
 	var t := Tile.new().setup(Tile.TileType.SOLID, 99, 0)

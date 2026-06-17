@@ -67,6 +67,10 @@ const ENEMY_ERROR_PCT : float = 0.05   # ±5% launch speed variance
 const ENEMY_SPEED_MIN : float = 100.0  # IK result clamp
 const ENEMY_SPEED_MAX : float = 2500.0 # cross-map shots need ~2000 px/s
 
+# --- Wind (M8) ----------------------------------------------------------------
+const MAX_WIND_FORCE        : float = 300.0  # px/s² horizontal acceleration at 100% wind (~30% of gravity)
+const WIND_SPREAD_THRESHOLD : float = 0.2    # abs(wind_strength) must exceed this to drive fire spread
+
 # --- Coordinate conversion (terrain spec §3.2) -------------------------------
 static func world_to_voxel(world_pos: Vector2) -> Vector2i:
 	return Vector2i(int(world_pos.x / VOXEL_SIZE), int(world_pos.y / VOXEL_SIZE))

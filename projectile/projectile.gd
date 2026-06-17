@@ -11,6 +11,8 @@ extends Node2D
 
 var velocity : Vector2 = Vector2.ZERO
 var gravity_scale : float = 1.0
+var wind_force_x : float = 0.0     # M8: horizontal acceleration (px/s²) from wind
+var flight_time : float = 0.0      # M9: seconds in flight, for modify_projectile_strength
 var proj_index : int = 0            # order within the salvo (tie-breaks same-frame impacts)
 var bypass_mode : bool = false      # drill: ignore terrain, damage trail, stop on units
 
@@ -22,10 +24,11 @@ var _bypass_hit : Dictionary = {}   # Vector2i → true: trail voxels already da
 
 func launch(origin: Vector2, direction: Vector2, speed: float, gscale: float,
 		terrain: TerrainManager, manager: ProjectileManager, salvo: RefCounted,
-		index: int, bypass: bool) -> void:
+		index: int, bypass: bool, wind_x: float = 0.0) -> void:
 	position = origin
 	velocity = direction.normalized() * speed
 	gravity_scale = gscale
+	wind_force_x = wind_x
 	_terrain = terrain
 	_manager = manager
 	_salvo = salvo
@@ -43,7 +46,9 @@ func resume() -> void:
 func _physics_process(delta: float) -> void:
 	if not _active:
 		return
+	flight_time += delta
 	velocity.y += Const.GRAVITY * gravity_scale * delta
+	velocity.x += wind_force_x * delta
 	var new_pos := position + velocity * delta
 	if bypass_mode:
 		_damage_trail(position, new_pos)

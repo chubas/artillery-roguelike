@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactFreeFirstCard" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_free_first_card.gd" id="1_ykyhh"]
+
+[resource]
+script = ExtResource("1_ykyhh")
+artifact_name = "Free First Card"
+description = "The first card played each combat costs 0 actions."

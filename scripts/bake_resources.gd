@@ -10,7 +10,8 @@ extends SceneTree
 
 func _initialize() -> void:
 	for d in ["res://data/elements", "res://data/statuses", "res://data/tile_statuses",
-			"res://data/shots/aoe", "res://data/units", "res://data/cards"]:
+			"res://data/shots/aoe", "res://data/units", "res://data/cards",
+			"res://data/artifacts/resources"]:
 		DirAccess.make_dir_recursive_absolute(d)
 
 	# ── Unit statuses (leaf — no refs) ────────────────────────────────────────
@@ -187,7 +188,30 @@ func _initialize() -> void:
 	# ── M6: deployables ────────────────────────────────────────────────────────
 	_save(AoEPattern.make_diamond(1, 2), "res://data/shots/aoe/diamond_mine.tres")
 
-	print("[bake] all M7 resources written")
+	# ── M9: artifacts ────────────────────────────────────────────────────────────
+	_bake_artifact(ArtifactSquadRegen.new(), "Squad Regen",
+			"At the start of each round, all player units heal 1 HP.",
+			"res://data/artifacts/resources/squad_regen.tres")
+	_bake_artifact(ArtifactLifesteal.new(), "Lifesteal",
+			"Units heal half of missing HP when killing an enemy.",
+			"res://data/artifacts/resources/lifesteal.tres")
+	_bake_artifact(ArtifactEnemyDebuff.new(), "Enemy Debuff",
+			"At the end of the player turn, all enemies lose 3 attack (stacks).",
+			"res://data/artifacts/resources/enemy_debuff.tres")
+	_bake_artifact(ArtifactFreeFirstCard.new(), "Free First Card",
+			"The first card played each combat costs 0 actions.",
+			"res://data/artifacts/resources/free_first_card.tres")
+	_bake_artifact(ArtifactIdleActions.new(), "Idle Actions",
+			"At round start, gain +1 action for each ally that did not move last round.",
+			"res://data/artifacts/resources/idle_actions.tres")
+	_bake_artifact(ArtifactDeathExplosion.new(), "Death Explosion",
+			"The first enemy to die each combat explodes in a diamond doing 5 damage.",
+			"res://data/artifacts/resources/death_explosion.tres")
+	_bake_artifact(ArtifactLongFlight.new(), "Long Flight",
+			"Projectiles airborne for more than 10 seconds deal 20% more damage.",
+			"res://data/artifacts/resources/long_flight.tres")
+
+	print("[bake] all M9 artifact resources written")
 	quit()
 
 # Build a core1/edge2 diamond pattern with every group carrying `element`.
@@ -283,6 +307,11 @@ func _save_player_unit(id: String, dname: String,
 	u.element_affinities = {}
 	u.color = color
 	_save(u, "res://data/units/%s.tres" % id)
+
+func _bake_artifact(a: ArtifactDef, name: String, desc: String, path: String) -> void:
+	a.artifact_name = name
+	a.description = desc
+	_save(a, path)
 
 func _save(res: Resource, path: String) -> void:
 	var err := ResourceSaver.save(res, path)

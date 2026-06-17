@@ -41,3 +41,6 @@ signal aoe_resolved(center: Vector2i, radius: int, affected_tiles: Array)
 # ── Deployable signals (M6) ────────────────────────────────────────────────────
 signal deployable_died(deployable: Deployable)
 signal mine_detonated(mine: Deployable)
+
+# ── Environment signals (M8) ──────────────────────────────────────────────────
+signal wind_changed(strength: float)   # -1.0..1.0; emitted each round; 0 = calm

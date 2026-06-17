@@ -16,6 +16,12 @@ var power_frac : float = 0.0
 var pending_card : CardDefinition = null
 var pending_reinforcements : Array = []   # [{ "col": int, "turns_left": int }]
 
+var _wind_force_x : float = 0.0   # M8: cached from EventBus.wind_changed; applied to arc preview
+
+func _ready() -> void:
+	EventBus.wind_changed.connect(func(s: float) -> void:
+		_wind_force_x = s * Const.MAX_WIND_FORCE)
+
 func _process(_delta: float) -> void:
 	queue_redraw()
 
@@ -78,7 +84,7 @@ func _draw_charge_preview(barrel: Vector2) -> void:
 
 func _draw_single_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
-			speed, shot.gravity_scale)
+			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
 	_draw_arc_dots(sim["points"], 3)
 	if sim["hit"]:
 		_draw_pattern_footprint(sim["impact_voxel"], shot.aoe_pattern)
@@ -90,7 +96,8 @@ func _draw_cluster_preview(barrel: Vector2, shot: ShotDefinition, speed: float) 
 	for i in range(n):
 		var off_deg := (float(i) - mid) * shot.spread_deg
 		var dir := active_unit.aim_dir().rotated(deg_to_rad(off_deg))
-		var sim := Trajectory.simulate_arc(terrain, barrel, dir, speed, shot.gravity_scale)
+		var sim := Trajectory.simulate_arc(terrain, barrel, dir, speed, shot.gravity_scale,
+				8.0, false, _wind_force_x)
 		_draw_arc_dots(sim["points"], 4)
 		if sim["hit"]:
 			_draw_pattern_footprint(sim["impact_voxel"], shot.aoe_pattern)
@@ -98,7 +105,7 @@ func _draw_cluster_preview(barrel: Vector2, shot: ShotDefinition, speed: float) 
 # Bypass: the ghost flies through terrain; mark the first opposing unit it would strike (M4).
 func _draw_bypass_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
-			speed, shot.gravity_scale, 8.0, true)
+			speed, shot.gravity_scale, 8.0, true, _wind_force_x)
 	var points : PackedVector2Array = sim["points"]
 	_draw_arc_dots(points, 3)
 	for p in points:

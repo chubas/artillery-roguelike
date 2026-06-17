@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactIdleActions" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_idle_actions.gd" id="1_73hi7"]
+
+[resource]
+script = ExtResource("1_73hi7")
+artifact_name = "Idle Actions"
+description = "At round start, gain +1 action for each ally that did not move last round."

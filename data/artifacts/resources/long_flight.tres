@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactLongFlight" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_long_flight.gd" id="1_mdgib"]
+
+[resource]
+script = ExtResource("1_mdgib")
+artifact_name = "Long Flight"
+description = "Projectiles airborne for more than 10 seconds deal 20% more damage."

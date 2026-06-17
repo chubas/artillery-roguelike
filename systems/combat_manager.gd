@@ -12,6 +12,7 @@ const NO_MOVE := UnitMovement.NO_MOVE
 
 var game_state : GameState = GameState.PLAYER_TURN
 var actions_left : int = Const.MAX_ACTIONS
+var _turn_max_actions : int = Const.MAX_ACTIONS   # AP at turn start (base + artifact bonus)
 var round_index : int = 0
 
 var player_units : Array = []
@@ -25,6 +26,7 @@ var inspected_unit : Unit = null
 
 var charging : bool = false
 var charge_frac : float = 0.0
+var _last_firing_unit : Unit = null   # M9: most recent unit to fire, for on_unit_killed
 
 # --- Cards (M5) ---------------------------------------------------------------
 var available_cards : Array[CardDefinition] = []
@@ -42,6 +44,27 @@ var _reinforcements_spawned : Dictionary = {}   # round int -> true
 
 var _checkpoint_positions : Dictionary = {}  # Unit -> Vector2i
 var _checkpoint_actions_left : int = 0
+
+# --- Artifacts (M9): passive squad-wide effects, loaded from resource paths -------
+const _ARTIFACT_LOADOUT : Array = [
+	"res://data/artifacts/resources/squad_regen.tres",
+	"res://data/artifacts/resources/lifesteal.tres",
+	"res://data/artifacts/resources/enemy_debuff.tres",
+	"res://data/artifacts/resources/free_first_card.tres",
+	"res://data/artifacts/resources/idle_actions.tres",
+	"res://data/artifacts/resources/death_explosion.tres",
+	"res://data/artifacts/resources/long_flight.tres",
+]
+var artifacts : Array[ArtifactDef] = []
+var _artifact_ctx : ArtifactContext = null
+
+# --- Wind (M8): environmental force applied to projectiles and fire spread --------
+const _WIND_CONFIG : Dictionary = {
+	"start_round":    3,    # first round wind can be non-zero
+	"ramp_per_round": 0.05, # each round's max range grows by this fraction of MAX_WIND_FORCE
+	"max_strength":   1.0,  # cap (set to 0.5 on easier stages)
+}
+var wind_strength : float = 0.0   # -1.0..1.0 (negative = left, positive = right)
 
 # --- Deployables (M6): mines + shield generators, hand-placed for this milestone -----
 var deployables : Array = []
@@ -75,6 +98,7 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_hud.card_selected.connect(_select_card)
 	# Auto-advance to the next unit only once a player shot has FULLY resolved (§ resolution
 	# routine in ProjectileManager), so the camera lingers on the impact before panning.
+	_projectiles._combat = self
 	_projectiles.shot_resolved.connect(_on_shot_resolved)
 	# Gameplay events route through EventBus (M3): the resolver emits aoe_resolved there.
 	EventBus.aoe_resolved.connect(_on_aoe_resolved)
@@ -85,6 +109,7 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_spawn_all_units()
 	if Features.deployables_enabled:
 		_spawn_deployables()
+	_init_artifacts()
 	available_cards = [
 		load("res://data/cards/shield_buff.tres"),
 		load("res://data/cards/direct_strike.tres"),
@@ -96,6 +121,19 @@ func get_units() -> Array:
 
 func get_deployables() -> Array:
 	return deployables
+
+# --- Artifacts (M9): load from loadout, build context, fire combat-start hook ----
+func _init_artifacts() -> void:
+	_artifact_ctx = ArtifactContext.new()
+	_artifact_ctx.terrain = _terrain
+	_artifact_ctx.units = all_units
+	_artifact_ctx.combat = self
+	for path in _ARTIFACT_LOADOUT:
+		var a : ArtifactDef = load(path)
+		if a != null:
+			artifacts.append(a)
+	ArtifactSystem.call_combat_start(artifacts, _artifact_ctx)
+	_hud.set_artifacts(artifacts)
 
 # --- Spawning (M2 spec §9.3, surface-snap + no-overlap per plan §1.5) -----------
 func _spawn_all_units() -> void:
@@ -234,6 +272,49 @@ func _reinforcement_warnings() -> Array:
 			out.append({ "col": wave["col"], "turns_left": wave["round"] - round_index })
 	return out
 
+# --- Wind (M8): update strength each round, drive fire spread when strong enough ------
+func _update_wind_for_round(round_n: int) -> void:
+	if not Features.wind_enabled:
+		return
+	if round_n < _WIND_CONFIG["start_round"]:
+		return
+	var elapsed := round_n - _WIND_CONFIG["start_round"]
+	var range_frac := minf((elapsed + 1) * _WIND_CONFIG["ramp_per_round"],
+			_WIND_CONFIG["max_strength"])
+	wind_strength = randf_range(-range_frac, range_frac)
+	_projectiles.current_wind_force = wind_strength * Const.MAX_WIND_FORCE
+	EventBus.wind_changed.emit(wind_strength)
+
+func _wind_spread_fire() -> void:
+	if not Features.wind_enabled or not Features.tile_statuses_enabled:
+		return
+	if abs(wind_strength) < Const.WIND_SPREAD_THRESHOLD:
+		return
+	var wind_dir : int = 1 if wind_strength > 0.0 else -1   # signi() truncates float→int first
+	var burning_def : TileStatusDef = load("res://data/tile_statuses/burning.tres")
+	# Snapshot burning tiles first — avoid spreading to tiles ignited during this same pass.
+	var burning : Array[Vector2i] = []
+	for col in range(Const.MAP_WIDTH):
+		for row in range(Const.MAP_HEIGHT):
+			var tile := _terrain.get_tile(col, row)
+			if tile != null and tile.tile_statuses.has("burning"):
+				burning.append(Vector2i(col, row))
+	for pos in burning:
+		var target_col := pos.x + wind_dir
+		if target_col < 0 or target_col >= Const.MAP_WIDTH:
+			continue
+		var target_surface := _terrain.get_surface_row(target_col)
+		if target_surface == -1:
+			continue
+		# Vehicle movement rule: blocked if the adjacent column's surface is more than
+		# 1 voxel higher than the burning tile (wall of 2+ voxels stops spread).
+		if target_surface < pos.y - 1:
+			continue
+		var ntile := _terrain.get_tile(target_col, target_surface)
+		if ntile == null or not ntile.has_flag_tag("FLAMMABLE"):
+			continue
+		TileStatusSystem.apply(_terrain, Vector2i(target_col, target_surface), burning_def)
+
 # --- Turn loop (M2 §4.1 + M3 §6 resolution order) --------------------------------
 # Round start → tile statuses tick → player turn (unit statuses tick, shock AP cut) →
 # player actions → enemy turn (enemy statuses tick → enemy fire) → next round.
@@ -247,8 +328,11 @@ func _begin_round() -> void:
 	_log_phase("ROUND %d START" % round_index)
 	EventBus.round_started.emit(round_index)
 	_check_reinforcements()
+	_update_wind_for_round(round_index)
+	ArtifactSystem.call_round_start(artifacts, _artifact_ctx)
 	# 1. Tile statuses tick (burning damages/spreads, electrified chains/decays).
 	TileStatusSystem.tick_all(_terrain, all_units)
+	_wind_spread_fire()
 	if _is_terminal():
 		return
 	_start_player_turn()
@@ -263,9 +347,14 @@ func _start_player_turn() -> void:
 		ap_reduction += UnitStatusSystem.tick_all(u)
 	if _is_terminal():
 		return
-	# 3. Shock AP reduction applied to the shared pool for this turn.
+	# 3. Base AP = MAX_ACTIONS minus Shock reduction; bonus AP from artifacts added on top.
 	actions_left = maxi(0, Const.MAX_ACTIONS - ap_reduction)
-	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+	# Bonus is read before resetting moved_this_turn so last round's idle state counts.
+	actions_left += ArtifactSystem.sum_bonus_actions(artifacts, _artifact_ctx)
+	_turn_max_actions = actions_left
+	for u in player_units:
+		u.moved_this_turn = false
+	action_bar_changed.emit(actions_left, _turn_max_actions)
 	for u in player_units:
 		u.reset_for_turn()
 	_used_cards.clear()   # each card is playable once per turn (M5)
@@ -285,6 +374,7 @@ func end_player_turn() -> void:
 		if u.hp > 0:
 			u.mark_done()
 	_set_selection(null)
+	ArtifactSystem.call_player_turn_end(artifacts, _artifact_ctx)
 	_log_phase("PLAYER TURN END")
 	EventBus.turn_ended.emit("player")
 	game_state = GameState.ENEMY_TURN
@@ -308,6 +398,7 @@ func _run_enemy_turn() -> void:
 		await get_tree().create_timer(Const.ENEMY_FIRE_DELAY).timeout
 		if _is_terminal():
 			return
+		_last_firing_unit = e
 		EnemySystem.fire_enemy(e, player_units, _projectiles)
 		# Wait for the shot to fully resolve (flight + resolution routine + settle beat).
 		while _projectiles.is_busy():
@@ -331,7 +422,11 @@ func _all_waves_spawned() -> bool:
 	return true
 
 # --- Win / loss (M2 spec §8): checked on every death, mid-turn included -----------
-func _on_unit_died(_unit: Unit) -> void:
+func _on_unit_died(unit: Unit) -> void:
+	if _artifact_ctx != null:
+		ArtifactSystem.call_unit_died(artifacts, _artifact_ctx, unit)
+		if _last_firing_unit != null and is_instance_valid(_last_firing_unit):
+			ArtifactSystem.call_unit_killed(artifacts, _artifact_ctx, unit, _last_firing_unit)
 	var enemies_alive := enemy_units.any(func(u): return u.hp > 0)
 	var players_alive := player_units.any(func(u): return u.hp > 0)
 	if not enemies_alive and _all_waves_spawned():
@@ -414,9 +509,10 @@ func try_move(unit: Unit, direction: int) -> void:
 	if dest == NO_MOVE:
 		return
 	unit.set_vox_position(dest)
+	unit.moved_this_turn = true
 	unit.actions_spent_moving += 1
 	actions_left -= 1
-	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+	action_bar_changed.emit(actions_left, _turn_max_actions)
 
 # --- Checkpoint save: called at turn start and after each firing event ------------
 func _save_checkpoint() -> void:
@@ -440,7 +536,7 @@ func try_undo() -> void:
 			u.actions_spent_moving = 0
 			_settle_unit(u)
 	actions_left = _checkpoint_actions_left
-	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+	action_bar_changed.emit(actions_left, _turn_max_actions)
 
 # --- Firing (Gunbound model; ends activation per spec §5.4, M3 §7 action cost) -----
 func _fire_active() -> void:
@@ -461,7 +557,8 @@ func _fire_active() -> void:
 	charge_frac = 0.0
 	if shot.action_cost > 0:
 		actions_left -= shot.action_cost
-		action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+		action_bar_changed.emit(actions_left, _turn_max_actions)
+	_last_firing_unit = u
 	_projectiles.fire(u.barrel_origin_world(), u.aim_dir(), speed, shot, false, u)
 	EventBus.unit_fired.emit(u, shot)
 	u.mark_done()
@@ -522,8 +619,9 @@ func _try_click_target_card(world_pos: Vector2) -> void:
 			return
 
 func _apply_card(card: CardDefinition, target: Unit) -> void:
-	actions_left -= card.action_cost
-	action_bar_changed.emit(actions_left, Const.MAX_ACTIONS)
+	var cost := ArtifactSystem.apply_card_cost(artifacts, _artifact_ctx, card, card.action_cost)
+	actions_left -= cost
+	action_bar_changed.emit(actions_left, _turn_max_actions)
 	_used_cards.append(card)   # one play per turn; reset in _start_player_turn
 	match card.effect_type:
 		CardDefinition.EffectType.SHIELD_BUFF:
@@ -621,7 +719,7 @@ func _process(delta: float) -> void:
 	_targeting.set_reinforcement_state(_reinforcement_warnings())
 
 func _push_hud_state() -> void:
-	_hud.set_actions(actions_left, Const.MAX_ACTIONS)
+	_hud.set_actions(actions_left, _turn_max_actions)
 	_hud.set_undo_enabled(can_undo())
 	match game_state:
 		GameState.PLAYER_TURN:

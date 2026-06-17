@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactDeathExplosion" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_death_explosion.gd" id="1_n1lpj"]
+
+[resource]
+script = ExtResource("1_n1lpj")
+artifact_name = "Death Explosion"
+description = "The first enemy to die each combat explodes in a diamond doing 5 damage."

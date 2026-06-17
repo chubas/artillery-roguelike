@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactLifesteal" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_lifesteal.gd" id="1_3uejg"]
+
+[resource]
+script = ExtResource("1_3uejg")
+artifact_name = "Lifesteal"
+description = "Units heal half of missing HP when killing an enemy."

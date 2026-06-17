@@ -24,7 +24,7 @@ static func check_segment(terrain: TerrainManager, from: Vector2, to: Vector2) -
 # map edge, mirroring a drill shot. The footprint is then placed by the caller (e.g. at a unit).
 static func simulate_arc(terrain: TerrainManager, origin: Vector2, direction: Vector2,
 		speed: float, gravity_scale: float = 1.0, max_time: float = 8.0,
-		ignore_terrain: bool = false) -> Dictionary:
+		ignore_terrain: bool = false, wind_force_x: float = 0.0) -> Dictionary:
 	var dt := 1.0 / 60.0
 	var pos := origin
 	var vel := direction.normalized() * speed
@@ -33,6 +33,7 @@ static func simulate_arc(terrain: TerrainManager, origin: Vector2, direction: Ve
 	var t := 0.0
 	while t < max_time:
 		vel.y += Const.GRAVITY * gravity_scale * dt
+		vel.x += wind_force_x * dt
 		var next := pos + vel * dt
 		if not ignore_terrain:
 			var hit := check_segment(terrain, pos, next)

@@ -23,6 +23,8 @@ var _card_box : HBoxContainer
 var _card_chips : Array = []
 var _card_sig : String = ""   # cache: rebuild chips only when the card list changes
 var _inspector : UnitInspector
+var _wind_indicator : WindIndicator
+var _artifact_bar : HBoxContainer
 
 func _ready() -> void:
 	_build_top_left()
@@ -70,11 +72,26 @@ func _build_top_center() -> void:
 	box.add_child(_unit_info_label)
 
 func _build_top_right() -> void:
+	# Artifact bar floats independently so its width is never constrained by the button column.
+	# It spans a generous range leftward from the right edge; ALIGNMENT_END keeps icons flush right.
+	_artifact_bar = HBoxContainer.new()
+	_artifact_bar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_artifact_bar.offset_left  = -500
+	_artifact_bar.offset_right = -12
+	_artifact_bar.offset_top   = 10
+	_artifact_bar.offset_bottom = 10 + ArtifactIcon.SIZE
+	_artifact_bar.alignment = BoxContainer.ALIGNMENT_END
+	_artifact_bar.add_theme_constant_override("separation", 4)
+	_artifact_bar.mouse_filter = Control.MOUSE_FILTER_PASS   # don't block clicks on the game below
+	add_child(_artifact_bar)
+
+	# Button column sits below the artifact bar with matching right edge.
+	const ICON_ROW_H := ArtifactIcon.SIZE + 10   # icon height + gap
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	box.offset_left = -150
+	box.offset_left  = -150
 	box.offset_right = -12
-	box.offset_top = 10
+	box.offset_top   = 10 + ICON_ROW_H
 	box.add_theme_constant_override("separation", 6)
 	add_child(box)
 	_end_turn_btn = Button.new()
@@ -87,6 +104,10 @@ func _build_top_right() -> void:
 	_undo_btn.focus_mode = Control.FOCUS_NONE
 	_undo_btn.pressed.connect(func(): undo_pressed.emit())
 	box.add_child(_undo_btn)
+	# Wind indicator lives in the same column, below the buttons.
+	_wind_indicator = WindIndicator.new()
+	_wind_indicator.custom_minimum_size = Vector2(0, 34)
+	box.add_child(_wind_indicator)
 
 # Unit Inspector (M5 polish): bottom-right panel showing whichever unit (ally or enemy)
 # is currently inspected — name, HP/shield, active shot + description, status effects.
@@ -190,6 +211,15 @@ func set_cards(cards: Array, pending: CardDefinition, actions_left: int, used: A
 		var c : CardDefinition = cards[i]
 		var chip : CardChip = _card_chips[i]
 		chip.set_state(actions_left >= c.action_cost, pending != null and c == pending, c in used)
+
+func set_artifacts(artifacts: Array) -> void:
+	for c in _artifact_bar.get_children():
+		c.queue_free()
+	for i in range(artifacts.size()):
+		var icon := ArtifactIcon.new()
+		icon.artifact = artifacts[i]
+		icon.index = i
+		_artifact_bar.add_child(icon)
 
 func set_turn_text(text: String) -> void:
 	_set_text(_turn_label, text)
@@ -388,3 +418,71 @@ class UnitInspector:
 			var pos := origin + Vector2(offset.x, offset.y) * cell
 			draw_rect(Rect2(pos, Vector2(cell, cell)), AoEPattern.zone_color(group.multiplier))
 		draw_rect(Rect2(origin, Vector2(cell, cell)), Color(1, 1, 1, 0.9), false, 1.0)
+
+# Wind Indicator (M8): compact readout in the top-right column, below the action buttons.
+# Hidden when wind_strength ≈ 0. Color: 0–20% white, 20–50% orange, >50% red.
+class WindIndicator:
+	extends Control
+
+	var strength : float = 0.0   # -1.0..1.0; 0 = calm (hidden)
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_PASS
+		EventBus.wind_changed.connect(func(s: float) -> void:
+			strength = s
+			queue_redraw())
+
+	func _draw() -> void:
+		if is_zero_approx(strength):
+			return
+		var pct : float = abs(strength) * 100.0
+		var col : Color
+		if pct > 50.0:
+			col = Color(1.0, 0.25, 0.2)   # red
+		elif pct > 20.0:
+			col = Color(1.0, 0.5,  0.1)   # orange
+		else:
+			col = Color(1.0, 1.0,  1.0)   # white
+		var font := ThemeDB.fallback_font
+		var arrow := "→" if strength > 0.0 else "←"
+		draw_string(font, Vector2(0, 14), "Wind  %s  %.0f%%" % [arrow, pct],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col)
+		var bar_max : float = size.x
+		var bar_w : float = bar_max * abs(strength)
+		var bar_x : float = 0.0 if strength > 0.0 else size.x - bar_w
+		draw_rect(Rect2(bar_x, 22, bar_w, 5), col * Color(1, 1, 1, 0.6))
+
+
+# Artifact icon (M9): a small placeholder square for one squad artifact.
+# Displays a generic number label and shows the artifact name + effect on hover via tooltip.
+class ArtifactIcon:
+	extends Control
+
+	const SIZE := 32.0
+
+	var artifact : ArtifactDef
+	var index : int   # 0-based; tooltip shows "Artifact(index+1)"
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(SIZE, SIZE)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		tooltip_text = "Artifact%d\n%s" % [index + 1, artifact.description]
+
+	func _draw() -> void:
+		var r := Rect2(Vector2.ZERO, Vector2(SIZE, SIZE))
+		draw_rect(r, Color(0.1, 0.12, 0.2, 0.88))
+		draw_rect(r, Color(0.65, 0.65, 0.75, 0.7), false, 1.5)
+		var font := ThemeDB.fallback_font
+		# Placeholder glyph: a small star/diamond shape in muted gold.
+		var cx : float = SIZE * 0.5
+		var cy : float = SIZE * 0.5
+		var pts := PackedVector2Array([
+			Vector2(cx, cy - 9), Vector2(cx + 3, cy - 3),
+			Vector2(cx + 9, cy), Vector2(cx + 3, cy + 3),
+			Vector2(cx, cy + 9), Vector2(cx - 3, cy + 3),
+			Vector2(cx - 9, cy), Vector2(cx - 3, cy - 3),
+		])
+		draw_colored_polygon(pts, Color(0.75, 0.65, 0.3, 0.85))
+		# Index number, bottom-right corner.
+		draw_string(font, Vector2(SIZE - 11, SIZE - 3), str(index + 1),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.7))
