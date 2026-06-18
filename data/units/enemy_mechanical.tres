@@ -8,6 +8,7 @@
 script = ExtResource("3_edo62")
 id = "enemy_mechanical"
 display_name = "Drone"
+faction = "army"
 move_range = 0
 default_shot = ExtResource("2_jhtk4")
 tags = Array[String](["MECHANICAL"])

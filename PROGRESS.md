@@ -28,14 +28,28 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M14 (linear run loop: `MapState`, `RunController` main scene, map↔combat flow),
   M15 (pre-combat placement: per-stage spawn zone, PLACEMENT state, deploy UI),
   **M16 (battle rewards + dig vs unit damage separation)**,
-  **M17 (collapsible terrain: column collapse, crush damage, resolve API)**.
+  **M17 (collapsible terrain: column collapse, crush damage, resolve API)**,
+  **M18 (faction ids on units, cards, artifacts)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M17 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M18 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-18 — Milestone 18: Faction identifiers on content
+
+Engine-first faction tagging (run-design §5). Full design in [milestone-18-plan.md](milestone-18-plan.md).
+
+- **`Faction`** (`data/factions/faction.gd`): ids `neutral`, `army` (Seekers), `cell` (Awakened),
+  `bio` (Shamans); `display_name()` for UI.
+- **`faction: String`** on `UnitDefinition`, `CardDefinition`, `ArtifactDef`.
+- **Bake:** all units → `army`; shield / overdrive / direct strike cards → `neutral`; mine / calm
+  winds → `army`; squad regen, lifesteal, free first card → `neutral` artifacts; rest → `army`.
+- **`RunState.run_meta.faction`** seeded to `army` in `start_default_run()` (filtering deferred).
 
 ---
 

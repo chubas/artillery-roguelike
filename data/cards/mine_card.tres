@@ -6,6 +6,7 @@
 script = ExtResource("1_cigt7")
 id = "mine_card"
 display_name = "Drop Mine"
+faction = "army"
 target_type = 2
 effect_type = 3
 action_cost = 2

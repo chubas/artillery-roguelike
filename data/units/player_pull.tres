@@ -10,6 +10,7 @@
 script = ExtResource("5_2na2w")
 id = "player_pull"
 display_name = "Magnet"
+faction = "army"
 default_shot = ExtResource("2_sj80p")
 available_shots = Array[ExtResource("1_rfml1")]([ExtResource("2_sj80p"), ExtResource("3_33qjm"), ExtResource("4_hxux2")])
 color = Color(0.9, 0.45, 0.4, 1)

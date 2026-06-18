@@ -10,6 +10,7 @@
 script = ExtResource("5_s7xea")
 id = "player_bypass"
 display_name = "Drill"
+faction = "army"
 attack = 10
 default_shot = ExtResource("2_c8fmk")
 available_shots = Array[ExtResource("1_vnc0p")]([ExtResource("2_c8fmk"), ExtResource("3_f8edn"), ExtResource("4_02640")])

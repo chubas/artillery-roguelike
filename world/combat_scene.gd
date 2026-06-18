@@ -210,6 +210,7 @@ func _smoke_test() -> void:
 	_m15_smoke()
 	_m16_smoke()
 	_m17_smoke()
+	_m18_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1073,6 +1074,19 @@ func _m17_smoke() -> void:
 	terrain.resolve_collapses([], [])
 	var landed := terrain.get_tile(col3, Const.MAP_HEIGHT - 1)
 	print("  after support destroyed: rests on bottom=%s (expect true)" % (landed != null))
+
+func _m18_smoke() -> void:
+	print("[smoke] -- M18 faction tags on content --")
+	var cluster : UnitDefinition = load("res://data/units/player_cluster.tres")
+	var shield : CardDefinition = load("res://data/cards/shield_buff.tres")
+	var mine : CardDefinition = load("res://data/cards/mine_card.tres")
+	var regen : ArtifactDef = load("res://data/artifacts/resources/squad_regen.tres")
+	var debuff : ArtifactDef = load("res://data/artifacts/resources/enemy_debuff.tres")
+	print("  unit cluster faction=%s (expect army)" % cluster.faction)
+	print("  card shield=%s mine=%s (expect neutral, army)" % [shield.faction, mine.faction])
+	print("  artifact regen=%s debuff=%s (expect neutral, army)" % [regen.faction, debuff.faction])
+	print("  Faction.display_name(army)=%s (expect Seekers)" % Faction.display_name(Faction.ARMY))
+	print("  run faction=%s (expect army)" % Run.active.run_meta.get("faction", ""))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

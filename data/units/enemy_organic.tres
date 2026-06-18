@@ -8,6 +8,7 @@
 script = ExtResource("3_svj4i")
 id = "enemy_organic"
 display_name = "Brute"
+faction = "army"
 max_hp = 8
 move_range = 0
 default_shot = ExtResource("2_xwk54")

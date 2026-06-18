@@ -4,6 +4,9 @@ extends Resource
 @export var artifact_name : String = ""
 @export var description   : String = ""
 
+## Faction tag (M18): neutral artifacts are cross-faction; tagged ones bias reward pools later.
+@export var faction : String = Faction.NEUTRAL
+
 func on_combat_start(ctx: ArtifactContext) -> void: pass
 func on_round_start(ctx: ArtifactContext) -> void: pass
 func on_player_turn_end(ctx: ArtifactContext) -> void: pass

@@ -6,3 +6,4 @@
 script = ExtResource("1_invl7")
 artifact_name = "Battle Drills"
 description = "At the start of the stage, give your units Boosted (3)."
+faction = "army"

@@ -10,6 +10,7 @@
 script = ExtResource("5_6k8wq")
 id = "player_heavy"
 display_name = "Unit1"
+faction = "army"
 max_hp = 9
 default_shot = ExtResource("2_d8rks")
 available_shots = Array[ExtResource("1_67ug8")]([ExtResource("2_d8rks"), ExtResource("3_hnl2y"), ExtResource("4_li25e")])

@@ -10,6 +10,7 @@
 script = ExtResource("5_0yy3i")
 id = "player_cluster"
 display_name = "Cluster"
+faction = "army"
 default_shot = ExtResource("2_w383l")
 available_shots = Array[ExtResource("1_djryg")]([ExtResource("2_w383l"), ExtResource("3_75jx8"), ExtResource("4_gljdb")])
 color = Color(0.85, 0.7, 0.2, 1)

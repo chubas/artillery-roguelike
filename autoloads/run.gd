@@ -56,5 +56,5 @@ func start_default_run() -> void:
 		"res://data/cards/halve_wind.tres",
 	]
 	rs.map = MapState.build_linear(_DEFAULT_MAP)
-	rs.run_meta = { "seed": randi(), "act": 1, "stage_index": 0 }
+	rs.run_meta = { "seed": randi(), "act": 1, "stage_index": 0, "faction": Faction.ARMY }
 	active = rs

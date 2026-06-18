@@ -5,6 +5,10 @@ extends Resource
 @export var id : String = ""
 @export var display_name : String = "Unit"
 
+## Faction tag (M18): stable id from Faction.* — neutral or army/cell/bio. Drives reward pools
+## and run identity; no gameplay filtering yet.
+@export var faction : String = Faction.NEUTRAL
+
 ## Physical footprint (voxels)
 @export var width_voxels : int = 2
 @export var height_voxels : int = 3

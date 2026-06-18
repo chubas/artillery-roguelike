@@ -133,6 +133,7 @@ func _initialize() -> void:
 	heavy.move_range = 99; heavy.climb_max = 1
 	heavy.default_shot = basic_ref; heavy.available_shots = loadout
 	heavy.tags = []; heavy.element_affinities = {}
+	heavy.faction = Faction.ARMY
 	heavy.color = Color(0.25, 0.45, 0.9)
 	_save(heavy, "res://data/units/player_heavy.tres")
 
@@ -142,6 +143,7 @@ func _initialize() -> void:
 	light.move_range = 99; light.climb_max = 1
 	light.default_shot = basic_ref; light.available_shots = loadout
 	light.tags = []; light.element_affinities = {}
+	light.faction = Faction.ARMY
 	light.color = Color(0.35, 0.75, 0.95)
 	_save(light, "res://data/units/player_light.tres")
 
@@ -154,6 +156,7 @@ func _initialize() -> void:
 	organic.default_shot = basic_ref
 	organic.tags = ["ORGANIC"]
 	organic.element_affinities = { "fire": 1.5, "electric": 0.75 }
+	organic.faction = Faction.ARMY
 	organic.color = Color(0.55, 0.75, 0.3)
 	_save(organic, "res://data/units/enemy_organic.tres")
 
@@ -166,6 +169,7 @@ func _initialize() -> void:
 	mechanical.default_shot = basic_ref
 	mechanical.tags = ["MECHANICAL"]
 	mechanical.element_affinities = { "fire": 0.75, "electric": 1.5 }
+	mechanical.faction = Faction.ARMY
 	mechanical.color = Color(0.7, 0.55, 0.85)
 	_save(mechanical, "res://data/units/enemy_mechanical.tres")
 
@@ -187,6 +191,7 @@ func _initialize() -> void:
 	shield_card.target_type = CardDefinition.TargetType.ALLY
 	shield_card.effect_type = CardDefinition.EffectType.SHIELD_BUFF
 	shield_card.magnitude = 4; shield_card.action_cost = 2
+	shield_card.faction = Faction.NEUTRAL
 	shield_card.color = Color(0.35, 0.65, 0.95)
 	_save(shield_card, "res://data/cards/shield_buff.tres")
 
@@ -195,6 +200,7 @@ func _initialize() -> void:
 	strike_card.target_type = CardDefinition.TargetType.ENEMY
 	strike_card.effect_type = CardDefinition.EffectType.DIRECT_DAMAGE
 	strike_card.magnitude = 3; strike_card.action_cost = 3
+	strike_card.faction = Faction.NEUTRAL
 	strike_card.color = Color(0.9, 0.3, 0.25)
 	_save(strike_card, "res://data/cards/direct_strike.tres")
 
@@ -204,6 +210,7 @@ func _initialize() -> void:
 	boosted_card.target_type = CardDefinition.TargetType.ALLY
 	boosted_card.effect_type = CardDefinition.EffectType.ADD_BOOSTED
 	boosted_card.magnitude = 2; boosted_card.action_cost = 2
+	boosted_card.faction = Faction.NEUTRAL
 	boosted_card.color = Color(0.3, 0.8, 0.4)
 	_save(boosted_card, "res://data/cards/boosted_card.tres")
 
@@ -212,6 +219,7 @@ func _initialize() -> void:
 	mine_card.target_type = CardDefinition.TargetType.TILE
 	mine_card.effect_type = CardDefinition.EffectType.DEPLOY_MINE
 	mine_card.magnitude = 0; mine_card.action_cost = 2
+	mine_card.faction = Faction.ARMY
 	mine_card.color = Color(0.9, 0.55, 0.2)
 	_save(mine_card, "res://data/cards/mine_card.tres")
 
@@ -220,6 +228,7 @@ func _initialize() -> void:
 	wind_card.target_type = CardDefinition.TargetType.NONE
 	wind_card.effect_type = CardDefinition.EffectType.HALVE_WIND
 	wind_card.magnitude = 0; wind_card.action_cost = 1
+	wind_card.faction = Faction.ARMY
 	wind_card.color = Color(0.4, 0.8, 0.95)
 	_save(wind_card, "res://data/cards/halve_wind.tres")
 
@@ -229,30 +238,30 @@ func _initialize() -> void:
 	# ── M9: artifacts ────────────────────────────────────────────────────────────
 	_bake_artifact(ArtifactSquadRegen.new(), "Squad Regen",
 			"At the start of each round, all player units heal 1 HP.",
-			"res://data/artifacts/resources/squad_regen.tres")
+			"res://data/artifacts/resources/squad_regen.tres", Faction.NEUTRAL)
 	_bake_artifact(ArtifactLifesteal.new(), "Lifesteal",
 			"Units heal half of missing HP when killing an enemy.",
-			"res://data/artifacts/resources/lifesteal.tres")
+			"res://data/artifacts/resources/lifesteal.tres", Faction.NEUTRAL)
 	_bake_artifact(ArtifactEnemyDebuff.new(), "Enemy Debuff",
 			"At the end of the player turn, all enemies lose 3 attack (stacks).",
-			"res://data/artifacts/resources/enemy_debuff.tres")
+			"res://data/artifacts/resources/enemy_debuff.tres", Faction.ARMY)
 	_bake_artifact(ArtifactFreeFirstCard.new(), "Free First Card",
 			"The first card played each combat costs 0 actions.",
-			"res://data/artifacts/resources/free_first_card.tres")
+			"res://data/artifacts/resources/free_first_card.tres", Faction.NEUTRAL)
 	_bake_artifact(ArtifactIdleActions.new(), "Idle Actions",
 			"At round start, gain +1 action for each ally that did not move last round.",
-			"res://data/artifacts/resources/idle_actions.tres")
+			"res://data/artifacts/resources/idle_actions.tres", Faction.ARMY)
 	_bake_artifact(ArtifactDeathExplosion.new(), "Death Explosion",
 			"The first enemy to die each combat explodes in a diamond doing 5 damage.",
-			"res://data/artifacts/resources/death_explosion.tres")
+			"res://data/artifacts/resources/death_explosion.tres", Faction.ARMY)
 	_bake_artifact(ArtifactLongFlight.new(), "Long Flight",
 			"Projectiles airborne for more than 10 seconds deal 20% more damage.",
-			"res://data/artifacts/resources/long_flight.tres")
+			"res://data/artifacts/resources/long_flight.tres", Faction.ARMY)
 
 	# ── M10: artifacts ─────────────────────────────────────────────────────────
 	_bake_artifact(ArtifactStartBoosted.new(), "Battle Drills",
 			"At the start of the stage, give your units Boosted (3).",
-			"res://data/artifacts/resources/start_boosted.tres")
+			"res://data/artifacts/resources/start_boosted.tres", Faction.ARMY)
 
 	# ── M13: stage descriptors ─────────────────────────────────────────────────
 	var W := Const.MAP_WIDTH
@@ -422,12 +431,15 @@ func _save_player_unit(id: String, dname: String,
 	u.available_shots = loadout
 	u.tags = []
 	u.element_affinities = {}
+	u.faction = Faction.ARMY
 	u.color = color
 	_save(u, "res://data/units/%s.tres" % id)
 
-func _bake_artifact(a: ArtifactDef, name: String, desc: String, path: String) -> void:
+func _bake_artifact(a: ArtifactDef, name: String, desc: String, path: String,
+		faction: String = Faction.NEUTRAL) -> void:
 	a.artifact_name = name
 	a.description = desc
+	a.faction = faction
 	_save(a, path)
 
 func _save(res: Resource, path: String) -> void:

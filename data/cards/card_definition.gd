@@ -6,6 +6,9 @@ extends Resource
 @export var id : String = ""
 @export var display_name : String = "Card"
 
+## Faction tag (M18): neutral cards appear in any run; faction-tagged cards filter by run faction later.
+@export var faction : String = Faction.NEUTRAL
+
 # TILE = pick a ground space (mine); NONE = instant, no target (applied on select). (M11)
 enum TargetType { ALLY, ENEMY, TILE, NONE }
 enum EffectType { SHIELD_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MINE, HALVE_WIND }

@@ -10,6 +10,7 @@
 script = ExtResource("5_xc7oy")
 id = "player_spiral"
 display_name = "Spiral"
+faction = "army"
 default_shot = ExtResource("2_prse3")
 available_shots = Array[ExtResource("1_bvb8g")]([ExtResource("2_prse3"), ExtResource("3_ub6j3"), ExtResource("4_2b4kd")])
 color = Color(0.6, 0.4, 0.85, 1)

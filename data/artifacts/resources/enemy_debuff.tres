@@ -6,3 +6,4 @@
 script = ExtResource("1_pynbh")
 artifact_name = "Enemy Debuff"
 description = "At the end of the player turn, all enemies lose 3 attack (stacks)."
+faction = "army"
