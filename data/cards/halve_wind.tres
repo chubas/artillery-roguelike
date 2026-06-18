@@ -8,5 +8,5 @@ id = "halve_wind"
 display_name = "Calm Winds"
 faction = "army"
 target_type = 3
-effect_type = 4
+effect_type = 5
 color = Color(0.4, 0.8, 0.95, 1)

@@ -11,3 +11,5 @@ display_name = "Fire"
 unit_status = ExtResource("3_n3gww")
 tile_status = ExtResource("2_uujx7")
 strong_vs_tag = "ORGANIC"
+vs_shield_mult = 0.5
+vs_hp_mult = 1.5

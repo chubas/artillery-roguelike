@@ -208,6 +208,7 @@ func _smoke_test() -> void:
 	_m13_smoke()
 	_m14_smoke()
 	_m19_smoke()
+	_m20_smoke()
 	_m15_smoke()
 	_m16_smoke()
 	_m17_smoke()
@@ -923,6 +924,35 @@ func _m19_smoke() -> void:
 	var n0 : MapNode = rt.map.nodes[0]
 	print("  round-trip: nodes=%d layer0=%d next0=%s (expect 9, 0, [1,2])" %
 			[rt.map.nodes.size(), n0.layer, n0.next_nodes])
+
+# M20 checklist: armor pool above shield, element × layer matrix, armor card, Cluster baseline.
+func _m20_smoke() -> void:
+	print("[smoke] -- M20 armor mitigation --")
+	var ally : Unit = combat.player_units[0]
+	var elec : ElementDef = load("res://data/elements/electric.tres")
+	var hp_max := ally.definition.max_hp
+	_reset(ally); ally.armor = 4; ally.shield = 0
+	ally.take_damage(3)
+	print("  armor absorbs first: armor=%d hp=%d (expect 1, %d)" % [ally.armor, ally.hp, hp_max])
+	_reset(ally); ally.armor = 0; ally.shield = 4
+	ally.take_damage(3)
+	print("  shield after armor empty: shield=%d hp=%d (expect 1, %d)" % [ally.shield, ally.hp, hp_max])
+	_reset(ally); ally.armor = 4; ally.shield = 0
+	ally.take_damage(3, elec)
+	print("  electric weak vs armor: armor=%d hp=%d (expect 2, %d)" % [ally.armor, ally.hp, hp_max])
+	_reset(ally); ally.armor = 0; ally.shield = 4
+	ally.take_damage(3, elec)
+	print("  electric strong vs shield: shield=%d hp=%d (expect 0, %d)" %
+			[ally.shield, ally.hp, hp_max - 1])
+
+	var cluster_def : UnitDefinition = load("res://data/units/player_cluster.tres")
+	print("  cluster base_armor=%d (expect 4)" % cluster_def.base_armor)
+
+	print("[smoke] -- M20 armor card --")
+	var armor_card : CardDefinition = load("res://data/cards/armor_buff.tres")
+	_reset(ally); ally.armor = 0
+	combat._apply_card(armor_card, ally, Vector2i.ZERO)
+	print("  armor buff: armor=%d cost=%d (expect 5, 2)" % [ally.armor, armor_card.action_cost])
 
 # M15 checklist (drop-queue redesign): spawn zone is the left half, dropping a unit places it
 # visibly in-zone, right-half column is clamped, queue must be empty before confirming.

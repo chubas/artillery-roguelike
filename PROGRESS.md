@@ -30,15 +30,30 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   **M16 (battle rewards + dig vs unit damage separation)**,
   **M17 (collapsible terrain: column collapse, crush damage, resolve API)**,
   **M18 (faction ids on units, cards, artifacts)**,
-  **M19 (branching map: diamond DAG, click-to-select)**.
+  **M19 (branching map: diamond DAG, click-to-select)**,
+  **M20 (armor mitigation layer + element × layer matrix)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M19 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M20 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-18 — Milestone 20: Armor mitigation layer
+
+Borderlands-style armor pool above shield, with element × mitigation-layer multipliers.
+Full matrix in [artillery-space-mechanics-compatibility.md](artillery-space-mechanics-compatibility.md) §1.
+
+- **`Unit.armor`** — flat per-combat absorb pool; pipeline is armor → shield → HP.
+- **`ElementDef`** — `vs_armor_mult`, `vs_shield_mult`, `vs_hp_mult` applied per layer in
+  `take_damage()`.
+- **`UnitDefinition.base_armor`** — Cluster spawns with 4 armor each combat.
+- **`Armor Up` card** — +5 armor, 2 AP, 3 copies in default deck and card pool.
+- **`Features.armor_enabled`** kill switch.
 
 ---
 

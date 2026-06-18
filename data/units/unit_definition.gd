@@ -15,6 +15,8 @@ extends Resource
 
 ## Stats
 @export var max_hp : int = 6
+## Starting armor points each combat (M20). Combat-runtime pool; restored from this on spawn.
+@export var base_armor : int = 0
 @export var move_range : int = 99  # max moves per activation (use 99 = unlimited for now)
 @export var climb_max : int = 1    # max voxel height climbed free
 

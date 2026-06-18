@@ -414,6 +414,10 @@ class UnitInspector:
 		var shield_txt := "Shield: %d" % unit.shield if unit.shield > 0 else "Shield: —"
 		draw_string(font, Vector2(10, y), shield_txt,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.6, 0.85, 1.0))
+		y += 16
+		var armor_txt := "Armor: %d" % unit.armor if unit.armor > 0 else "Armor: —"
+		draw_string(font, Vector2(10, y), armor_txt,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.82, 0.25))
 		y += 18
 		var shot := unit.get_active_shot()
 		if shot != null:

@@ -26,11 +26,11 @@ var dig : int = 1
 # pure-combat / smoke contexts (then the unit spawns at full HP).
 var run_state : RunUnitState = null
 var kills : int = 0   # persists via run_state; enemies killed by this unit (M12)
-# Shield (M5): a flat, per-combat absorb pool that sits above HP in the mitigation
-# stack. Unbounded (no max) — unlike HP, it's not drawn as a proportional bar.
-# Granted by cards for now (no baseline/regen yet). Armor would slot in above
-# shield later — see the seam comment in take_damage().
+# Shield (M5): a flat, per-combat absorb pool above HP. Granted by cards / generators.
 var shield : int = 0
+# Armor (M20): second flat absorb pool, sits above shield. Element layer matrix applies
+# per-layer when damage passes through. Seeded from definition.base_armor each combat.
+var armor : int = 0
 var vox_position : Vector2i = Vector2i.ZERO
 var aim_angle_deg : float = 45.0        # positive-up convention; preserved per unit
 # Gunbound-style power memory (M4): the charge fraction of this unit's last shot. The HUD
@@ -68,10 +68,12 @@ func _ready() -> void:
 		kills = run_state.kills
 		attack = _derive_attack()
 		dig = definition.dig
+		armor = definition.base_armor if Features.armor_enabled else 0
 	else:
 		hp = definition.max_hp
 		attack = definition.attack
 		dig = definition.dig
+	armor = definition.base_armor if Features.armor_enabled else 0
 	move_origin = vox_position
 	if display_name == "":
 		display_name = definition.display_name
@@ -82,19 +84,18 @@ func _derive_attack() -> int:
 	return definition.attack
 
 # --- State ---------------------------------------------------------------------
-func take_damage(dmg: int) -> void:
+func take_damage(dmg: int, element: ElementDef = null) -> void:
 	if hp <= 0:
 		return
 	var remaining := dmg
-	# Mitigation pipeline (card-engine doc §5): armor → shield → HP.
-	# POST-M5 SEAM: an Armor layer would reduce `remaining` here, before shield.
-	# Not implemented yet — Shield is the only mitigation layer this milestone adds.
-	if Features.shields_enabled and shield > 0:
-		var absorbed := mini(shield, remaining)
-		shield -= absorbed
-		remaining -= absorbed
-		EventBus.unit_shield_changed.emit(self, shield)
-	hp = maxi(0, hp - remaining)
+	remaining = _absorb_mitigation(remaining, element, ElementDef.MitigationLayer.ARMOR,
+			"armor", Features.armor_enabled)
+	remaining = _absorb_mitigation(remaining, element, ElementDef.MitigationLayer.SHIELD,
+			"shield", Features.shields_enabled)
+	if remaining > 0:
+		var hp_mult := element.mitigation_mult(ElementDef.MitigationLayer.HP) if element else 1.0
+		var hp_hit := _layer_damage(remaining, hp_mult)
+		hp = maxi(0, hp - hp_hit)
 	queue_redraw()
 	unit_damaged.emit(self, dmg, hp)
 	if hp == 0:
@@ -103,10 +104,35 @@ func take_damage(dmg: int) -> void:
 		unit_died.emit(self)
 		EventBus.unit_died.emit(self)
 
+func _layer_damage(amount: int, mult: float) -> int:
+	return maxi(1, int(round(float(amount) * mult)))
+
+func _absorb_mitigation(remaining: int, element: ElementDef, layer: ElementDef.MitigationLayer,
+		pool_name: String, enabled: bool) -> int:
+	if not enabled or remaining <= 0:
+		return remaining
+	var pool : int = armor if pool_name == "armor" else shield
+	if pool <= 0:
+		return remaining
+	var mult := element.mitigation_mult(layer) if element else 1.0
+	var hit := _layer_damage(remaining, mult)
+	var absorbed := mini(pool, hit)
+	if pool_name == "armor":
+		armor -= absorbed
+		EventBus.unit_armor_changed.emit(self, armor)
+	else:
+		shield -= absorbed
+		EventBus.unit_shield_changed.emit(self, shield)
+	return hit - absorbed
+
 # Grants shield (M5 card effect). A method (not direct field access) so the redraw
 # always happens — direct field writes were the cause of the "bar doesn't update" bug.
 func add_shield(amount: int) -> void:
 	shield += amount
+	queue_redraw()
+
+func add_armor(amount: int) -> void:
+	armor += amount
 	queue_redraw()
 
 func reset_for_turn() -> void:
@@ -215,6 +241,8 @@ func _draw_stat_icons(_w: float) -> void:
 	var cy := -16.0
 	var x := 2.0
 	x = _draw_icon_value(x, cy, Color(0.9, 0.4, 0.25), attack)   # attack — reddish
+	if armor > 0:
+		x = _draw_icon_value(x, cy, Color(0.95, 0.82, 0.25), armor)   # armor — yellow
 	if shield > 0:
 		x = _draw_icon_value(x, cy, Color(0.4, 0.75, 1.0), shield)   # shield — blue
 

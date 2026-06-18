@@ -21,6 +21,7 @@ signal unit_killed(unit: Unit, killer: Unit)
 signal unit_died(unit: Unit)
 signal unit_tile_entered(unit: Unit, tile_pos: Vector2i)
 signal unit_shield_changed(unit: Unit, shield: int)
+signal unit_armor_changed(unit: Unit, armor: int)
 
 # ── Status signals ───────────────────────────────────────────────────────────
 signal status_applied(target: Unit, status_id: String, stacks: int)

@@ -6,7 +6,7 @@
 script = ExtResource("1_luajc")
 id = "boosted_card"
 display_name = "Overdrive"
-effect_type = 2
+effect_type = 3
 magnitude = 2
 action_cost = 2
 color = Color(0.3, 0.8, 0.4, 1)

@@ -56,14 +56,20 @@ func _initialize() -> void:
 	fire.id = "fire"; fire.display_name = "Fire"
 	fire.unit_status = load("res://data/statuses/burn.tres")
 	fire.tile_status = load("res://data/tile_statuses/burning.tres")
-	fire.strong_vs_tag = "ORGANIC"; fire.vs_shielded_mult = 0.0
+	fire.strong_vs_tag = "ORGANIC"
+	fire.vs_shield_mult = 0.5
+	fire.vs_hp_mult = 1.5
 	_save(fire, "res://data/elements/fire.tres")
 
 	var electric := ElementDef.new()
 	electric.id = "electric"; electric.display_name = "Electric"
 	electric.unit_status = load("res://data/statuses/shock.tres")
 	electric.tile_status = load("res://data/tile_statuses/electrified.tres")
-	electric.strong_vs_tag = "MECHANICAL"; electric.vs_shielded_mult = 2.0
+	electric.strong_vs_tag = "MECHANICAL"
+	electric.vs_shielded_mult = 2.0
+	electric.vs_armor_mult = 0.5
+	electric.vs_shield_mult = 2.0
+	electric.vs_hp_mult = 0.5
 	_save(electric, "res://data/elements/electric.tres")
 
 	# ── AoE patterns (M7: shape only — core/edge zones, magnitude comes from
@@ -177,7 +183,7 @@ func _initialize() -> void:
 	# M10: attack value is the source of projectile strength (× shot.strength_mult × power).
 	# Values mirror the old per-shot strengths so balance is unchanged: drill is the heavy hitter.
 	_save_player_unit("player_cluster", "Cluster", cluster_loadout,
-			Color(0.85, 0.7, 0.2), 3)       # goldenrod
+			Color(0.85, 0.7, 0.2), 3, 1, 4)   # goldenrod, armored
 	_save_player_unit("player_bypass", "Drill", bypass_loadout,
 			Color(0.2, 0.7, 0.65), 10)      # teal — heavy unit-hit blast
 	_save_player_unit("player_pull", "Magnet", pull_loadout,
@@ -194,6 +200,15 @@ func _initialize() -> void:
 	shield_card.faction = Faction.NEUTRAL
 	shield_card.color = Color(0.35, 0.65, 0.95)
 	_save(shield_card, "res://data/cards/shield_buff.tres")
+
+	var armor_card := CardDefinition.new()
+	armor_card.id = "armor_buff"; armor_card.display_name = "Armor Up"
+	armor_card.target_type = CardDefinition.TargetType.ALLY
+	armor_card.effect_type = CardDefinition.EffectType.ARMOR_BUFF
+	armor_card.magnitude = 5; armor_card.action_cost = 2
+	armor_card.faction = Faction.NEUTRAL
+	armor_card.color = Color(0.95, 0.82, 0.25)
+	_save(armor_card, "res://data/cards/armor_buff.tres")
 
 	var strike_card := CardDefinition.new()
 	strike_card.id = "direct_strike"; strike_card.display_name = "Direct Strike"
@@ -416,13 +431,15 @@ func _apply_family_payload(s: ShotDefinition, type_id: String) -> void:
 			s.spiral_frequency = 2.0
 
 func _save_player_unit(id: String, dname: String,
-		loadout: Array[ShotDefinition], color: Color, attack: int = 3, dig: int = 1) -> void:
+		loadout: Array[ShotDefinition], color: Color, attack: int = 3, dig: int = 1,
+		base_armor: int = 0) -> void:
 	var u := UnitDefinition.new()
 	u.id = id
 	u.display_name = dname
 	u.width_voxels = 2
 	u.height_voxels = 3
 	u.max_hp = 6
+	u.base_armor = base_armor
 	u.attack = attack
 	u.dig = dig
 	u.move_range = 99

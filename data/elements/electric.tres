@@ -12,3 +12,6 @@ unit_status = ExtResource("3_1gkng")
 tile_status = ExtResource("2_65yrv")
 strong_vs_tag = "MECHANICAL"
 vs_shielded_mult = 2.0
+vs_armor_mult = 0.5
+vs_shield_mult = 2.0
+vs_hp_mult = 0.5

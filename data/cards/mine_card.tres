@@ -8,6 +8,6 @@ id = "mine_card"
 display_name = "Drop Mine"
 faction = "army"
 target_type = 2
-effect_type = 3
+effect_type = 4
 action_cost = 2
 color = Color(0.9, 0.55, 0.2, 1)

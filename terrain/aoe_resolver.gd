@@ -63,7 +63,7 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 	for unit in unit_hit:
 		var element : ElementDef = unit_hit[unit]["element"]
 		var final_dmg := _calc_damage(unit, unit_hit[unit]["dmg"], element)
-		unit.take_damage(final_dmg)
+		unit.take_damage(final_dmg, element)
 		EventBus.unit_hit_taken.emit(unit, final_dmg,
 				element.id if element else "physical", null)
 		if element and element.unit_status and Features.unit_statuses_enabled:

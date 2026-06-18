@@ -15,6 +15,7 @@ const _DEFAULT_MAP : Array = [
 const _DEFAULT_DECK : Array = [   # [path, copies]
 	["res://data/cards/direct_strike.tres", 3],
 	["res://data/cards/shield_buff.tres",   3],
+	["res://data/cards/armor_buff.tres",    3],
 	["res://data/cards/mine_card.tres",     2],
 	["res://data/cards/boosted_card.tres",  2],
 	["res://data/cards/halve_wind.tres",    1],
@@ -51,6 +52,7 @@ func start_default_run() -> void:
 	rs.card_pool = [
 		"res://data/cards/direct_strike.tres",
 		"res://data/cards/shield_buff.tres",
+		"res://data/cards/armor_buff.tres",
 		"res://data/cards/mine_card.tres",
 		"res://data/cards/boosted_card.tres",
 		"res://data/cards/halve_wind.tres",

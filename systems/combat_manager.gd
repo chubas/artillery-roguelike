@@ -823,6 +823,9 @@ func _apply_card(card: CardDefinition, target: Unit, vox: Vector2i) -> void:
 		CardDefinition.EffectType.SHIELD_BUFF:
 			target.add_shield(card.magnitude)
 			EventBus.unit_shield_changed.emit(target, target.shield)
+		CardDefinition.EffectType.ARMOR_BUFF:
+			target.add_armor(card.magnitude)
+			EventBus.unit_armor_changed.emit(target, target.armor)
 		CardDefinition.EffectType.DIRECT_DAMAGE:
 			target.take_damage(card.magnitude)   # routes through shield, like any other hit
 		CardDefinition.EffectType.ADD_BOOSTED:

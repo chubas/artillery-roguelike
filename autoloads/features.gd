@@ -14,6 +14,7 @@ var electric_enabled        : bool = true
 var burning_tile_enabled    : bool = true
 var electrified_tile_enabled: bool = true
 var shields_enabled         : bool = true   # M5: shield mitigation layer in Unit.take_damage
+var armor_enabled           : bool = true   # M20: armor mitigation layer in Unit.take_damage
 var deployables_enabled     : bool = true   # M6: mines/shield generators spawn + their hooks
 
 # Future systems — false until implemented
