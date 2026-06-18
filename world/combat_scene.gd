@@ -55,6 +55,7 @@ func _ready() -> void:
 	_setup_camera()
 	print("[terrain] ", terrain.debug_stats())
 	if OS.get_environment("ARTILLERY_SMOKE") == "1":
+		combat._drain_placement_queue()   # drop every queued unit + confirm → start round 1
 		_smoke_test()
 
 # M12: combat resolved → write surviving HP / kills / disabled back into the run. The
@@ -74,8 +75,10 @@ func _setup_camera() -> void:
 	camera.limit_top = 0
 	camera.limit_right = int(w.x)
 	camera.limit_bottom = int(w.y)
-	if not combat.player_units.is_empty():
-		camera.position = combat.player_units[0].center_world()
+	# During placement units are hidden/unpositioned, so center on the spawn zone's midpoint.
+	var mid_col := (combat._spawn_min_col() + combat._spawn_max_col()) / 2
+	var mid_row := Const.MAP_HEIGHT / 2
+	camera.position = Const.voxel_to_world(Vector2i(mid_col, mid_row))
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
@@ -204,6 +207,7 @@ func _smoke_test() -> void:
 	_m12_smoke()
 	_m13_smoke()
 	_m14_smoke()
+	_m15_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -874,6 +878,51 @@ func _m14_smoke() -> void:
 	var rt := RunState.from_dict(rs2.to_dict())
 	print("  round-trip: nodes=%d (expect 3) current=%d (expect 2) visited=%d (expect 3) stage1=%s" %
 			[rt.map.nodes.size(), rt.map.current, rt.map.visited.size(), rt.map.nodes[1].stage_path.get_file()])
+
+# M15 checklist (drop-queue redesign): spawn zone is the left half, dropping a unit places it
+# visibly in-zone, right-half column is clamped, queue must be empty before confirming.
+func _m15_smoke() -> void:
+	print("[smoke] -- M15 pre-combat placement (drop queue) --")
+	var s1 : StageDescriptor = load("res://data/stages/stage_01.tres")
+	print("  stage_01 spawn zone: %d..%d (expect 0..%d, left half)" %
+			[s1.spawn_min_col, s1.spawn_max_col, Const.MAP_WIDTH / 2 - 1])
+
+	# Re-enter PLACEMENT with one unit in the queue.
+	var u : Unit = combat.player_units[0]
+	u.visible = false
+	combat._placement_queue = [u]
+	combat.game_state = CombatManager.GameState.PLACEMENT
+
+	var dropped_to := -1
+	for c in range(s1.spawn_min_col, s1.spawn_max_col + 1):
+		if combat._placement_drop(u, c):
+			combat._placement_queue.pop_front()
+			dropped_to = u.vox_position.x
+			break
+	print("  dropped into zone at col=%d visible=%s (expect valid in 0..%d, true)" %
+			[dropped_to, u.visible, s1.spawn_max_col])
+
+	# Clamp guarantee: _placement_drop clamps a right-half col into the zone.
+	var u2 : Unit = combat.player_units[1]
+	u2.visible = false
+	combat._placement_queue = [u2]
+	combat._placement_drop(u2, Const.MAP_WIDTH - 5)
+	combat._placement_queue.clear()
+	print("  drop right-half col: x=%d <= spawn_max=%d (expect true)" %
+			[u2.vox_position.x, s1.spawn_max_col])
+
+	# Confirm blocked while queue non-empty; succeeds when queue empty.
+	combat.game_state = CombatManager.GameState.PLACEMENT
+	combat._placement_queue = [u]   # put one unit back to test the guard
+	var round_snapshot := combat.round_index
+	combat._confirm_placement()     # should be a no-op (queue not empty)
+	print("  confirm with queue non-empty: still PLACEMENT=%s (expect true)" %
+			[combat.game_state == CombatManager.GameState.PLACEMENT])
+	combat._placement_queue.clear()
+	combat._confirm_placement()     # now valid
+	print("  confirm with empty queue: left PLACEMENT=%s round advanced=%s (expect true, true)" %
+			[combat.game_state != CombatManager.GameState.PLACEMENT,
+			combat.round_index == round_snapshot + 1])
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

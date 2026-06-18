@@ -16,6 +16,14 @@ var power_frac : float = 0.0
 var pending_card : CardDefinition = null
 var pending_reinforcements : Array = []   # [{ "col": int, "turns_left": int }]
 
+# M15: spawn-zone highlight during pre-combat placement.
+var placement_active : bool = false
+var placement_min_col : int = 0
+var placement_max_col : int = 0
+# Drop indicator: vertical line + unit name, shown while the player hovers to place a unit.
+var drop_indicator_col : int = -1
+var drop_indicator_name : String = ""
+
 var _wind_force_x : float = 0.0   # M8: cached from EventBus.wind_changed; applied to arc preview
 
 func _ready() -> void:
@@ -26,6 +34,10 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if placement_active:
+		_draw_spawn_zone()
+		if drop_indicator_col >= 0:
+			_draw_drop_indicator()
 	# Hover hitbox outline on any unit (terrain spec §11.4).
 	var mouse := get_global_mouse_position()
 	for u in units:
@@ -40,6 +52,31 @@ func _draw() -> void:
 	_draw_barrel_indicator(barrel, active_unit.aim_dir())
 	if charging:
 		_draw_charge_preview(barrel)
+
+# M15: translucent band over the placement spawn zone (full map height), with a top edge line.
+func _draw_spawn_zone() -> void:
+	var x0 := Const.voxel_to_world(Vector2i(placement_min_col, 0)).x
+	var x1 := Const.voxel_to_world(Vector2i(placement_max_col + 1, 0)).x
+	var h := float(Const.MAP_HEIGHT * Const.VOXEL_SIZE)
+	var rect := Rect2(x0, 0.0, x1 - x0, h)
+	draw_rect(rect, Color(0.3, 0.7, 1.0, 0.10))
+	draw_line(Vector2(x1, 0.0), Vector2(x1, h), Color(0.4, 0.75, 1.0, 0.45), 2.0)
+
+func set_drop_indicator(col: int, name: String) -> void:
+	drop_indicator_col = col
+	drop_indicator_name = name
+
+func _draw_drop_indicator() -> void:
+	var x := Const.voxel_to_world(Vector2i(drop_indicator_col, 0)).x + Const.VOXEL_SIZE * 0.5
+	var h := float(Const.MAP_HEIGHT * Const.VOXEL_SIZE)
+	draw_line(Vector2(x, 0.0), Vector2(x, h), Color.WHITE, 2.0)
+	if drop_indicator_name != "":
+		var font := ThemeDB.fallback_font
+		var font_size := 14
+		var tw := font.get_string_size(drop_indicator_name,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		draw_string(font, Vector2(x - tw * 0.5, 40.0), drop_indicator_name,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
 # Highlight valid targets for the pending card: green outline for allies, red for enemies,
 # or (TILE cards, M11) a column guide + surface marker at the space under the cursor.

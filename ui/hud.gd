@@ -7,6 +7,7 @@ signal end_turn_pressed
 signal undo_pressed
 signal shot_selected(index: int)
 signal card_selected(index: int)
+signal start_battle_pressed   # M15: confirm pre-combat placement
 
 var _angle_label : Label
 var _power_label : Label
@@ -26,12 +27,16 @@ var _deck_label : Label       # M11: draw-pile / discard counts
 var _inspector : UnitInspector
 var _wind_indicator : WindIndicator
 var _artifact_bar : HBoxContainer
+var _placement_box : VBoxContainer   # M15: instruction + Start Battle, shown only in placement
+var _placement_hint : Label          # updated each frame with the current queue-front unit name
+var _start_battle_btn : Button       # disabled while the queue is non-empty
 
 func _ready() -> void:
 	_build_top_left()
 	_build_top_center()
 	_build_top_right()
 	_build_bottom_right()
+	_build_placement()
 
 func _build_top_left() -> void:
 	var box := VBoxContainer.new()
@@ -130,6 +135,47 @@ func set_inspected_unit(unit: Unit) -> void:
 	_inspector.visible = unit != null and is_instance_valid(unit)
 	_inspector.queue_redraw()
 
+# Placement controls (M15): a bottom-center instruction + Start Battle button, shown only while
+# deploying the squad (set_placement_mode), hidden during the fight.
+func _build_placement() -> void:
+	_placement_box = VBoxContainer.new()
+	_placement_box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_placement_box.offset_left = -200
+	_placement_box.offset_right = 200
+	_placement_box.offset_top = -78
+	_placement_box.offset_bottom = -12
+	_placement_box.alignment = BoxContainer.ALIGNMENT_END
+	_placement_box.add_theme_constant_override("separation", 6)
+	_placement_box.visible = false
+	_placement_hint = _make_label(13)
+	_placement_hint.text = "Hover over the zone and click to deploy · Tab to cycle unit · Enter when done"
+	_placement_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_placement_hint.modulate = Color(1, 1, 1, 0.8)
+	_placement_box.add_child(_placement_hint)
+	_start_battle_btn = Button.new()
+	_start_battle_btn.text = "Start Battle"
+	_start_battle_btn.focus_mode = Control.FOCUS_NONE
+	_start_battle_btn.disabled = true   # enabled once all units are dropped
+	_start_battle_btn.pressed.connect(func(): start_battle_pressed.emit())
+	_placement_box.add_child(_start_battle_btn)
+	add_child(_placement_box)
+
+func set_placement_mode(active: bool) -> void:
+	if _placement_box.visible != active:
+		_placement_box.visible = active
+
+# Updates the drop-queue instruction and enables/disables Start Battle based on remaining count.
+func set_placement_unit(unit_name: String, remaining: int) -> void:
+	var txt : String
+	if remaining > 0:
+		txt = "Click to deploy: %s  (%d left) · Tab to cycle" % [unit_name, remaining]
+	else:
+		txt = "All units deployed — press Start Battle or Enter"
+	_set_text(_placement_hint, txt)
+	var should_disable := remaining > 0
+	if _start_battle_btn.disabled != should_disable:
+		_start_battle_btn.disabled = should_disable
+
 func _make_label(font_size: int) -> Label:
 	var l := Label.new()
 	l.add_theme_font_size_override("font_size", font_size)
@@ -196,7 +242,9 @@ func set_shots(shots: Array, active: ShotDefinition, actions_left: int) -> void:
 # Card chips (M5). Little card-faces (description + AP cost) instead of text buttons.
 # Same rebuild-only-on-identity-change pattern as set_shots(); greys out unaffordable
 # cards and draws a green outline on the currently selected (pending) card.
-func set_cards(cards: Array, pending: CardDefinition, actions_left: int,
+# `pending_index` is the selected hand SLOT (-1 = none). Index-based, not card-based: duplicate
+# cards in hand share one cached CardDefinition, so comparing by object would highlight every copy.
+func set_cards(cards: Array, pending_index: int, actions_left: int,
 		deck_count: int = 0, discard_count: int = 0) -> void:
 	var sig := ""
 	for c in cards:
@@ -215,7 +263,7 @@ func set_cards(cards: Array, pending: CardDefinition, actions_left: int,
 	for i in range(_card_chips.size()):
 		var c : CardDefinition = cards[i]
 		var chip : CardChip = _card_chips[i]
-		chip.set_state(actions_left >= c.action_cost, pending != null and c == pending)
+		chip.set_state(actions_left >= c.action_cost, i == pending_index)
 	_deck_label.text = "Deck %d  ·  Discard %d" % [deck_count, discard_count]
 
 func set_artifacts(artifacts: Array) -> void:

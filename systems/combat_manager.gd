@@ -7,7 +7,7 @@ signal action_bar_changed(current: int, maximum: int)
 signal unit_focused(unit: Unit)   # selection changed → CombatScene pans the camera
 signal combat_finished(outcome: String)   # M12: "cleared" / "failed" — drives run write-back
 
-enum GameState { PLAYER_TURN, ENEMY_TURN, STAGE_CLEAR, GAME_OVER }
+enum GameState { PLACEMENT, PLAYER_TURN, ENEMY_TURN, STAGE_CLEAR, GAME_OVER }
 
 const NO_MOVE := UnitMovement.NO_MOVE
 
@@ -40,6 +40,9 @@ var _deck : Array[CardDefinition] = []      # draw pile (top = last element)
 var _hand : Array[CardDefinition] = []
 var _discard : Array[CardDefinition] = []
 var _pending_card : CardDefinition = null   # non-null while choosing a target
+# The hand SLOT being targeted (not the card object): duplicate cards in hand are the same cached
+# CardDefinition instance, so highlighting must key off the index, not the card.
+var _pending_index : int = -1
 
 # --- Stage (M13): the StageDescriptor this combat is running. Source of enemies, reinforcement
 # schedule, deployable placements, wind profile, and the objective. Set in setup().
@@ -78,6 +81,11 @@ var _deployable_layer_front : Node2D
 var _hud : HUD
 var _targeting : TargetingUI
 
+# Placement drop queue (drop-queue redesign): units start invisible/unpositioned; the player
+# places them one at a time by hovering a column indicator and clicking.
+var _placement_queue : Array[Unit] = []
+var _placement_hover_col : int = -1   # column under the mouse, clamped to spawn zone
+
 func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 		unit_layer: Node2D, hud: HUD, targeting: TargetingUI,
 		deployable_layer_back: Node2D = null, deployable_layer_front: Node2D = null,
@@ -114,7 +122,8 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 		_spawn_deployables()
 	_init_artifacts()
 	_build_deck()
-	_begin_round()
+	_hud.start_battle_pressed.connect(_confirm_placement)
+	_start_placement()   # M15: position the squad before the turn loop begins
 
 func get_units() -> Array:
 	return all_units
@@ -137,19 +146,91 @@ func _init_artifacts() -> void:
 
 # --- Spawning (M2 spec §9.3, surface-snap + no-overlap per plan §1.5) -----------
 # Place the run squad (M12): pre-built Units from CombatBridge.build_squad() — definition +
-# run_state already set, just need positioning, tree insertion, and death wiring. Spawn columns
-# mirror the historical layout (8/11/14/17, then alternate outward via _find_valid_spawn).
+# run_state already set, just need positioning, tree insertion, and death wiring. Initial columns
+# are spread across the stage's spawn zone (M15); the player then repositions during placement.
 func _place_player_squad(squad: Array) -> void:
-	var cols : Array = [8, 11, 14, 17]
-	for i in range(squad.size()):
-		var u : Unit = squad[i]
+	for u in squad:
 		u.is_player = true
 		u.aim_angle_deg = 45.0
-		var preferred : int = cols[i] if i < cols.size() else 8 + i * 3
-		u.set_vox_position(_find_valid_spawn(preferred, u.definition))
+		u.visible = false   # hidden until the player drops the unit in placement
 		_unit_layer.add_child(u)   # triggers Unit._ready() → hp from run_state.current_hp
 		u.unit_died.connect(_on_unit_died)
 		player_units.append(u)
+		_placement_queue.append(u)
+
+# Spawn-zone bounds from the stage descriptor (M15); defaults to the left half if no stage.
+func _spawn_min_col() -> int:
+	return _stage.spawn_min_col if _stage != null else 0
+
+func _spawn_max_col() -> int:
+	return _stage.spawn_max_col if _stage != null else Const.MAP_WIDTH / 2 - 1
+
+# --- Placement (M15): position the squad in the spawn zone before the turn loop ----
+func _start_placement() -> void:
+	game_state = GameState.PLACEMENT
+	_set_selection(null)   # no active unit in drop-queue placement
+	_log_phase("PLACEMENT")
+
+# Only valid when the queue is empty (all units placed). Enter/Start Battle call this.
+func _confirm_placement() -> void:
+	if game_state != GameState.PLACEMENT or not _placement_queue.is_empty():
+		return
+	_begin_round()
+
+# Drop `unit` at `col`: clamp into spawn zone, snap to surface, validate, make visible.
+# Returns true on success. The caller is responsible for removing the unit from the queue.
+func _placement_drop(unit: Unit, col: int) -> bool:
+	if unit == null:
+		return false
+	var def := unit.definition
+	var lo := _spawn_min_col()
+	var hi := maxi(lo, _spawn_max_col() - def.width_voxels + 1)
+	col = clampi(col, lo, hi)
+	var surface := _terrain.get_surface_row(col)
+	if surface == -1:
+		return false
+	var top_left := Vector2i(col, surface - def.height_voxels)
+	if top_left.y < 0:
+		return false
+	if not UnitMovement.bbox_terrain_clear(_terrain, top_left, def.width_voxels, def.height_voxels):
+		return false
+	# Only check overlap against already-placed units (invisible queue units are at vox(0,0)).
+	var placed := all_units.filter(func(u): return u.visible)
+	if UnitMovement.overlaps_any_unit(placed, top_left, def, null):
+		return false
+	unit.set_vox_position(top_left)
+	unit.visible = true
+	return true
+
+# Smoke / auto-confirm helper: place every queued unit at the first valid column and confirm.
+func _drain_placement_queue() -> void:
+	for u in _placement_queue.duplicate():
+		for col in range(_spawn_min_col(), _spawn_max_col() + 1):
+			if _placement_drop(u, col):
+				_placement_queue.erase(u)
+				break
+	_confirm_placement()
+
+# Placement-phase input: mouse move → update drop indicator column; left-click → drop the
+# queue-front unit; Tab → cycle the queue; Enter → confirm when queue is empty.
+func _placement_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var col := Const.world_to_voxel(get_global_mouse_position()).x
+		_placement_hover_col = clampi(col, _spawn_min_col(), _spawn_max_col())
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.physical_keycode:
+			KEY_TAB:
+				if _placement_queue.size() > 1:
+					_placement_queue.append(_placement_queue.pop_front())
+			KEY_ENTER, KEY_KP_ENTER:
+				_confirm_placement()
+	elif event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT:
+		if _placement_queue.is_empty():
+			return
+		if _placement_drop(_placement_queue[0], _placement_hover_col):
+			_placement_queue.pop_front()
 
 # Initial enemy force from the stage descriptor (M13). Enemies are NOT run state.
 func _spawn_enemies() -> void:
@@ -709,9 +790,11 @@ func _select_card(idx: int) -> void:
 		_apply_card(card, null, Vector2i.ZERO)
 	else:
 		_pending_card = card
+		_pending_index = idx
 
 func _cancel_pending_card() -> void:
 	_pending_card = null
+	_pending_index = -1
 
 func _try_click_target_card(world_pos: Vector2) -> void:
 	if _pending_card == null:
@@ -750,6 +833,7 @@ func _apply_card(card: CardDefinition, target: Unit, vox: Vector2i) -> void:
 	_hand.erase(card)
 	_discard.append(card)
 	_pending_card = null
+	_pending_index = -1
 	_save_checkpoint()   # AP spend is undoable (deck state is not — card play re-checkpoints)
 
 # Deploy a player mine on the surface of `col` (M11 mine card). Mirrors the mine branch of
@@ -788,6 +872,9 @@ func _settle_deployable(d: Deployable) -> void:
 
 # --- Input (M2 spec §5 adapted to Gunbound model) ---------------------------------
 func _unhandled_input(event: InputEvent) -> void:
+	if game_state == GameState.PLACEMENT:
+		_placement_input(event)
+		return
 	if game_state != GameState.PLAYER_TURN:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -853,11 +940,22 @@ func _process(delta: float) -> void:
 	_targeting.set_aim_state(active_unit, charging, charge_frac)
 	_targeting.set_card_state(_pending_card)
 	_targeting.set_reinforcement_state(_reinforcement_warnings())
+	_targeting.set_placement_state(game_state == GameState.PLACEMENT,
+			_spawn_min_col(), _spawn_max_col())
+	if game_state == GameState.PLACEMENT:
+		var dname := _placement_queue[0].definition.display_name \
+				if not _placement_queue.is_empty() else ""
+		_targeting.set_drop_indicator(
+				_placement_hover_col if not _placement_queue.is_empty() else -1, dname)
+		_hud.set_placement_unit(dname, _placement_queue.size())
 
 func _push_hud_state() -> void:
 	_hud.set_actions(actions_left, _turn_max_actions)
 	_hud.set_undo_enabled(can_undo())
+	_hud.set_placement_mode(game_state == GameState.PLACEMENT)   # M15
 	match game_state:
+		GameState.PLACEMENT:
+			_hud.set_turn_text("DEPLOY SQUAD")
 		GameState.PLAYER_TURN:
 			_hud.set_turn_text("YOUR TURN")
 			var all_done := player_units.all(func(u): return u.hp <= 0 or u.is_done)
@@ -880,5 +978,5 @@ func _push_hud_state() -> void:
 		_hud.set_shots([], null, actions_left)
 	_hud.set_power(charge_frac, charging, last_power)
 	var cards := _hand if Features.card_deck_enabled else []
-	_hud.set_cards(cards, _pending_card, actions_left, _deck.size(), _discard.size())
+	_hud.set_cards(cards, _pending_index, actions_left, _deck.size(), _discard.size())
 	_hud.set_inspected_unit(inspected_unit)

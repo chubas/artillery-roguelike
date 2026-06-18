@@ -23,6 +23,12 @@ extends Resource
 
 @export var objective : ObjectiveDescriptor = null
 
+## Pre-combat placement zone (M15): the column band the player may deploy the squad into.
+## Default = left half of the map. Column-range only for now; richer zones come with terrain
+## variability. Units snap to the surface, so rows are implied.
+@export var spawn_min_col : int = 0
+@export var spawn_max_col : int = 59   # Const.MAP_WIDTH / 2 - 1
+
 ## Reserved seams — not consumed yet.
 @export var rewards     : Array[String] = []   # granted on completion (M17)
 @export var threat_tags : Array[String] = []   # surfaced by the map for telegraphing (M14)

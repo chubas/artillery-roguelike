@@ -25,14 +25,38 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M11 (card deck: draw/hand/discard, 3 new card effects, deck indicator),
   M12 (run-state backbone: `RunState`/`RunUnitState`, `Run` autoload, `CombatBridge`, combat I/O contract),
   M13 (stage as data: `StageDescriptor`, objective evaluator, per-stage terrain seed),
-  **M14 (linear run loop: `MapState`, `RunController` main scene, map↔combat flow)**.
+  M14 (linear run loop: `MapState`, `RunController` main scene, map↔combat flow),
+  **M15 (pre-combat placement: per-stage spawn zone, PLACEMENT state, deploy UI)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ `combat_scene.tscn`). `combat_scene.tscn`
   is still standalone-runnable. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M14 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M15 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-18 — Milestone 15: Pre-combat placement
+
+Before each fight the player now deploys the squad within a stage spawn zone (spec §8). Full
+design in [milestone-15-plan.md](milestone-15-plan.md).
+
+- **Spawn zone** is a per-stage `StageDescriptor.spawn_min_col` / `spawn_max_col`, baked as the
+  left half (`0 .. MAP_WIDTH/2-1`) on all three stages. Refines later with terrain variability.
+- **`GameState.PLACEMENT`**: `CombatManager.setup()` now ends in `_start_placement()` (squad spread
+  across the zone via `_place_player_squad`) instead of `_begin_round()`. `_confirm_placement()`
+  (Start Battle button / Enter) begins the turn loop. Placement input: click a unit to select,
+  click a spot to move it (`_placement_place` clamps into the zone, snaps to surface, rejects
+  blocked/overlapping spots), Tab to cycle.
+- **UI:** HUD gains a "Start Battle" button + instruction (`set_placement_mode`, `start_battle_pressed`);
+  the targeting overlay draws the translucent spawn-zone band (`set_placement_state`).
+- **Bug fix (carded earlier):** selecting a card highlighted *all* copies of that type — duplicate
+  hand cards share one cached `CardDefinition`, so the HUD now keys selection off the hand **index**
+  (`_pending_index`) instead of the card object.
+- **Smoke compat:** combat now starts in PLACEMENT, so `combat_scene` calls `_confirm_placement()`
+  in smoke mode before the M4–M15 chain (reproducing the pre-M15 start). The M14 run controller is
+  unaffected — each instanced stage simply opens in placement.
 
 ---
 

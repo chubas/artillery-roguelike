@@ -274,6 +274,7 @@ func _initialize() -> void:
 		{ "type": "shield_generator", "col": 95 },
 	]
 	s1.wind_enabled = true; s1.wind_start_round = 3; s1.wind_ramp_per_round = 0.05; s1.wind_max_strength = 1.0
+	s1.spawn_min_col = 0; s1.spawn_max_col = W / 2 - 1   # left half
 	s1.objective = s1_obj
 	s1.threat_tags = ["fire", "electric"]
 	_save(s1, "res://data/stages/stage_01.tres")
@@ -294,6 +295,7 @@ func _initialize() -> void:
 	]
 	s2.deployables = [ { "type": "mine", "col": 50 } ]
 	s2.wind_enabled = true; s2.wind_start_round = 2; s2.wind_ramp_per_round = 0.08; s2.wind_max_strength = 1.0
+	s2.spawn_min_col = 0; s2.spawn_max_col = W / 2 - 1
 	s2.objective = s2_obj
 	s2.threat_tags = ["electric", "survive"]
 	_save(s2, "res://data/stages/stage_02.tres")
@@ -314,6 +316,7 @@ func _initialize() -> void:
 	]
 	s3.deployables = [ { "type": "mine", "col": 45 }, { "type": "shield_generator", "col": 70 } ]
 	s3.wind_enabled = true; s3.wind_start_round = 2; s3.wind_ramp_per_round = 0.06; s3.wind_max_strength = 1.0
+	s3.spawn_min_col = 0; s3.spawn_max_col = W / 2 - 1
 	s3.objective = s3_obj
 	s3.threat_tags = ["fire", "electric", "swarm"]
 	_save(s3, "res://data/stages/stage_03.tres")
