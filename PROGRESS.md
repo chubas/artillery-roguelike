@@ -29,14 +29,31 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M15 (pre-combat placement: per-stage spawn zone, PLACEMENT state, deploy UI),
   **M16 (battle rewards + dig vs unit damage separation)**,
   **M17 (collapsible terrain: column collapse, crush damage, resolve API)**,
-  **M18 (faction ids on units, cards, artifacts)**.
+  **M18 (faction ids on units, cards, artifacts)**,
+  **M19 (branching map: diamond DAG, click-to-select)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
-  `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M18 checklists headless (all pass).
+  `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
+  9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M19 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-18 — Milestone 19: Branching map (diamond DAG)
+
+Forward-only run map with explicit `next_nodes` edges and click-to-select UI. Full design in
+[milestone-19-plan.md](milestone-19-plan.md).
+
+- **`MapNode`:** `next_nodes: Array[int]`, `layer: int` (UI layout hint); serialized in `to_dict`.
+- **`MapState`:** `next_choice_indices()`, `can_select()`, `select_next()`, `is_terminal()`,
+  `build_diamond()` (9-node 1-2-3-2-1 prototype); `build_linear()` kept for regression.
+- **`MapScreen`:** `MapGraphView` draws diamond layers, edges, and node states; click legal
+  forward nodes to enter combat.
+- **`Run.start_default_run()`** uses `build_diamond(_DEFAULT_MAP)`; post-combat returns to map
+  for branching picks instead of auto-advancing.
 
 ---
 

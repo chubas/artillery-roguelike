@@ -207,6 +207,7 @@ func _smoke_test() -> void:
 	_m12_smoke()
 	_m13_smoke()
 	_m14_smoke()
+	_m19_smoke()
 	_m15_smoke()
 	_m16_smoke()
 	_m17_smoke()
@@ -842,19 +843,18 @@ func _m13_smoke() -> void:
 	# Restore the live stage's terrain so nothing downstream sees the scratch generation.
 	terrain.generate(stage.terrain_seed)
 
-# M14 checklist: the run map is a linear node sequence that advances, run-end conditions read
-# correctly, and the map round-trips through RunState serialization.
+# M14 checklist: linear map builder, run-end conditions, map serialization (explicit build_linear).
 func _m14_smoke() -> void:
-	print("[smoke] -- M14 run map --")
-	var m : MapState = Run.active.map
+	print("[smoke] -- M14 run map (linear) --")
+	var paths := [
+		"res://data/stages/stage_01.tres",
+		"res://data/stages/stage_02.tres",
+		"res://data/stages/stage_03.tres",
+	]
+	var fresh := MapState.build_linear(paths)
 	print("  nodes=%d (expect 3) current=%d (expect 0) node0.type=%d (expect COMBAT=0) stage=%s" %
-			[m.nodes.size(), m.current, m.current_node().type, m.current_node().stage().id])
+			[fresh.nodes.size(), fresh.current, fresh.current_node().type, fresh.current_node().stage().id])
 
-	# Walk the linear map: clear node 0 → advance → node 1, etc.
-	var fresh := MapState.build_linear([
-			"res://data/stages/stage_01.tres",
-			"res://data/stages/stage_02.tres",
-			"res://data/stages/stage_03.tres"])
 	fresh.mark_visited(); fresh.advance()
 	print("  after clear+advance: current=%d (expect 1) is_last=%s (expect false)" %
 			[fresh.current, fresh.is_last()])
@@ -881,6 +881,48 @@ func _m14_smoke() -> void:
 	var rt := RunState.from_dict(rs2.to_dict())
 	print("  round-trip: nodes=%d (expect 3) current=%d (expect 2) visited=%d (expect 3) stage1=%s" %
 			[rt.map.nodes.size(), rt.map.current, rt.map.visited.size(), rt.map.nodes[1].stage_path.get_file()])
+
+# M19 checklist: diamond DAG builder, forward-only selection, path walk, serialization.
+func _m19_smoke() -> void:
+	print("[smoke] -- M19 diamond map --")
+	var paths := [
+		"res://data/stages/stage_01.tres",
+		"res://data/stages/stage_02.tres",
+		"res://data/stages/stage_03.tres",
+	]
+	var d := MapState.build_diamond(paths)
+	var layer_counts := [0, 0, 0, 0, 0]
+	for n in d.nodes:
+		if n.layer >= 0 and n.layer < layer_counts.size():
+			layer_counts[n.layer] += 1
+	print("  nodes=%d (expect 9) layers=%s (expect 1/2/3/2/1) node0.next=%s (expect [1, 2])" %
+			[d.nodes.size(), layer_counts, d.nodes[0].next_nodes])
+
+	print("[smoke] -- M19 forward-only --")
+	d.mark_visited()
+	var ok := d.can_select(1)
+	d.select_next(1)
+	print("  after clear 0, select 1: can=%s current=%d (expect true, 1)" % [ok, d.current])
+	var bad := d.can_select(0)
+	d.select_next(0)
+	print("  select back to 0: can=%s current=%d (expect false, still 1)" % [bad, d.current])
+
+	print("[smoke] -- M19 path walk --")
+	d.mark_visited(); d.select_next(3)
+	d.mark_visited(); d.select_next(6)
+	d.mark_visited(); d.select_next(8)
+	print("  at terminal 8: is_terminal=%s next=%s (expect true, [])" %
+			[d.is_terminal(), d.nodes[8].next_nodes])
+	d.mark_visited()
+	print("  after clear 8: complete=%s (expect true)" % d.is_complete())
+
+	print("[smoke] -- M19 map serialization --")
+	var rs := RunState.new()
+	rs.map = d
+	var rt := RunState.from_dict(rs.to_dict())
+	var n0 : MapNode = rt.map.nodes[0]
+	print("  round-trip: nodes=%d layer0=%d next0=%s (expect 9, 0, [1,2])" %
+			[rt.map.nodes.size(), n0.layer, n0.next_nodes])
 
 # M15 checklist (drop-queue redesign): spawn zone is the left half, dropping a unit places it
 # visibly in-zone, right-half column is clamped, queue must be empty before confirming.

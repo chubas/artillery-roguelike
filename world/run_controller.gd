@@ -111,13 +111,12 @@ func _on_all_rewards_done() -> void:
 	if _reward_post_combat:
 		var m : MapState = Run.active.map
 		m.mark_visited()
-		m.advance()
 		if m.is_complete():
 			_show_map_end("RUN COMPLETE")
 		else:
 			_show_map()
 	else:
-		_show_map()   # pre-first-combat: player picks their first stage from the map
+		_show_map()   # pre-first-combat: pick first stage from the map
 
 # Sample `count` entries from `pool`. `allow_repeat` true = with replacement (units/cards);
 # false = without replacement (artifacts — no duplicates in the same offer or across runs).
