@@ -30,13 +30,30 @@ func _ready() -> void:
 	add_child(hud)
 	projectiles.setup(terrain, combat.get_units, combat.get_deployables)
 	combat.unit_focused.connect(_on_unit_focused)
+	# M12: combat reads its squad/deck/artifacts from the active run (default run if launched
+	# standalone). CombatBridge owns the RunState→combat translation; write-back on exit.
+	if Run.active == null:
+		Run.start_default_run()
+	var squad := CombatBridge.build_squad(Run.active)
+	combat.combat_finished.connect(_on_combat_finished)
 	combat.setup(terrain, projectiles, unit_layer, hud, targeting,
-			deployable_layer_back, deployable_layer_front)
+			deployable_layer_back, deployable_layer_front,
+			squad, Run.active.deck, Run.active.artifacts)
 	targeting.setup(terrain, combat.all_units)
 	_setup_camera()
 	print("[terrain] ", terrain.debug_stats())
 	if OS.get_environment("ARTILLERY_SMOKE") == "1":
 		_smoke_test()
+
+# M12: combat resolved → write surviving HP / kills / disabled back into the run. The
+# "advance the map / grant rewards" half is M14's run controller; here we just persist + log.
+func _on_combat_finished(outcome: String) -> void:
+	CombatBridge.write_back(Run.active, combat.player_units)
+	var lines : Array = []
+	for rus in Run.active.squad:
+		lines.append("%s hp=%d/%d kills=%d%s" % [rus.display_name, rus.current_hp, rus.max_hp,
+				rus.kills, " [disabled]" if rus.is_disabled else ""])
+	print("[RUN] combat %s — squad written back: %s" % [outcome, ", ".join(lines)])
 
 func _setup_camera() -> void:
 	var w := Const.world_pixel_size()
@@ -171,6 +188,7 @@ func _smoke_test() -> void:
 	_m9_smoke()
 	_m10_smoke()
 	_m11_smoke()
+	_m12_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -707,6 +725,55 @@ func _m11_smoke() -> void:
 	print("  wind 0.80 -> %.2f (expect 0.40), force=%.0f (expect %.0f)" %
 			[combat.wind_strength, combat._projectiles.current_wind_force,
 			0.4 * Const.MAX_WIND_FORCE])
+
+# M12 checklist (the §4.3 proof harness): a unit damaged in "stage 1" starts "stage 2" still
+# damaged (HP persists via RunUnitState) while combat state (shields/effects) resets; disabled
+# units don't redeploy; RunState round-trips through to_dict/from_dict.
+func _m12_smoke() -> void:
+	print("[smoke] -- M12 run-state I/O contract --")
+	# A throwaway run (NOT Run.active): unit A starts damaged, unit B full.
+	var rs := RunState.new()
+	var a := RunUnitState.from_definition("res://data/units/player_cluster.tres", "AUnit")
+	var b := RunUnitState.from_definition("res://data/units/player_bypass.tres", "BUnit")
+	a.current_hp = a.max_hp - 2
+	rs.squad = [a, b]
+	rs.deck = ["res://data/cards/shield_buff.tres", "res://data/cards/mine_card.tres"]
+
+	# Stage-1 read: a temp holder fires Unit._ready() without disturbing the live squad.
+	var holder := Node2D.new()
+	add_child(holder)
+	var s1 := CombatBridge.build_squad(rs)
+	for u in s1:
+		holder.add_child(u)
+	var ua : Unit = s1[0]
+	ua.shield = 5   # tactical buffer that must NOT persist to stage 2
+	print("  stage-1 build: count=%d (expect 2), A hp=%d (expect max-2=%d), attack=%d (expect %d)" %
+			[s1.size(), ua.hp, a.max_hp - 2, ua.attack, ua.definition.attack])
+
+	# Simulate the fight: A takes more damage + scores a kill; B is destroyed.
+	ua.hp = a.max_hp - 4
+	ua.kills = 1
+	(s1[1] as Unit).hp = 0
+	CombatBridge.write_back(rs, s1)
+	print("  write-back: A current_hp=%d (expect %d) kills=%d (expect 1); B disabled=%s (expect true)" %
+			[a.current_hp, a.max_hp - 4, a.kills, b.is_disabled])
+	holder.queue_free()
+
+	# Stage-2 read: B disabled → excluded; A rebuilt at persisted HP with a FRESH shield.
+	var holder2 := Node2D.new()
+	add_child(holder2)
+	var s2 := CombatBridge.build_squad(rs)
+	for u in s2:
+		holder2.add_child(u)
+	var a2 : Unit = s2[0]
+	print("  stage-2: squad=%d (expect 1, B excluded), A hp=%d (expect persisted %d), shield=%d (expect 0 reset)" %
+			[s2.size(), a2.hp, a.max_hp - 4, a2.shield])
+	holder2.queue_free()
+
+	# Serialization foundation: RunState survives a dict round-trip.
+	var rt := RunState.from_dict(rs.to_dict())
+	print("  round-trip: squad=%d (expect 2) deck=%d (expect 2) A.current_hp=%d (expect %d)" %
+			[rt.squad.size(), rt.deck.size(), rt.squad[0].current_hp, a.current_hp])
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

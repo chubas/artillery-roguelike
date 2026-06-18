@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 
 EventBus="*res://autoloads/event_bus.gd"
 Features="*res://autoloads/features.gd"
+Run="*res://autoloads/run.gd"
 
 [display]
 

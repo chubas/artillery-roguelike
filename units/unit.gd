@@ -18,6 +18,12 @@ var power : float = 1.0
 # Base attack value (M10): source of projectile strength (see ProjectileManager.fire()).
 # Mirrors definition.attack at spawn; mutable so buffs/upgrades can scale it at runtime.
 var attack : int = 3
+# Run-state link (M12): when set, this Unit is the combat representation of a persistent
+# RunUnitState — _ready() initializes hp/kills/attack from it (so the unit can spawn damaged),
+# and CombatBridge.write_back() copies hp/kills/disabled back to it on combat exit. null in
+# pure-combat / smoke contexts (then the unit spawns at full HP).
+var run_state : RunUnitState = null
+var kills : int = 0   # persists via run_state; enemies killed by this unit (M12)
 # Shield (M5): a flat, per-combat absorb pool that sits above HP in the mitigation
 # stack. Unbounded (no max) — unlike HP, it's not drawn as a proportional bar.
 # Granted by cards for now (no baseline/regen yet). Armor would slot in above
@@ -52,12 +58,23 @@ func available_shots() -> Array:
 	return definition.available_shots
 
 func _ready() -> void:
-	hp = definition.max_hp
 	power = definition.base_power
-	attack = definition.attack
+	if run_state != null:
+		# Spawn from persistent run state: current HP (may be damaged), carried kills.
+		hp = run_state.current_hp
+		kills = run_state.kills
+		attack = _derive_attack()
+	else:
+		hp = definition.max_hp
+		attack = definition.attack
 	move_origin = vox_position
 	if display_name == "":
 		display_name = definition.display_name
+
+# Combat attack value derived from the unit's run state (M12). For now just the definition's
+# base attack — permanent upgrades/equipment will fold in here once those systems exist.
+func _derive_attack() -> int:
+	return definition.attack
 
 # --- State ---------------------------------------------------------------------
 func take_damage(dmg: int) -> void:

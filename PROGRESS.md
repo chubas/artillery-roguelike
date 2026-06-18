@@ -22,13 +22,44 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   indicator), M8 (wind mechanic: physics, fire spread, HUD indicator),
   M9 (artifact system: engine + initial artifacts),
   M10 (unit attack value, Effects system + Boosted, attack/shield/effect HUD icons),
-  **M11 (card deck: draw/hand/discard, 3 new card effects, deck indicator)**.
+  M11 (card deck: draw/hand/discard, 3 new card effects, deck indicator),
+  **M12 (run-state backbone: `RunState`/`RunUnitState`, `Run` autoload, `CombatBridge`, combat I/O contract)**.
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M11 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M12 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-17 — Milestone 12: Run-state backbone & combat I/O contract
+
+First piece of the roguelite run layer (run-state spec steps 1–3). Full design in
+[milestone-12-plan.md](milestone-12-plan.md).
+
+- **Three-layer state.** Added the missing middle layer: `RunState` (squad/deck/artifacts/
+  resources/map/run_meta) + `RunUnitState` (definition_id, current_hp, max_hp, kills, is_disabled,
+  upgrades/equipment) in `state/`. Plain `RefCounted` with `to_dict`/`from_dict` — serialization-
+  ready, no disk I/O yet (schema will churn). `Run` autoload holds the active run (3rd autoload
+  after EventBus/Features); `start_default_run()` reproduces the historical 4-unit squad / 11-card
+  deck / 8 artifacts so the live game is unchanged.
+- **Combat I/O contract.** `CombatBridge` (static, in `systems/`) owns RunState↔combat translation
+  both ways: `build_squad()` turns non-disabled `RunUnitState`s into combat `Unit`s;
+  `write_back()` copies each unit's hp/kills/disabled back. `CombatManager.setup()` is now
+  **parameterized** — squad, deck source, and artifact paths are inputs (the `_DECK_LIST` /
+  `_ARTIFACT_LOADOUT` consts moved to `Run`); `_spawn_all_units` split into `_place_player_squad`
+  (run squad) + `_spawn_enemies` (still hardcoded — M13 makes it descriptor-driven). A new
+  `combat_finished(outcome)` signal drives write-back from `combat_scene`.
+- **Persist/discard boundary is structural.** Persistent truth lives in `RunUnitState`; each
+  combat builds fresh `Unit` nodes, so shields/effects/positions reset automatically. `Unit`
+  gained `run_state` + `kills`; `_ready()` initializes hp/kills/attack from `run_state` when set
+  (so a unit can spawn *damaged*).
+- **Proof gate (`_m12_smoke`).** A unit damaged in stage 1 rebuilds for stage 2 still damaged,
+  with a fresh (reset) shield; a unit that hit 0 HP is disabled and excluded from redeploy; the
+  RunState round-trips through `to_dict`/`from_dict`.
+- **Deferred (next milestones):** stage-as-descriptor (M13), deck *progression* between stages,
+  map/run controller (M14), disk serialization.
 
 ---
 

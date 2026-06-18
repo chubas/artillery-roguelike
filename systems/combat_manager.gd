@@ -5,6 +5,7 @@ extends Node2D
 
 signal action_bar_changed(current: int, maximum: int)
 signal unit_focused(unit: Unit)   # selection changed → CombatScene pans the camera
+signal combat_finished(outcome: String)   # M12: "cleared" / "failed" — drives run write-back
 
 enum GameState { PLAYER_TURN, ENEMY_TURN, STAGE_CLEAR, GAME_OVER }
 
@@ -28,17 +29,13 @@ var charging : bool = false
 var charge_frac : float = 0.0
 var _last_firing_unit : Unit = null   # M9: most recent unit to fire, for on_unit_killed
 
-# --- Cards (M5, deck added M11) -----------------------------------------------
+# --- Cards (M5, deck added M11, sourced from RunState M12) ---------------------
 # A real deck: shuffled draw pile → 5-card hand drawn fresh each turn → discard pile.
 # When the draw pile empties mid-draw, the discard is reshuffled into a new draw pile.
+# The canonical card list is the persistent RunState.deck, passed into setup() as `_deck_source`
+# (a flat list of card resource paths) — combat seeds a shuffled copy and never edits the original.
 const HAND_SIZE := 5
-const _DECK_LIST : Array = [   # [resource path, copies] — built into _deck at setup
-	["res://data/cards/direct_strike.tres", 3],
-	["res://data/cards/shield_buff.tres",   3],
-	["res://data/cards/mine_card.tres",     2],
-	["res://data/cards/boosted_card.tres",  2],
-	["res://data/cards/halve_wind.tres",    1],
-]
+var _deck_source : Array = []               # card resource paths from RunState.deck (M12)
 var _deck : Array[CardDefinition] = []      # draw pile (top = last element)
 var _hand : Array[CardDefinition] = []
 var _discard : Array[CardDefinition] = []
@@ -62,17 +59,9 @@ var _checkpoint_move_tokens : Dictionary = {}
 # count alone — this flag tracks any undoable move since the last checkpoint.
 var _dirty_since_checkpoint : bool = false
 
-# --- Artifacts (M9): passive squad-wide effects, loaded from resource paths -------
-const _ARTIFACT_LOADOUT : Array = [
-	"res://data/artifacts/resources/squad_regen.tres",
-	"res://data/artifacts/resources/lifesteal.tres",
-	"res://data/artifacts/resources/enemy_debuff.tres",
-	"res://data/artifacts/resources/free_first_card.tres",
-	"res://data/artifacts/resources/idle_actions.tres",
-	"res://data/artifacts/resources/death_explosion.tres",
-	"res://data/artifacts/resources/long_flight.tres",
-	"res://data/artifacts/resources/start_boosted.tres",
-]
+# --- Artifacts (M9, sourced from RunState M12): passive squad-wide effects ---------
+# Active artifact resource paths come from RunState.artifacts, passed into setup().
+var _artifact_paths : Array = []
 var artifacts : Array[ArtifactDef] = []
 var _artifact_ctx : ArtifactContext = null
 
@@ -102,7 +91,8 @@ var _targeting : TargetingUI
 
 func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 		unit_layer: Node2D, hud: HUD, targeting: TargetingUI,
-		deployable_layer_back: Node2D = null, deployable_layer_front: Node2D = null) -> void:
+		deployable_layer_back: Node2D = null, deployable_layer_front: Node2D = null,
+		squad: Array = [], deck_source: Array = [], artifact_paths: Array = []) -> void:
 	_terrain = terrain
 	_projectiles = projectiles
 	_unit_layer = unit_layer
@@ -110,6 +100,8 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_deployable_layer_front = deployable_layer_front
 	_hud = hud
 	_targeting = targeting
+	_deck_source = deck_source        # RunState.deck (card paths); seeded into _deck below
+	_artifact_paths = artifact_paths  # RunState.artifacts (paths); loaded in _init_artifacts
 	_hud.end_turn_pressed.connect(end_player_turn)
 	_hud.undo_pressed.connect(try_undo)
 	_hud.shot_selected.connect(_select_shot)
@@ -124,7 +116,9 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	EventBus.unit_moved.connect(_check_mine_triggers)
 	EventBus.deployable_died.connect(_on_deployable_died)
 	EventBus.mine_detonated.connect(_on_mine_detonated)
-	_spawn_all_units()
+	_place_player_squad(squad)
+	_spawn_enemies()
+	all_units = player_units + enemy_units
 	if Features.deployables_enabled:
 		_spawn_deployables()
 	_init_artifacts()
@@ -143,7 +137,7 @@ func _init_artifacts() -> void:
 	_artifact_ctx.terrain = _terrain
 	_artifact_ctx.units = all_units
 	_artifact_ctx.combat = self
-	for path in _ARTIFACT_LOADOUT:
+	for path in _artifact_paths:
 		var a : ArtifactDef = load(path)
 		if a != null:
 			artifacts.append(a)
@@ -151,22 +145,28 @@ func _init_artifacts() -> void:
 	_hud.set_artifacts(artifacts)
 
 # --- Spawning (M2 spec §9.3, surface-snap + no-overlap per plan §1.5) -----------
-func _spawn_all_units() -> void:
-	# M4 squad: four player units, one per shot family (cluster / drill / pull / spiral),
-	# vs the ORGANIC (weak fire) and MECHANICAL (weak electric) enemies to the east.
-	var cluster : UnitDefinition = load("res://data/units/player_cluster.tres")
-	var bypass : UnitDefinition = load("res://data/units/player_bypass.tres")
-	var pull : UnitDefinition = load("res://data/units/player_pull.tres")
-	var spiral : UnitDefinition = load("res://data/units/player_spiral.tres")
+# Place the run squad (M12): pre-built Units from CombatBridge.build_squad() — definition +
+# run_state already set, just need positioning, tree insertion, and death wiring. Spawn columns
+# mirror the historical layout (8/11/14/17, then alternate outward via _find_valid_spawn).
+func _place_player_squad(squad: Array) -> void:
+	var cols : Array = [8, 11, 14, 17]
+	for i in range(squad.size()):
+		var u : Unit = squad[i]
+		u.is_player = true
+		u.aim_angle_deg = 45.0
+		var preferred : int = cols[i] if i < cols.size() else 8 + i * 3
+		u.set_vox_position(_find_valid_spawn(preferred, u.definition))
+		_unit_layer.add_child(u)   # triggers Unit._ready() → hp from run_state.current_hp
+		u.unit_died.connect(_on_unit_died)
+		player_units.append(u)
+
+# Hardcoded enemy force (M13 makes this descriptor-driven): the ORGANIC (weak fire) and
+# MECHANICAL (weak electric) enemies to the east. Enemies are NOT run state.
+func _spawn_enemies() -> void:
 	var organic : UnitDefinition = load("res://data/units/enemy_organic.tres")
 	var mechanical : UnitDefinition = load("res://data/units/enemy_mechanical.tres")
-	player_units.append(_spawn(cluster, "Cluster", 8, true))
-	player_units.append(_spawn(bypass, "Drill", 11, true))
-	player_units.append(_spawn(pull, "Magnet", 14, true))
-	player_units.append(_spawn(spiral, "Spiral", 17, true))
 	enemy_units.append(_spawn(organic, "EnemyA", Const.MAP_WIDTH - 20, false))
 	enemy_units.append(_spawn(mechanical, "EnemyB", Const.MAP_WIDTH - 14, false))
-	all_units = player_units + enemy_units
 
 func _spawn(def: UnitDefinition, unit_name: String, col: int, is_player: bool) -> Unit:
 	var u := Unit.new()
@@ -439,6 +439,10 @@ func _all_waves_spawned() -> bool:
 
 # --- Win / loss (M2 spec §8): checked on every death, mid-turn included -----------
 func _on_unit_died(unit: Unit) -> void:
+	# Kill credit (M12): a player unit that landed the killing blow on an enemy scores a kill.
+	if not unit.is_player and _last_firing_unit != null and is_instance_valid(_last_firing_unit) \
+			and _last_firing_unit.is_player:
+		_last_firing_unit.kills += 1
 	if _artifact_ctx != null:
 		ArtifactSystem.call_unit_died(artifacts, _artifact_ctx, unit)
 		if _last_firing_unit != null and is_instance_valid(_last_firing_unit):
@@ -450,11 +454,13 @@ func _on_unit_died(unit: Unit) -> void:
 		game_state = GameState.STAGE_CLEAR
 		_hud.set_turn_text("STAGE CLEAR")
 		_set_selection(null)
+		combat_finished.emit("cleared")
 	elif not players_alive:
 		print("[GAME OVER] All player units destroyed.")
 		game_state = GameState.GAME_OVER
 		_hud.set_turn_text("GAME OVER")
 		_set_selection(null)
+		combat_finished.emit("failed")
 
 # --- Selection (M2 spec §5.1) ------------------------------------------------------
 func _set_selection(u: Unit) -> void:
@@ -653,10 +659,8 @@ func _build_deck() -> void:
 	_deck.clear()
 	_hand.clear()
 	_discard.clear()
-	for entry in _DECK_LIST:
-		var card : CardDefinition = load(entry[0])
-		for _i in range(entry[1]):
-			_deck.append(card)
+	for path in _deck_source:
+		_deck.append(load(path))
 	_deck.shuffle()
 
 # Discard the unplayed hand, then draw HAND_SIZE fresh. If the draw pile empties mid-draw,
