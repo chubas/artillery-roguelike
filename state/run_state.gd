@@ -11,6 +11,10 @@ var artifacts : Array[String] = []      # active run-level modifiers (resource p
 var resources : Dictionary = { "gold": 0, "scrap": 0, "intel": 0 }
 var map       : Variant = null          # MapState — placeholder until M14
 var run_meta  : Dictionary = { "seed": 0, "act": 1, "stage_index": 0 }
+# Reward pools (M16): options offered at reward screens. Units/cards repeat OK; artifacts don't.
+var unit_pool     : Array[String] = []
+var card_pool     : Array[String] = []
+var artifact_pool : Array[String] = []   # shrinks as artifacts are claimed (no repeats)
 
 func to_dict() -> Dictionary:
 	var squad_d : Array = []
@@ -23,6 +27,9 @@ func to_dict() -> Dictionary:
 		"resources": resources.duplicate(),
 		"run_meta": run_meta.duplicate(),
 		"map": (map as MapState).to_dict() if map is MapState else null,
+		"unit_pool":     unit_pool.duplicate(),
+		"card_pool":     card_pool.duplicate(),
+		"artifact_pool": artifact_pool.duplicate(),
 	}
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -36,4 +43,7 @@ static func from_dict(d: Dictionary) -> RunState:
 	rs.run_meta = (d.get("run_meta", {}) as Dictionary).duplicate()
 	var md = d.get("map", null)
 	rs.map = MapState.from_dict(md) if md is Dictionary else null
+	rs.unit_pool.assign(d.get("unit_pool", []))
+	rs.card_pool.assign(d.get("card_pool", []))
+	rs.artifact_pool.assign(d.get("artifact_pool", []))
 	return rs

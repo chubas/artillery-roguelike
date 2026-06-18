@@ -149,6 +149,7 @@ func _initialize() -> void:
 	organic.id = "enemy_organic"; organic.display_name = "Brute"
 	organic.width_voxels = 2; organic.height_voxels = 3; organic.max_hp = 8
 	organic.attack = 3
+	organic.dig = 1
 	organic.move_range = 0; organic.climb_max = 1
 	organic.default_shot = basic_ref
 	organic.tags = ["ORGANIC"]
@@ -160,6 +161,7 @@ func _initialize() -> void:
 	mechanical.id = "enemy_mechanical"; mechanical.display_name = "Drone"
 	mechanical.width_voxels = 2; mechanical.height_voxels = 3; mechanical.max_hp = 6
 	mechanical.attack = 3
+	mechanical.dig = 1
 	mechanical.move_range = 0; mechanical.climb_max = 1
 	mechanical.default_shot = basic_ref
 	mechanical.tags = ["MECHANICAL"]
@@ -351,6 +353,9 @@ func _make_family(type_id: String, label: String, base_cost_unused: int) -> Arra
 		s.aoe_pattern = load("res://data/shots/aoe/%s%s.tres" %
 				[_family_pattern(type_id), variant[1]])
 		s.strength = _family_strength(type_id)
+		s.dig_mult = 1.0
+		if type_id != "bypass":
+			s.dig_pattern = s.aoe_pattern
 		_apply_family_payload(s, type_id)
 		var path := "res://data/shots/%s.tres" % s.id
 		_save(s, path)
@@ -402,7 +407,7 @@ func _apply_family_payload(s: ShotDefinition, type_id: String) -> void:
 			s.spiral_frequency = 2.0
 
 func _save_player_unit(id: String, dname: String,
-		loadout: Array[ShotDefinition], color: Color, attack: int = 3) -> void:
+		loadout: Array[ShotDefinition], color: Color, attack: int = 3, dig: int = 1) -> void:
 	var u := UnitDefinition.new()
 	u.id = id
 	u.display_name = dname
@@ -410,6 +415,7 @@ func _save_player_unit(id: String, dname: String,
 	u.height_voxels = 3
 	u.max_hp = 6
 	u.attack = attack
+	u.dig = dig
 	u.move_range = 99
 	u.climb_max = 1
 	u.default_shot = loadout[0]

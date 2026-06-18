@@ -9,6 +9,7 @@ id = "pull_electric"
 display_name = "Pull Electric"
 description = "Explodes normally, then drags nearby units toward the impact. Shocks on impact; strong vs mechanical."
 aoe_pattern = ExtResource("1_5w4k6")
+dig_pattern = ExtResource("1_5w4k6")
 action_cost = 3
 pull_near_radius = 4
 pull_far_radius = 8

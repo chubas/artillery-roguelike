@@ -21,6 +21,12 @@ extends Resource
 ## unit.attack * strength_mult * unit.power + attack_modifier (clamped ≥ 0). 1.0 = the shot
 ## deals the unit's flat attack; >1 = a heavier shell, <1 = a lighter one.
 @export var strength_mult : float = 1.0
+## Per-shot relative multiplier on the firing unit's dig (M16). Final dig strength =
+## unit.dig * dig_mult + dig_modifier (clamped ≥ 0). Ignored when bypass_terrain.
+@export var dig_mult : float = 1.0
+## Terrain-only blast footprint. null → every offset in aoe_pattern (flat dig strength).
+## Ignored when bypass_terrain (drill uses centre-voxel trail, not dig AoE).
+@export var dig_pattern : AoEPattern = null
 
 ## Action economy
 @export var action_cost : int = 0          # 0 = free basic shot

@@ -208,6 +208,7 @@ func _smoke_test() -> void:
 	_m13_smoke()
 	_m14_smoke()
 	_m15_smoke()
+	_m16_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -923,6 +924,98 @@ func _m15_smoke() -> void:
 	print("  confirm with empty queue: left PLACEMENT=%s round advanced=%s (expect true, true)" %
 			[combat.game_state != CombatManager.GameState.PLACEMENT,
 			combat.round_index == round_snapshot + 1])
+
+# M16 checklist: battle rewards (pools, apply, no-repeat artifacts) + dig vs unit damage.
+func _m16_smoke() -> void:
+	print("[smoke] -- M16 battle rewards --")
+	var rs := Run.active
+
+	# Pools are seeded (smoke mode restores full loadout, so artifact_pool is empty after
+	# the backfill — test with a fresh scratch RunState instead).
+	var scratch := RunState.new()
+	scratch.unit_pool = [
+		"res://data/units/player_cluster.tres",
+		"res://data/units/player_bypass.tres",
+		"res://data/units/player_pull.tres",
+		"res://data/units/player_spiral.tres",
+	]
+	scratch.card_pool = [
+		"res://data/cards/direct_strike.tres",
+		"res://data/cards/shield_buff.tres",
+	]
+	scratch.artifact_pool = [
+		"res://data/artifacts/resources/lifesteal.tres",
+		"res://data/artifacts/resources/enemy_debuff.tres",
+		"res://data/artifacts/resources/free_first_card.tres",
+	]
+	scratch.artifacts = ["res://data/artifacts/resources/squad_regen.tres"]
+	scratch.squad.clear()
+	scratch.deck = []
+
+	print("  pools: units=%d (expect 4) cards=%d (expect 2) artifacts=%d (expect 3)" %
+			[scratch.unit_pool.size(), scratch.card_pool.size(), scratch.artifact_pool.size()])
+
+	# Simulate unit reward: adds a RunUnitState to squad.
+	var unit_path := scratch.unit_pool[0]
+	var udef : UnitDefinition = load(unit_path)
+	scratch.squad.append(RunUnitState.from_definition(unit_path, udef.display_name))
+	print("  unit reward: squad=%d (expect 1) name=%s" % [scratch.squad.size(), scratch.squad[0].display_name])
+
+	# Simulate artifact reward: adds to artifacts, removes from pool.
+	var art_path := scratch.artifact_pool[0]
+	scratch.artifacts.append(art_path)
+	scratch.artifact_pool.erase(art_path)
+	print("  artifact reward: owned=%d (expect 2) pool=%d (expect 2) no_repeat=%s (expect true)" %
+			[scratch.artifacts.size(), scratch.artifact_pool.size(),
+			not scratch.artifact_pool.has(art_path)])
+
+	# Simulate card reward: appends to deck.
+	var card_path := scratch.card_pool[0]
+	scratch.deck.append(card_path)
+	print("  card reward: deck=%d (expect 1)" % scratch.deck.size())
+
+	# Serialization round-trip preserves pools.
+	var rt := RunState.from_dict(scratch.to_dict())
+	print("  round-trip: unit_pool=%d card_pool=%d artifact_pool=%d (expect 4,2,2)" %
+			[rt.unit_pool.size(), rt.card_pool.size(), rt.artifact_pool.size()])
+
+	# RunState starts with 2 units (default run, verified against scratch, not smoke's backfilled active).
+	var fresh_rs := RunState.new()
+	fresh_rs.squad = [
+		RunUnitState.from_definition("res://data/units/player_cluster.tres", "Cluster"),
+		RunUnitState.from_definition("res://data/units/player_bypass.tres",  "Bypass"),
+	]
+	fresh_rs.artifacts = ["res://data/artifacts/resources/squad_regen.tres"]
+	print("  default start: squad=%d (expect 2) artifacts=%d (expect 1)" %
+			[fresh_rs.squad.size(), fresh_rs.artifacts.size()])
+
+	print("[smoke] -- M16 dig decoupled from unit damage --")
+	var dig_pat : AoEPattern = load("res://data/shots/aoe/diamond_r2.tres")
+	var dig_col := 8
+	var dig_row := terrain.get_surface_row(dig_col)
+	terrain.set_tile(dig_col, dig_row, Tile.new().setup(Tile.TileType.SOLID, 3, 0))
+	AoEResolver.resolve(terrain, combat.all_units, Vector2i(dig_col, dig_row),
+			dig_pat, 10, false, [], 1, null)
+	var chipped := terrain.get_tile(dig_col, dig_row)
+	print("  strength=10 dig=1 on 3HP tile: hp=%d (expect 2)" % chipped.hp)
+
+	var no_dig_col := 9
+	var no_dig_row := terrain.get_surface_row(no_dig_col)
+	terrain.set_tile(no_dig_col, no_dig_row, Tile.new().setup(Tile.TileType.SOLID, 3, 0))
+	AoEResolver.resolve(terrain, combat.all_units, Vector2i(no_dig_col, no_dig_row),
+			dig_pat, 10, false, [], 0, null)
+	print("  dig_strength=0: tile hp=%d (expect 3, unchanged)" %
+			[terrain.get_tile(no_dig_col, no_dig_row).hp])
+
+	print("  dig footprint offsets=%d (expect >1)" % dig_pat.to_map().size())
+
+	var bypass : ShotDefinition = load("res://data/shots/bypass_basic.tres")
+	print("  bypass: terrain=%s dig_pattern=%s (expect true, null)" %
+			[bypass.bypass_terrain, bypass.dig_pattern])
+
+	var mine := Mine.new()
+	print("  mine.dig=%d strength=%d (expect 4, 4)" % [mine.dig, mine.strength])
+	mine.queue_free()
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

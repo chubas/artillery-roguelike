@@ -19,6 +19,10 @@ extends Resource
 ## zone. Per-unit so a heavy drill hits harder than a light cluster.
 @export var attack : int = 3
 
+## Base dig value (M16): terrain-only blast strength before shot.dig_mult. Does not scale
+## with power; decoupled from attack so late-game damage does not dissolve the battlefield.
+@export var dig : int = 1
+
 ## Multiplies every shot's strength when this unit fires (M7). 1.0 = no change;
 ## future upgrades scale Unit.power at runtime without touching any AoE pattern.
 @export var base_power : float = 1.0

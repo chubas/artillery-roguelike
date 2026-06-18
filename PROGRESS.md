@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-17)
+## Current state (2026-06-18)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -26,14 +26,42 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M12 (run-state backbone: `RunState`/`RunUnitState`, `Run` autoload, `CombatBridge`, combat I/O contract),
   M13 (stage as data: `StageDescriptor`, objective evaluator, per-stage terrain seed),
   M14 (linear run loop: `MapState`, `RunController` main scene, map↔combat flow),
-  **M15 (pre-combat placement: per-stage spawn zone, PLACEMENT state, deploy UI)**.
-- **Main scene:** `world/run_controller.tscn` (swaps map ↔ `combat_scene.tscn`). `combat_scene.tscn`
-  is still standalone-runnable. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M15 checklists headless (all pass).
+  M15 (pre-combat placement: per-stage spawn zone, PLACEMENT state, deploy UI),
+  **M16 (battle rewards + dig vs unit damage separation)**.
+- **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
+  `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels.
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M16 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-18 — Milestone 16: Battle rewards + dig vs unit damage
+
+Two run-layer / combat-system pieces in one milestone. Full design in
+[milestone-16-plan.md](milestone-16-plan.md).
+
+### Battle rewards
+
+- **`RunController`** now swaps **MapScreen ↔ RewardScreen ↔ combat_scene**. Pre-first-combat and
+  post-clear reward sequences (unit → artifact → card) sample from `RunState` pools; applying a
+  pick mutates squad / artifacts / deck. Artifacts are without-replacement (`artifact_pool` shrinks).
+- **`Run.start_default_run()`** starts lean: 2 units, 1 artifact, 11-card deck; remaining roster
+  content enters via reward pools. Smoke mode backfills to the historical 4-unit / 8-artifact
+  loadout for regression.
+- **`RewardScreen`** (`ui/reward_screen.gd`): code-drawn pick-one-of-three UI.
+- **`RunState`**: `unit_pool`, `card_pool`, `artifact_pool` serialized in `to_dict`/`from_dict`.
+
+### Dig vs unit damage
+
+- **Two channels, one salvo:** `Salvo.strength` (unit damage, zoned) + `Salvo.dig_strength` (flat
+  terrain only). `AoEResolver` no longer damages terrain from the unit-damage loop.
+- **`UnitDefinition.dig`**, **`ShotDefinition.dig_mult` / `dig_pattern`**, **`Mine.dig`**. Default
+  shots bake `dig_pattern` = same footprint as `aoe_pattern`; bypass/drill opts out (`dig_strength=0`,
+  trail still 1 HP/voxel).
+- **Targeting preview:** warm overlay + gold outline on dig footprint voxels (`targeting_overlay.gd`).
 
 ---
 

@@ -9,6 +9,7 @@ id = "pull_fire"
 display_name = "Pull Fire"
 description = "Explodes normally, then drags nearby units toward the impact. Burns on impact; strong vs organic."
 aoe_pattern = ExtResource("1_dlmls")
+dig_pattern = ExtResource("1_dlmls")
 action_cost = 2
 pull_near_radius = 4
 pull_far_radius = 8

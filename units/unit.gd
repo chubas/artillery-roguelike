@@ -18,6 +18,8 @@ var power : float = 1.0
 # Base attack value (M10): source of projectile strength (see ProjectileManager.fire()).
 # Mirrors definition.attack at spawn; mutable so buffs/upgrades can scale it at runtime.
 var attack : int = 3
+# Base dig value (M16): terrain-only impact strength; mirrors definition.dig at spawn.
+var dig : int = 1
 # Run-state link (M12): when set, this Unit is the combat representation of a persistent
 # RunUnitState — _ready() initializes hp/kills/attack from it (so the unit can spawn damaged),
 # and CombatBridge.write_back() copies hp/kills/disabled back to it on combat exit. null in
@@ -36,6 +38,7 @@ var aim_angle_deg : float = 45.0        # positive-up convention; preserved per 
 var last_power_frac : float = 0.5
 var is_done : bool = false              # true after firing this turn
 var attack_modifier : int = 0           # M9: cumulative buff/debuff to firing strength
+var dig_modifier : int = 0              # M16: flat dig adjustment at fire time (unused in M16 content)
 var moved_this_turn : bool = false      # M9: set true by CombatManager.try_move(), reset each round
 var move_origin : Vector2i              # vox_position at turn start (for undo)
 var actions_spent_moving : int = 0
@@ -64,9 +67,11 @@ func _ready() -> void:
 		hp = run_state.current_hp
 		kills = run_state.kills
 		attack = _derive_attack()
+		dig = definition.dig
 	else:
 		hp = definition.max_hp
 		attack = definition.attack
+		dig = definition.dig
 	move_origin = vox_position
 	if display_name == "":
 		display_name = definition.display_name

@@ -30,5 +30,5 @@ extends Resource
 @export var spawn_max_col : int = 59   # Const.MAP_WIDTH / 2 - 1
 
 ## Reserved seams — not consumed yet.
-@export var rewards     : Array[String] = []   # granted on completion (M17)
+@export var rewards     : Array[String] = []   # granted on completion (M16)
 @export var threat_tags : Array[String] = []   # surfaced by the map for telegraphing (M14)

@@ -321,7 +321,8 @@ func _check_mine_triggers(unit: Unit, _from: Vector2i, to: Vector2i) -> void:
 
 func _on_mine_detonated(mine: Deployable) -> void:
 	AoEResolver.resolve(_terrain, all_units, mine.vox_position,
-			mine.explosion_pattern, mine.strength, false, deployables)
+			mine.explosion_pattern, mine.strength, false, deployables,
+			mine.dig, mine.dig_pattern)
 
 func _on_deployable_died(d: Deployable) -> void:
 	deployables.erase(d)

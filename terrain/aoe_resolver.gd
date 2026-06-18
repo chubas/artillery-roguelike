@@ -2,6 +2,10 @@
 # AoEPattern to terrain and units, with per-group element effects (affinity damage,
 # unit statuses, tile statuses).
 #
+# M16: unit damage and terrain dig are separate channels — same salvo, optional
+# separate dig_pattern, flat dig_strength (no zone tiers). Terrain is never damaged
+# from the unit-damage loop; bypass shots pass dig_strength=0.
+#
 # Spec deviation (from milestone-2-plan.md): the literal per-voxel loop damages a unit
 # once per covered voxel, which one-shots any multi-voxel unit near the center. Instead a
 # unit takes damage ONCE per blast, from the DOMINANT group covering it (highest base
@@ -12,8 +16,9 @@
 class_name AoEResolver
 
 static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
-		pattern: AoEPattern, strength: int, is_enemy: bool, deployables: Array = []) -> Array:
-	var aoe_map := pattern.to_map()
+		pattern: AoEPattern, strength: int, is_enemy: bool, deployables: Array = [],
+		dig_strength: int = 0, dig_pattern: AoEPattern = null) -> Array:
+	var aoe_map := pattern.to_map() if pattern != null else {}
 	var affected : Array = []
 	var unit_hit : Dictionary = {}         # Unit -> { "dmg": int, "element": ElementDef }
 	var deployable_hit : Dictionary = {}   # Deployable -> dmg (M6: no element/affinity — inert)
@@ -24,8 +29,6 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 		var element : ElementDef = group.element if Features.elements_enabled else null
 		var zone_dmg := _zone_damage(strength, group.multiplier)
 		max_dist = maxi(max_dist, absi(offset.x) + absi(offset.y))
-		# Terrain damage (physical component always applies).
-		terrain.damage_tile(target.x, target.y, zone_dmg)
 		affected.append(target)
 		# Tile status from the element (e.g. fire → Burning) on surviving tiles.
 		if element and element.tile_status and Features.tile_statuses_enabled:
@@ -46,6 +49,16 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 			var prev_dmg = deployable_hit.get(d, null)
 			if prev_dmg == null or zone_dmg > prev_dmg:
 				deployable_hit[d] = zone_dmg
+	# Terrain dig pass (M16): flat strength across dig footprint, independent of unit zones.
+	if dig_strength > 0 and pattern != null:
+		var flat_dig := maxi(1, dig_strength)
+		var dig_map := _dig_offset_map(pattern, dig_pattern)
+		for offset in dig_map:
+			var target : Vector2i = origin + offset
+			terrain.damage_tile(target.x, target.y, flat_dig)
+			max_dist = maxi(max_dist, absi(offset.x) + absi(offset.y))
+			if not affected.has(target):
+				affected.append(target)
 	# Apply the dominant hit to each unit: affinity damage + status.
 	for unit in unit_hit:
 		var element : ElementDef = unit_hit[unit]["element"]
@@ -75,6 +88,11 @@ static func _should_damage(unit: Unit, is_enemy: bool) -> bool:
 
 static func _voxel_in_bbox(vox: Vector2i, unit: Unit) -> bool:
 	return unit.contains_voxel(vox)
+
+## Offset set for the dig pass: explicit dig_pattern, else the unit-damage footprint.
+static func _dig_offset_map(pattern: AoEPattern, dig_pattern: AoEPattern) -> Dictionary:
+	var src := dig_pattern if dig_pattern != null else pattern
+	return src.to_map() if src != null else {}
 
 ## Source strength * zone multiplier (M7), minimum 1 — pattern shape stays untouched
 ## by magnitude; magnitude comes entirely from the caller's `strength` value.

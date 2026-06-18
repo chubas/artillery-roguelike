@@ -8,7 +8,8 @@ func on_unit_died(ctx: ArtifactContext, victim: Unit) -> void:
 		return
 	_state["triggered"] = true
 	var pattern : AoEPattern = AoEPattern.make_diamond(2, 2)
-	AoEResolver.resolve(ctx.terrain, ctx.units, victim.center_voxel(), pattern, 5, false, [])
+	AoEResolver.resolve(ctx.terrain, ctx.units, victim.center_voxel(), pattern, 5, false, [],
+			5, null)
 
 func reset_per_combat() -> void:
 	_state["triggered"] = false

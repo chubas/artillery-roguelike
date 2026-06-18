@@ -12,6 +12,10 @@ extends Deployable
 ## Fixed blast magnitude (M7 zone model) — mines aren't fired by a unit, so they
 ## carry their own strength directly rather than going through Unit.power.
 @export var strength : int = 4
+## Terrain-only blast magnitude (M16) — separate from unit-damage strength.
+@export var dig : int = 4
+## null → use explosion_pattern footprint for dig offsets.
+@export var dig_pattern : AoEPattern = null
 
 func _init() -> void:
 	max_hp = 1

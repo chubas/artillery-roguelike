@@ -24,6 +24,7 @@ class Salvo extends RefCounted:
 	var shot : ShotDefinition = null
 	var pattern : AoEPattern = null
 	var strength : int = 0   # unit.attack * shot.strength_mult * power + modifier, at fire time (M10)
+	var dig_strength : int = 0   # unit.dig * shot.dig_mult + dig_modifier; 0 = skip dig pass (M16)
 	var firing_unit : Unit = null   # M9: for on_unit_killed killer reference
 	var members : Array = []     # live Projectile / SpiralSatellite nodes
 	var pending : Array = []     # queued impacts: {node, world_pos, voxel, frame, index, force}
@@ -56,6 +57,13 @@ func fire(origin: Vector2, direction: Vector2, speed: float,
 	var pow : float = firing_unit.power if firing_unit != null else 1.0
 	var modifier : int = firing_unit.attack_modifier if firing_unit != null else 0
 	salvo.strength = maxi(0, roundi(atk * shot.strength_mult * pow) + modifier)
+	# M16: flat dig strength for terrain only; bypass drills opt out entirely.
+	if shot.bypass_terrain:
+		salvo.dig_strength = 0
+	else:
+		var dig : int = firing_unit.dig if firing_unit != null else 1
+		var dig_mod : int = firing_unit.dig_modifier if firing_unit != null else 0
+		salvo.dig_strength = maxi(0, roundi(dig * shot.dig_mult) + dig_mod)
 	_salvos.append(salvo)
 	if shot.spiral_arms > 0:
 		_spawn_spiral(salvo, origin, direction, speed, shot)
@@ -213,7 +221,8 @@ func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i, flight_t
 			final_strength = ArtifactSystem.apply_projectile_strength(
 					cm.artifacts, cm._artifact_ctx, salvo.strength, flight_time)
 	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, final_strength,
-			salvo.is_enemy, _deployables_provider.call())
+			salvo.is_enemy, _deployables_provider.call(),
+			salvo.dig_strength, salvo.shot.dig_pattern if salvo.shot != null else null)
 	# 2. Explosion FX.
 	var fx := ExplosionFX.new()
 	fx.position = world_pos

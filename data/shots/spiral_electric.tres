@@ -9,6 +9,7 @@ id = "spiral_electric"
 display_name = "Spiral Electric"
 description = "Main shell plus two arms that weave around its flight path. Shocks on impact; strong vs mechanical."
 aoe_pattern = ExtResource("1_ei18l")
+dig_pattern = ExtResource("1_ei18l")
 action_cost = 3
 spiral_arms = 2
 spiral_amplitude = 24.0

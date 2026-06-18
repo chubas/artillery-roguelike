@@ -9,6 +9,7 @@ id = "cluster_fire"
 display_name = "Cluster Fire"
 description = "Five shells fan out and detonate together. Burns on impact; strong vs organic."
 aoe_pattern = ExtResource("1_vhdf0")
+dig_pattern = ExtResource("1_vhdf0")
 action_cost = 2
 projectile_count = 5
 spread_deg = 1.0

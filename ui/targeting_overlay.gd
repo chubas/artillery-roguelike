@@ -143,7 +143,7 @@ func _draw_single_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -
 			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
 	_draw_arc_dots(sim["points"], 3)
 	if sim["hit"]:
-		_draw_pattern_footprint(sim["impact_voxel"], shot.aoe_pattern)
+		_draw_pattern_footprint(sim["impact_voxel"], shot)
 
 # Cluster: ghost every pellet's arc so the player reads the fan and each footprint (M4).
 func _draw_cluster_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
@@ -156,7 +156,7 @@ func _draw_cluster_preview(barrel: Vector2, shot: ShotDefinition, speed: float) 
 				8.0, false, _wind_force_x)
 		_draw_arc_dots(sim["points"], 4)
 		if sim["hit"]:
-			_draw_pattern_footprint(sim["impact_voxel"], shot.aoe_pattern)
+			_draw_pattern_footprint(sim["impact_voxel"], shot)
 
 # Bypass: the ghost flies through terrain; mark the first opposing unit it would strike (M4).
 func _draw_bypass_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
@@ -167,14 +167,15 @@ func _draw_bypass_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -
 	for p in points:
 		var vox := Const.world_to_voxel(p)
 		if _hits_damageable_unit(vox):
-			_draw_pattern_footprint(vox, shot.aoe_pattern)
+			_draw_pattern_footprint(vox, shot)
 			return
 
 func _draw_arc_dots(points: PackedVector2Array, stride: int) -> void:
 	for i in range(0, points.size(), stride):
 		draw_circle(points[i], 2.0, Color(1, 1, 1, 0.65))
 
-func _draw_pattern_footprint(center: Vector2i, pattern: AoEPattern) -> void:
+func _draw_pattern_footprint(center: Vector2i, shot: ShotDefinition) -> void:
+	var pattern := shot.aoe_pattern
 	var vs := float(Const.VOXEL_SIZE)
 	var aoe_map := pattern.to_map()
 	for offset in aoe_map:
@@ -189,9 +190,22 @@ func _draw_pattern_footprint(center: Vector2i, pattern: AoEPattern) -> void:
 			var base := AoEPattern.zone_color(group.multiplier)
 			base.a = 0.55
 			draw_rect(rect, base)
+	# M16: dig overlay on terrain footprint (skipped for bypass — trail is the terrain interaction).
+	if not shot.bypass_terrain:
+		var dig_pat := shot.dig_pattern if shot.dig_pattern != null else pattern
+		_draw_dig_footprint(center, dig_pat)
 	var c := Const.voxel_center_world(center)
 	draw_line(c + Vector2(-vs * 0.4, 0), c + Vector2(vs * 0.4, 0), Color.WHITE, 1.5)
 	draw_line(c + Vector2(0, -vs * 0.4), c + Vector2(0, vs * 0.4), Color.WHITE, 1.5)
+
+func _draw_dig_footprint(center: Vector2i, dig_pattern: AoEPattern) -> void:
+	var vs := float(Const.VOXEL_SIZE)
+	var dig_map := dig_pattern.to_map()
+	for offset in dig_map:
+		var vox : Vector2i = center + offset
+		var rect := Rect2(Const.voxel_to_world(vox), Vector2(vs, vs))
+		draw_rect(rect, Color(1.0, 0.95, 0.75, 0.22))
+		draw_rect(rect, Color(0.85, 0.70, 0.35, 0.85), false, 1.5)
 
 func _hits_damageable_unit(vox: Vector2i) -> bool:
 	# Player shots damage only enemies (friendly fire off in M2).
