@@ -24,13 +24,39 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M10 (unit attack value, Effects system + Boosted, attack/shield/effect HUD icons),
   M11 (card deck: draw/hand/discard, 3 new card effects, deck indicator),
   M12 (run-state backbone: `RunState`/`RunUnitState`, `Run` autoload, `CombatBridge`, combat I/O contract),
-  **M13 (stage as data: `StageDescriptor`, objective evaluator, per-stage terrain seed)**.
-- **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M13 checklists headless (all pass).
+  M13 (stage as data: `StageDescriptor`, objective evaluator, per-stage terrain seed),
+  **M14 (linear run loop: `MapState`, `RunController` main scene, map↔combat flow)**.
+- **Main scene:** `world/run_controller.tscn` (swaps map ↔ `combat_scene.tscn`). `combat_scene.tscn`
+  is still standalone-runnable. Map is 120×100 voxels.
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M14 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-17 — Milestone 14: Linear run loop (MapState + run controller)
+
+The loop that turns stages into a *run* (spec §7, step 7). Full design in
+[milestone-14-plan.md](milestone-14-plan.md).
+
+- **`MapState` / `MapNode`** (`state/`, RefCounted + to/from_dict): a linear sequence of
+  stage-wrapping COMBAT nodes with `current` / `visited`; `build_linear(paths)`, `current_node`,
+  `mark_visited`, `advance`, `is_last`, `is_complete`. Lives in `RunState.map` (now serialized).
+- **`RunController`** (`world/run_controller.gd` + `.tscn`) is the **new main scene**. It persists
+  for the run and swaps its single child between `MapScreen` and a freshly-instanced
+  `combat_scene`. Flow: show map → Enter Stage → play → `combat_exited` → if cleared & squad
+  alive: `mark_visited` then advance (or "RUN COMPLETE" on the last node); else "RUN OVER".
+  Re-instancing `combat_scene` per stage *is* the per-stage reset (M12's fresh-Unit principle);
+  HP/kills/disabled carry only through `RunState`.
+- **`MapScreen`** (`ui/map_screen.gd`, code-drawn like the HUD): the linear node strip
+  (cleared/current/upcoming), current stage detail + threat tags, "Enter Stage", and an end
+  banner with "New Run".
+- **`combat_scene`** gains a `combat_exited(outcome)` signal (emitted after its existing
+  write-back) so the controller can advance. It stays standalone-runnable (self-bootstraps a
+  default run + `stage_01`). Third stage `stage_03.tres` baked so the default map has 3 fights.
+- `project.godot` `run/main_scene` → `run_controller.tscn`.
 
 ---
 

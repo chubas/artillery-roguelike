@@ -20,6 +20,11 @@ const _DEFAULT_DECK : Array = [   # [card path, copies] — expanded into a flat
 	["res://data/cards/boosted_card.tres",  2],
 	["res://data/cards/halve_wind.tres",    1],
 ]
+const _DEFAULT_MAP : Array = [   # linear run of stage descriptor paths (M14)
+	"res://data/stages/stage_01.tres",
+	"res://data/stages/stage_02.tres",
+	"res://data/stages/stage_03.tres",
+]
 const _DEFAULT_ARTIFACTS : Array = [
 	"res://data/artifacts/resources/squad_regen.tres",
 	"res://data/artifacts/resources/lifesteal.tres",
@@ -40,5 +45,6 @@ func start_default_run() -> void:
 		for _i in range(entry[1]):
 			rs.deck.append(entry[0])
 	rs.artifacts.assign(_DEFAULT_ARTIFACTS)
+	rs.map = MapState.build_linear(_DEFAULT_MAP)   # M14: linear 3-stage run
 	rs.run_meta = { "seed": randi(), "act": 1, "stage_index": 0 }
 	active = rs

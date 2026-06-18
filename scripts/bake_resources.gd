@@ -298,7 +298,27 @@ func _initialize() -> void:
 	s2.threat_tags = ["electric", "survive"]
 	_save(s2, "res://data/stages/stage_02.tres")
 
-	print("[bake] all M13 resources written")
+	# stage_03 (M14): the run's final node — a heavier defeat-all on its own terrain.
+	var s3_obj := ObjectiveDescriptor.new()
+	s3_obj.type = ObjectiveDescriptor.Type.DEFEAT_ALL
+	var s3 := StageDescriptor.new()
+	s3.id = "stage_03"
+	s3.terrain_seed = 24680
+	s3.initial_enemies = [
+		{ "unit": "res://data/units/enemy_organic.tres",    "name": "EnemyA", "col": W - 22 },
+		{ "unit": "res://data/units/enemy_mechanical.tres", "name": "EnemyB", "col": W - 16 },
+		{ "unit": "res://data/units/enemy_organic.tres",    "name": "EnemyC", "col": W - 10 },
+	]
+	s3.reinforcements = [
+		{ "round": 3, "unit": "res://data/units/enemy_mechanical.tres", "name": "EnemyD", "col": W - 28 },
+	]
+	s3.deployables = [ { "type": "mine", "col": 45 }, { "type": "shield_generator", "col": 70 } ]
+	s3.wind_enabled = true; s3.wind_start_round = 2; s3.wind_ramp_per_round = 0.06; s3.wind_max_strength = 1.0
+	s3.objective = s3_obj
+	s3.threat_tags = ["fire", "electric", "swarm"]
+	_save(s3, "res://data/stages/stage_03.tres")
+
+	print("[bake] all M14 resources written")
 	quit()
 
 # Build a core1/edge2 diamond pattern with every group carrying `element`.

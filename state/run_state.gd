@@ -22,6 +22,7 @@ func to_dict() -> Dictionary:
 		"artifacts": artifacts.duplicate(),
 		"resources": resources.duplicate(),
 		"run_meta": run_meta.duplicate(),
+		"map": (map as MapState).to_dict() if map is MapState else null,
 	}
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -33,4 +34,6 @@ static func from_dict(d: Dictionary) -> RunState:
 	rs.artifacts.assign(d.get("artifacts", []))
 	rs.resources = (d.get("resources", {}) as Dictionary).duplicate()
 	rs.run_meta = (d.get("run_meta", {}) as Dictionary).duplicate()
+	var md = d.get("map", null)
+	rs.map = MapState.from_dict(md) if md is Dictionary else null
 	return rs

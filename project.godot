@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Artillery Space"
 config/description="M3 — elements, status effects, EventBus"
-run/main_scene="res://world/combat_scene.tscn"
+run/main_scene="res://world/run_controller.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [autoload]

@@ -2,6 +2,9 @@
 # Combat input lives in CombatManager; only camera pan/zoom is handled here.
 extends Node2D
 
+# M14: emitted after write-back when the stage resolves, so the run controller can advance the map.
+signal combat_exited(outcome: String)
+
 const PAN_SPEED := 700.0
 const ZOOM_MIN := 0.5
 const ZOOM_MAX := 3.0
@@ -63,6 +66,7 @@ func _on_combat_finished(outcome: String) -> void:
 		lines.append("%s hp=%d/%d kills=%d%s" % [rus.display_name, rus.current_hp, rus.max_hp,
 				rus.kills, " [disabled]" if rus.is_disabled else ""])
 	print("[RUN] combat %s — squad written back: %s" % [outcome, ", ".join(lines)])
+	combat_exited.emit(outcome)   # M14: hand control back to the run controller
 
 func _setup_camera() -> void:
 	var w := Const.world_pixel_size()
@@ -199,6 +203,7 @@ func _smoke_test() -> void:
 	_m11_smoke()
 	_m12_smoke()
 	_m13_smoke()
+	_m14_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -829,6 +834,46 @@ func _m13_smoke() -> void:
 	print("  seed 12345 vs 777 surface rows differ=%s (expect true)" % differs)
 	# Restore the live stage's terrain so nothing downstream sees the scratch generation.
 	terrain.generate(stage.terrain_seed)
+
+# M14 checklist: the run map is a linear node sequence that advances, run-end conditions read
+# correctly, and the map round-trips through RunState serialization.
+func _m14_smoke() -> void:
+	print("[smoke] -- M14 run map --")
+	var m : MapState = Run.active.map
+	print("  nodes=%d (expect 3) current=%d (expect 0) node0.type=%d (expect COMBAT=0) stage=%s" %
+			[m.nodes.size(), m.current, m.current_node().type, m.current_node().stage().id])
+
+	# Walk the linear map: clear node 0 → advance → node 1, etc.
+	var fresh := MapState.build_linear([
+			"res://data/stages/stage_01.tres",
+			"res://data/stages/stage_02.tres",
+			"res://data/stages/stage_03.tres"])
+	fresh.mark_visited(); fresh.advance()
+	print("  after clear+advance: current=%d (expect 1) is_last=%s (expect false)" %
+			[fresh.current, fresh.is_last()])
+	fresh.mark_visited(); fresh.advance()
+	print("  at node 2: is_last=%s (expect true) complete=%s (expect false, node2 not cleared)" %
+			[fresh.is_last(), fresh.is_complete()])
+	fresh.mark_visited()
+	print("  after clearing node 2: complete=%s (expect true)" % fresh.is_complete())
+
+	print("[smoke] -- M14 run-end conditions --")
+	var rs := RunState.new()
+	var a := RunUnitState.from_definition("res://data/units/player_cluster.tres", "A")
+	var b := RunUnitState.from_definition("res://data/units/player_bypass.tres", "B")
+	rs.squad = [a, b]
+	a.is_disabled = false; b.is_disabled = false
+	print("  one alive: any_alive=%s (expect true)" % rs.squad.any(func(u): return not u.is_disabled))
+	a.is_disabled = true; b.is_disabled = true
+	print("  all disabled: any_alive=%s (expect false → RUN OVER)" %
+			rs.squad.any(func(u): return not u.is_disabled))
+
+	print("[smoke] -- M14 map serialization --")
+	var rs2 := RunState.new()
+	rs2.map = fresh
+	var rt := RunState.from_dict(rs2.to_dict())
+	print("  round-trip: nodes=%d (expect 3) current=%d (expect 2) visited=%d (expect 3) stage1=%s" %
+			[rt.map.nodes.size(), rt.map.current, rt.map.visited.size(), rt.map.nodes[1].stage_path.get_file()])
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

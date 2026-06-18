@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="StageDescriptor" format=3]
+
+[ext_resource type="Script" path="res://data/stages/objective_descriptor.gd" id="1_nsqa2"]
+[ext_resource type="Script" path="res://data/stages/stage_descriptor.gd" id="2_uybap"]
+
+[sub_resource type="Resource" id="Resource_okkhs"]
+script = ExtResource("1_nsqa2")
+
+[resource]
+script = ExtResource("2_uybap")
+id = "stage_03"
+terrain_seed = 24680
+initial_enemies = [{
+"col": 98,
+"name": "EnemyA",
+"unit": "res://data/units/enemy_organic.tres"
+}, {
+"col": 104,
+"name": "EnemyB",
+"unit": "res://data/units/enemy_mechanical.tres"
+}, {
+"col": 110,
+"name": "EnemyC",
+"unit": "res://data/units/enemy_organic.tres"
+}]
+reinforcements = [{
+"col": 92,
+"name": "EnemyD",
+"round": 3,
+"unit": "res://data/units/enemy_mechanical.tres"
+}]
+deployables = [{
+"col": 45,
+"type": "mine"
+}, {
+"col": 70,
+"type": "shield_generator"
+}]
+wind_start_round = 2
+wind_ramp_per_round = 0.06
+objective = SubResource("Resource_okkhs")
+threat_tags = Array[String](["fire", "electric", "swarm"])
