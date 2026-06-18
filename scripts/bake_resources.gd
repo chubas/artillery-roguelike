@@ -11,7 +11,7 @@ extends SceneTree
 func _initialize() -> void:
 	for d in ["res://data/elements", "res://data/statuses", "res://data/tile_statuses",
 			"res://data/shots/aoe", "res://data/units", "res://data/cards",
-			"res://data/artifacts/resources"]:
+			"res://data/artifacts/resources", "res://data/stages"]:
 		DirAccess.make_dir_recursive_absolute(d)
 
 	# ── Unit statuses (leaf — no refs) ────────────────────────────────────────
@@ -252,7 +252,53 @@ func _initialize() -> void:
 			"At the start of the stage, give your units Boosted (3).",
 			"res://data/artifacts/resources/start_boosted.tres")
 
-	print("[bake] all M10 resources written")
+	# ── M13: stage descriptors ─────────────────────────────────────────────────
+	var W := Const.MAP_WIDTH
+	# stage_01 reproduces the historical hardcoded stage exactly (defeat-all).
+	var s1_obj := ObjectiveDescriptor.new()
+	s1_obj.type = ObjectiveDescriptor.Type.DEFEAT_ALL
+	var s1 := StageDescriptor.new()
+	s1.id = "stage_01"
+	s1.terrain_seed = Const.NOISE_SEED
+	s1.initial_enemies = [
+		{ "unit": "res://data/units/enemy_organic.tres",    "name": "EnemyA", "col": W - 20 },
+		{ "unit": "res://data/units/enemy_mechanical.tres", "name": "EnemyB", "col": W - 14 },
+	]
+	s1.reinforcements = [
+		{ "round": 2, "unit": "res://data/units/enemy_organic.tres",    "name": "EnemyC", "col": W - 26 },
+		{ "round": 5, "unit": "res://data/units/enemy_mechanical.tres", "name": "EnemyD", "col": W - 6 },
+	]
+	s1.deployables = [
+		{ "type": "mine", "col": 40 },
+		{ "type": "mine", "col": 60 },
+		{ "type": "shield_generator", "col": 95 },
+	]
+	s1.wind_enabled = true; s1.wind_start_round = 3; s1.wind_ramp_per_round = 0.05; s1.wind_max_strength = 1.0
+	s1.objective = s1_obj
+	s1.threat_tags = ["fire", "electric"]
+	_save(s1, "res://data/stages/stage_01.tres")
+
+	# stage_02: a survive-N stage on different terrain — exercises the new objective path.
+	var s2_obj := ObjectiveDescriptor.new()
+	s2_obj.type = ObjectiveDescriptor.Type.SURVIVE_N
+	s2_obj.survive_rounds = 4
+	var s2 := StageDescriptor.new()
+	s2.id = "stage_02"
+	s2.terrain_seed = 777
+	s2.initial_enemies = [
+		{ "unit": "res://data/units/enemy_mechanical.tres", "name": "EnemyA", "col": W - 18 },
+	]
+	s2.reinforcements = [
+		{ "round": 2, "unit": "res://data/units/enemy_organic.tres",    "name": "EnemyB", "col": W - 30 },
+		{ "round": 3, "unit": "res://data/units/enemy_mechanical.tres", "name": "EnemyC", "col": W - 8 },
+	]
+	s2.deployables = [ { "type": "mine", "col": 50 } ]
+	s2.wind_enabled = true; s2.wind_start_round = 2; s2.wind_ramp_per_round = 0.08; s2.wind_max_strength = 1.0
+	s2.objective = s2_obj
+	s2.threat_tags = ["electric", "survive"]
+	_save(s2, "res://data/stages/stage_02.tres")
+
+	print("[bake] all M13 resources written")
 	quit()
 
 # Build a core1/edge2 diamond pattern with every group carrying `element`.

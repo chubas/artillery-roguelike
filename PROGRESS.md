@@ -23,13 +23,40 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M9 (artifact system: engine + initial artifacts),
   M10 (unit attack value, Effects system + Boosted, attack/shield/effect HUD icons),
   M11 (card deck: draw/hand/discard, 3 new card effects, deck indicator),
-  **M12 (run-state backbone: `RunState`/`RunUnitState`, `Run` autoload, `CombatBridge`, combat I/O contract)**.
+  M12 (run-state backbone: `RunState`/`RunUnitState`, `Run` autoload, `CombatBridge`, combat I/O contract),
+  **M13 (stage as data: `StageDescriptor`, objective evaluator, per-stage terrain seed)**.
 - **Main scene:** `world/combat_scene.tscn`. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M12 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M13 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-17 — Milestone 13: Stage as data & objective evaluator
+
+Second run-layer piece (spec §5 + §9): the stage stops being hardcoded in `CombatManager`. Full
+design in [milestone-13-plan.md](milestone-13-plan.md).
+
+- **`StageDescriptor`** (`data/stages/`, baked `.tres`) holds what combat used to hardcode:
+  `terrain_seed`, `initial_enemies`, `reinforcements`, `deployables`, the wind profile, the
+  `objective`, plus reserved `rewards`/`threat_tags` seams. `CombatManager.setup()` takes a
+  `stage` and its spawn/reinforcement/wind/deployable readers consume it; the old
+  `_REINFORCEMENT_SCHEDULE` / `_WIND_CONFIG` / `_DEPLOYABLE_PLACEMENTS` consts are gone.
+- **Objective evaluator** (`systems/objective_evaluator.gd`, static): `evaluate(obj, enemies_alive,
+  players_alive, round_index, all_waves_spawned) → ONGOING/WON/LOST`. `ObjectiveDescriptor` has
+  DEFEAT_ALL (the existing gate) and SURVIVE_N (win at round N). The inline win/loss in
+  `_on_unit_died` is replaced by `_check_objective()`, also called at round start for survive-N.
+- **Per-stage terrain seed:** `TerrainManager.generate(seed)` (derived cave/HP/variant seeds
+  offset from it); `_ready` no longer auto-generates — `combat_scene` generates with
+  `stage.terrain_seed` before `renderer.setup()`.
+- **Two baked stages:** `stage_01` reproduces today's content exactly (defeat-all, seed 12345);
+  `stage_02` is a survive-N stage (seed 777, `survive_rounds 4`) for the smoke test + M14's map.
+  `combat_scene` defaults to `stage_01`; M14's controller will set the stage from the map node.
+- **Bake-time noise:** the bake step prints the usual benign `Identifier not found:
+  EventBus/Features` lines (deep-dependency autoload resolution in the `-s` context); both stages
+  write and the live run is clean.
 
 ---
 

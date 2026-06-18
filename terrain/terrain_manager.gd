@@ -20,7 +20,8 @@ var _collapse_flush_queued : bool = false
 func _ready() -> void:
 	_grid.resize(Const.MAP_WIDTH * Const.MAP_HEIGHT)
 	_grid.fill(null)
-	generate()
+	# Generation is driven by the scene (combat_scene) with the active stage's terrain_seed (M13),
+	# so the grid is only allocated here — not filled with a fixed-seed map.
 
 func _idx(col: int, row: int) -> int:
 	return row * Const.MAP_WIDTH + col
@@ -140,8 +141,10 @@ func get_tiles_in_diamond(cx: int, cy: int, radius: int) -> Array:
 func has_los(from: Vector2i, to: Vector2i) -> bool:
 	return LoS.has_los(self, from, to)
 
-# --- Generation: six passes, fixed seeds, reproducible (terrain spec §6.1) ----
-func generate() -> void:
+# --- Generation: six passes, seeded, reproducible (terrain spec §6.1) ---------
+# `seed` drives the surface noise + the derived cave/HP/variant RNGs, so each stage descriptor
+# (M13) gets its own reproducible terrain. Defaults to Const.NOISE_SEED (the historical map).
+func generate(seed: int = Const.NOISE_SEED) -> void:
 	var base_row := Const.MAP_HEIGHT - Const.BASE_FILL_ROWS
 
 	# Pass 1 — base fill.
@@ -152,7 +155,7 @@ func generate() -> void:
 	# Pass 2 — surface noise. Positive noise raises the surface (lower row index).
 	var noise := FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	noise.seed = Const.NOISE_SEED
+	noise.seed = seed
 	noise.frequency = Const.NOISE_FREQUENCY
 	for col in range(Const.MAP_WIDTH):
 		var offset := int(noise.get_noise_1d(float(col)) * Const.SURFACE_VARIATION)
@@ -164,7 +167,7 @@ func generate() -> void:
 
 	# Pass 3 — cave carving: ellipse subtraction in the underground mass.
 	var cave_rng := RandomNumberGenerator.new()
-	cave_rng.seed = Const.NOISE_SEED + 1
+	cave_rng.seed = seed + 1
 	for _i in range(Const.CAVE_COUNT):
 		var ccol := cave_rng.randi_range(15, Const.MAP_WIDTH - 16)
 		var min_row := get_surface_row(ccol) + 10
@@ -193,7 +196,7 @@ func generate() -> void:
 
 	# Pass 5 — HP assignment: 10% reinforced (HP 6), separately seeded.
 	var hp_rng := RandomNumberGenerator.new()
-	hp_rng.seed = Const.NOISE_SEED + 99
+	hp_rng.seed = seed + 99
 	for row in range(Const.MAP_HEIGHT):
 		for col in range(Const.MAP_WIDTH):
 			var t := get_tile(col, row)
@@ -207,7 +210,7 @@ func generate() -> void:
 
 	# Pass 6 — visual variants, cosmetic only.
 	var var_rng := RandomNumberGenerator.new()
-	var_rng.seed = Const.NOISE_SEED + 7
+	var_rng.seed = seed + 7
 	for row in range(Const.MAP_HEIGHT):
 		for col in range(Const.MAP_WIDTH):
 			var t := get_tile(col, row)

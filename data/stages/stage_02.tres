@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="StageDescriptor" format=3]
+
+[ext_resource type="Script" path="res://data/stages/objective_descriptor.gd" id="1_66l8h"]
+[ext_resource type="Script" path="res://data/stages/stage_descriptor.gd" id="2_aslkl"]
+
+[sub_resource type="Resource" id="Resource_2hg1y"]
+script = ExtResource("1_66l8h")
+type = 1
+survive_rounds = 4
+
+[resource]
+script = ExtResource("2_aslkl")
+id = "stage_02"
+terrain_seed = 777
+initial_enemies = [{
+"col": 102,
+"name": "EnemyA",
+"unit": "res://data/units/enemy_mechanical.tres"
+}]
+reinforcements = [{
+"col": 90,
+"name": "EnemyB",
+"round": 2,
+"unit": "res://data/units/enemy_organic.tres"
+}, {
+"col": 112,
+"name": "EnemyC",
+"round": 3,
+"unit": "res://data/units/enemy_mechanical.tres"
+}]
+deployables = [{
+"col": 50,
+"type": "mine"
+}]
+wind_start_round = 2
+wind_ramp_per_round = 0.08
+objective = SubResource("Resource_2hg1y")
+threat_tags = Array[String](["electric", "survive"])

@@ -18,6 +18,10 @@ const ZOOM_MAX := 3.0
 
 var hud : HUD
 
+# The stage this combat runs (M13). Defaults to stage_01 if unset; M14's run controller will set
+# it from the active map node before the scene loads.
+var stage : StageDescriptor = null
+
 # Camera focus target (the selected ally). _focusing is a one-shot pan: it eases the camera
 # to the unit, then releases so WASD can free-pan without the camera snapping back.
 var _focus_target : Unit = null
@@ -25,6 +29,11 @@ var _focusing : bool = false
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color8(24, 26, 34))
+	# M13: the stage descriptor drives terrain generation (its seed) before the renderer builds
+	# chunks, plus enemies/reinforcements/wind/deployables/objective inside combat.
+	if stage == null:
+		stage = load("res://data/stages/stage_01.tres")
+	terrain.generate(stage.terrain_seed)
 	renderer.setup(terrain)
 	hud = HUD.new()
 	add_child(hud)
@@ -38,7 +47,7 @@ func _ready() -> void:
 	combat.combat_finished.connect(_on_combat_finished)
 	combat.setup(terrain, projectiles, unit_layer, hud, targeting,
 			deployable_layer_back, deployable_layer_front,
-			squad, Run.active.deck, Run.active.artifacts)
+			squad, Run.active.deck, Run.active.artifacts, stage)
 	targeting.setup(terrain, combat.all_units)
 	_setup_camera()
 	print("[terrain] ", terrain.debug_stats())
@@ -189,6 +198,7 @@ func _smoke_test() -> void:
 	_m10_smoke()
 	_m11_smoke()
 	_m12_smoke()
+	_m13_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -774,6 +784,51 @@ func _m12_smoke() -> void:
 	var rt := RunState.from_dict(rs.to_dict())
 	print("  round-trip: squad=%d (expect 2) deck=%d (expect 2) A.current_hp=%d (expect %d)" %
 			[rt.squad.size(), rt.deck.size(), rt.squad[0].current_hp, a.current_hp])
+
+# M13 checklist: stages are data (descriptor shape), the objective evaluator returns the right
+# verdict per type/state, and the terrain seed actually drives generation.
+func _m13_smoke() -> void:
+	print("[smoke] -- M13 stage descriptors --")
+	var s1 : StageDescriptor = load("res://data/stages/stage_01.tres")
+	var s2 : StageDescriptor = load("res://data/stages/stage_02.tres")
+	print("  stage_01: enemies=%d (expect 2) reinforce=%d (expect 2) deploy=%d (expect 3) obj=%d (expect DEFEAT_ALL=0)" %
+			[s1.initial_enemies.size(), s1.reinforcements.size(), s1.deployables.size(), s1.objective.type])
+	print("  stage_02: obj=%d (expect SURVIVE_N=1) survive_rounds=%d (expect 4) seed=%d (expect 777)" %
+			[s2.objective.type, s2.objective.survive_rounds, s2.terrain_seed])
+
+	print("[smoke] -- M13 objective evaluator --")
+	var R := ObjectiveEvaluator.Result
+	# DEFEAT_ALL: enemies alive → ONGOING; none + waves spawned → WON; no players → LOST.
+	var d_ongoing := ObjectiveEvaluator.evaluate(s1.objective, true, true, 3, true)
+	var d_won := ObjectiveEvaluator.evaluate(s1.objective, false, true, 3, true)
+	var d_notyet := ObjectiveEvaluator.evaluate(s1.objective, false, true, 3, false)  # waves pending
+	var d_lost := ObjectiveEvaluator.evaluate(s1.objective, true, false, 3, true)
+	print("  defeat-all: enemiesAlive=%d notAllWaves=%d cleared=%d noPlayers=%d (expect ONGOING0, ONGOING0, WON1, LOST2)" %
+			[d_ongoing, d_notyet, d_won, d_lost])
+	# SURVIVE_N(4): round 3 → ONGOING; round 4 → WON; no players at round 4 → LOST.
+	var s_ongoing := ObjectiveEvaluator.evaluate(s2.objective, true, true, 3, true)
+	var s_won := ObjectiveEvaluator.evaluate(s2.objective, true, true, 4, true)
+	var s_lost := ObjectiveEvaluator.evaluate(s2.objective, true, false, 4, true)
+	print("  survive-N: round3=%d round4=%d noPlayers=%d (expect ONGOING0, WON1, LOST2)" %
+			[s_ongoing, s_won, s_lost])
+	print("  (enum check: ONGOING=%d WON=%d LOST=%d)" % [R.ONGOING, R.WON, R.LOST])
+
+	print("[smoke] -- M13 terrain seed drives generation --")
+	# Regenerate the live terrain under two seeds; surface rows should differ somewhere.
+	terrain.generate(12345)
+	var rows_a : Array = []
+	for c in range(20, 100, 7):
+		rows_a.append(terrain.get_surface_row(c))
+	terrain.generate(777)
+	var differs := false
+	var i := 0
+	for c in range(20, 100, 7):
+		if terrain.get_surface_row(c) != rows_a[i]:
+			differs = true
+		i += 1
+	print("  seed 12345 vs 777 surface rows differ=%s (expect true)" % differs)
+	# Restore the live stage's terrain so nothing downstream sees the scratch generation.
+	terrain.generate(stage.terrain_seed)
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

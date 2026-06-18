@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="StageDescriptor" format=3]
+
+[ext_resource type="Script" path="res://data/stages/objective_descriptor.gd" id="1_lehar"]
+[ext_resource type="Script" path="res://data/stages/stage_descriptor.gd" id="2_gb3sk"]
+
+[sub_resource type="Resource" id="Resource_ccodv"]
+script = ExtResource("1_lehar")
+
+[resource]
+script = ExtResource("2_gb3sk")
+id = "stage_01"
+initial_enemies = [{
+"col": 100,
+"name": "EnemyA",
+"unit": "res://data/units/enemy_organic.tres"
+}, {
+"col": 106,
+"name": "EnemyB",
+"unit": "res://data/units/enemy_mechanical.tres"
+}]
+reinforcements = [{
+"col": 94,
+"name": "EnemyC",
+"round": 2,
+"unit": "res://data/units/enemy_organic.tres"
+}, {
+"col": 114,
+"name": "EnemyD",
+"round": 5,
+"unit": "res://data/units/enemy_mechanical.tres"
+}]
+deployables = [{
+"col": 40,
+"type": "mine"
+}, {
+"col": 60,
+"type": "mine"
+}, {
+"col": 95,
+"type": "shield_generator"
+}]
+objective = SubResource("Resource_ccodv")
+threat_tags = Array[String](["fire", "electric"])

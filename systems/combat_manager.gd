@@ -41,13 +41,12 @@ var _hand : Array[CardDefinition] = []
 var _discard : Array[CardDefinition] = []
 var _pending_card : CardDefinition = null   # non-null while choosing a target
 
-# --- Reinforcements (M5): a tiny hardcoded schedule, round_index → wave. ----------
-# Landing collision is intentionally NOT checked (enemies don't move, per design) —
-# only the surface row is snapped so the unit doesn't spawn floating/underground.
-const _REINFORCEMENT_SCHEDULE : Array[Dictionary] = [
-	{ "round": 2, "def": "res://data/units/enemy_organic.tres", "name": "EnemyC", "col": Const.MAP_WIDTH - 26 },
-	{ "round": 5, "def": "res://data/units/enemy_mechanical.tres", "name": "EnemyD", "col": Const.MAP_WIDTH - 6 },
-]
+# --- Stage (M13): the StageDescriptor this combat is running. Source of enemies, reinforcement
+# schedule, deployable placements, wind profile, and the objective. Set in setup().
+var _stage : StageDescriptor = null
+
+# --- Reinforcements (M5, now from _stage.reinforcements M13). Landing collision is intentionally
+# NOT checked (enemies don't move) — only the surface row is snapped.
 var _reinforcements_spawned : Dictionary = {}   # round int -> true
 
 var _checkpoint_positions : Dictionary = {}  # Unit -> Vector2i
@@ -65,21 +64,11 @@ var _artifact_paths : Array = []
 var artifacts : Array[ArtifactDef] = []
 var _artifact_ctx : ArtifactContext = null
 
-# --- Wind (M8): environmental force applied to projectiles and fire spread --------
-const _WIND_CONFIG : Dictionary = {
-	"start_round":    3,    # first round wind can be non-zero
-	"ramp_per_round": 0.05, # each round's max range grows by this fraction of MAX_WIND_FORCE
-	"max_strength":   1.0,  # cap (set to 0.5 on easier stages)
-}
+# --- Wind (M8, profile from _stage M13): environmental force on projectiles + fire spread -----
 var wind_strength : float = 0.0   # -1.0..1.0 (negative = left, positive = right)
 
-# --- Deployables (M6): mines + shield generators, hand-placed for this milestone -----
+# --- Deployables (M6, placements from _stage.deployables M13) ----------------------
 var deployables : Array = []
-const _DEPLOYABLE_PLACEMENTS : Array[Dictionary] = [
-	{ "type": "mine", "col": 40 },
-	{ "type": "mine", "col": 60 },
-	{ "type": "shield_generator", "col": 95 },
-]
 
 var _terrain : TerrainManager
 var _projectiles : ProjectileManager
@@ -92,10 +81,12 @@ var _targeting : TargetingUI
 func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 		unit_layer: Node2D, hud: HUD, targeting: TargetingUI,
 		deployable_layer_back: Node2D = null, deployable_layer_front: Node2D = null,
-		squad: Array = [], deck_source: Array = [], artifact_paths: Array = []) -> void:
+		squad: Array = [], deck_source: Array = [], artifact_paths: Array = [],
+		stage: StageDescriptor = null) -> void:
 	_terrain = terrain
 	_projectiles = projectiles
 	_unit_layer = unit_layer
+	_stage = stage                    # M13: enemies / reinforcements / wind / deployables / objective
 	_deployable_layer_back = deployable_layer_back
 	_deployable_layer_front = deployable_layer_front
 	_hud = hud
@@ -160,13 +151,13 @@ func _place_player_squad(squad: Array) -> void:
 		u.unit_died.connect(_on_unit_died)
 		player_units.append(u)
 
-# Hardcoded enemy force (M13 makes this descriptor-driven): the ORGANIC (weak fire) and
-# MECHANICAL (weak electric) enemies to the east. Enemies are NOT run state.
+# Initial enemy force from the stage descriptor (M13). Enemies are NOT run state.
 func _spawn_enemies() -> void:
-	var organic : UnitDefinition = load("res://data/units/enemy_organic.tres")
-	var mechanical : UnitDefinition = load("res://data/units/enemy_mechanical.tres")
-	enemy_units.append(_spawn(organic, "EnemyA", Const.MAP_WIDTH - 20, false))
-	enemy_units.append(_spawn(mechanical, "EnemyB", Const.MAP_WIDTH - 14, false))
+	if _stage == null:
+		return
+	for e in _stage.initial_enemies:
+		var def : UnitDefinition = load(e["unit"])
+		enemy_units.append(_spawn(def, e["name"], e["col"], false))
 
 func _spawn(def: UnitDefinition, unit_name: String, col: int, is_player: bool) -> Unit:
 	var u := Unit.new()
@@ -202,9 +193,11 @@ func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 	push_error("No valid spawn near col %d" % preferred_col)
 	return Vector2i(preferred_col, 0)
 
-# --- Deployables (M6): mines + shield generators, hand-placed at fixed columns -----
+# --- Deployables (M6, placements from _stage M13): mines + shield generators ------
 func _spawn_deployables() -> void:
-	for entry in _DEPLOYABLE_PLACEMENTS:
+	if _stage == null:
+		return
+	for entry in _stage.deployables:
 		var d : Deployable
 		var layer : Node2D
 		match entry["type"]:
@@ -253,9 +246,11 @@ func _on_deployable_died(d: Deployable) -> void:
 	deployables.erase(d)
 	d.queue_free()
 
-# --- Reinforcements (M5): telegraphed enemy drops on a fixed round schedule -------
+# --- Reinforcements (M5, schedule from _stage.reinforcements M13) ------------------
 func _check_reinforcements() -> void:
-	for wave in _REINFORCEMENT_SCHEDULE:
+	if _stage == null:
+		return
+	for wave in _stage.reinforcements:
 		if wave["round"] == round_index and not _reinforcements_spawned.has(round_index):
 			_reinforcements_spawned[round_index] = true
 			_spawn_reinforcement(wave)
@@ -264,7 +259,7 @@ func _check_reinforcements() -> void:
 # unit-collision avoidance (enemies don't move, so the landing space is assumed
 # clear — unlike _spawn()/_find_valid_spawn(), deliberately).
 func _spawn_reinforcement(wave: Dictionary) -> void:
-	var def : UnitDefinition = load(wave["def"])
+	var def : UnitDefinition = load(wave["unit"])
 	var u := Unit.new()
 	u.definition = def
 	u.is_player = false
@@ -282,20 +277,21 @@ func _spawn_reinforcement(wave: Dictionary) -> void:
 # List of not-yet-spawned future waves, for the HUD/overlay countdown indicator.
 func _reinforcement_warnings() -> Array:
 	var out := []
-	for wave in _REINFORCEMENT_SCHEDULE:
+	if _stage == null:
+		return out
+	for wave in _stage.reinforcements:
 		if not _reinforcements_spawned.has(wave["round"]) and wave["round"] > round_index:
 			out.append({ "col": wave["col"], "turns_left": wave["round"] - round_index })
 	return out
 
 # --- Wind (M8): update strength each round, drive fire spread when strong enough ------
 func _update_wind_for_round(round_n: int) -> void:
-	if not Features.wind_enabled:
+	if not Features.wind_enabled or _stage == null or not _stage.wind_enabled:
 		return
-	if round_n < _WIND_CONFIG["start_round"]:
+	if round_n < _stage.wind_start_round:
 		return
-	var elapsed := round_n - _WIND_CONFIG["start_round"]
-	var range_frac := minf((elapsed + 1) * _WIND_CONFIG["ramp_per_round"],
-			_WIND_CONFIG["max_strength"])
+	var elapsed := round_n - _stage.wind_start_round
+	var range_frac := minf((elapsed + 1) * _stage.wind_ramp_per_round, _stage.wind_max_strength)
 	wind_strength = randf_range(-range_frac, range_frac)
 	_projectiles.current_wind_force = wind_strength * Const.MAX_WIND_FORCE
 	EventBus.wind_changed.emit(wind_strength)
@@ -356,6 +352,10 @@ func _start_player_turn() -> void:
 	if _is_terminal():
 		return
 	game_state = GameState.PLAYER_TURN
+	# Survive-N objectives win at the start of the round they reach (M13).
+	_check_objective()
+	if _is_terminal():
+		return
 	# 2. Player unit statuses tick (burn damage); accumulate Shock AP reduction.
 	var ap_reduction := 0
 	for u in player_units:
@@ -432,12 +432,14 @@ func _is_terminal() -> bool:
 # stage clear must wait for this, otherwise killing the current enemies before a later
 # wave lands would end the stage with reinforcements never shown.
 func _all_waves_spawned() -> bool:
-	for wave in _REINFORCEMENT_SCHEDULE:
+	if _stage == null:
+		return true
+	for wave in _stage.reinforcements:
 		if not _reinforcements_spawned.has(wave["round"]):
 			return false
 	return true
 
-# --- Win / loss (M2 spec §8): checked on every death, mid-turn included -----------
+# --- Win / loss (M2 spec §8, generalized to the objective evaluator M13) -----------
 func _on_unit_died(unit: Unit) -> void:
 	# Kill credit (M12): a player unit that landed the killing blow on an enemy scores a kill.
 	if not unit.is_player and _last_firing_unit != null and is_instance_valid(_last_firing_unit) \
@@ -447,15 +449,24 @@ func _on_unit_died(unit: Unit) -> void:
 		ArtifactSystem.call_unit_died(artifacts, _artifact_ctx, unit)
 		if _last_firing_unit != null and is_instance_valid(_last_firing_unit):
 			ArtifactSystem.call_unit_killed(artifacts, _artifact_ctx, unit, _last_firing_unit)
+	_check_objective()
+
+# Run the stage's objective against current combat state; transition + announce on a result.
+# Called on every death (defeat-all win / squad-wipe loss) and at round start (survive-N win).
+func _check_objective() -> void:
+	if _is_terminal() or _stage == null:
+		return
 	var enemies_alive := enemy_units.any(func(u): return u.hp > 0)
 	var players_alive := player_units.any(func(u): return u.hp > 0)
-	if not enemies_alive and _all_waves_spawned():
-		print("[STAGE CLEAR] All enemies defeated.")
+	var result := ObjectiveEvaluator.evaluate(_stage.objective, enemies_alive, players_alive,
+			round_index, _all_waves_spawned())
+	if result == ObjectiveEvaluator.Result.WON:
+		print("[STAGE CLEAR] Objective met.")
 		game_state = GameState.STAGE_CLEAR
 		_hud.set_turn_text("STAGE CLEAR")
 		_set_selection(null)
 		combat_finished.emit("cleared")
-	elif not players_alive:
+	elif result == ObjectiveEvaluator.Result.LOST:
 		print("[GAME OVER] All player units destroyed.")
 		game_state = GameState.GAME_OVER
 		_hud.set_turn_text("GAME OVER")
