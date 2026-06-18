@@ -27,14 +27,32 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M13 (stage as data: `StageDescriptor`, objective evaluator, per-stage terrain seed),
   M14 (linear run loop: `MapState`, `RunController` main scene, map↔combat flow),
   M15 (pre-combat placement: per-stage spawn zone, PLACEMENT state, deploy UI),
-  **M16 (battle rewards + dig vs unit damage separation)**.
+  **M16 (battle rewards + dig vs unit damage separation)**,
+  **M17 (collapsible terrain: column collapse, crush damage, resolve API)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M16 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M17 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-18 — Milestone 17: Collapsible terrain & crush collapse
+
+Carveable terrain falls when unsupported; crush damage on units/deployables in the landing
+path. Full design in [milestone-17-plan.md](milestone-17-plan.md).
+
+- **`Tile.collapsible`** — mutable bool (transmutation-ready). Default **off** on all generated
+  terrain; specific instances opt in via content later. Indestructible spawn platform stays off.
+- **`TerrainManager.resolve_collapses(units, deployables)`** — processes queued columns (post-
+  `damage_tile` destroy) until stable; **`resolve_all_collapses()`** scans every column for hooks
+  (end-of-turn, transmute, etc.). One tick, no animation.
+- **Crush:** falling tile deals **`max_hp`** damage to every unit/deployable in the impact voxel;
+  the tile is consumed. `EventBus.terrain_crushed`.
+- **`AoEResolver`** passes unit/deployable lists into collapse after each blast.
+- **`Features.collapse_enabled`** kill switch.
 
 ---
 

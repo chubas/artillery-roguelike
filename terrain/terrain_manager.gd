@@ -11,11 +11,8 @@ signal aoe_resolved(center: Vector2i, radius: int, affected: Array)
 # --- Storage (terrain spec §5.1) ---------------------------------------------
 var _grid : Array = []   # size MAP_WIDTH*MAP_HEIGHT; null = VOID
 
-# Collapse batching (plan §1.3): destroyed tiles queue their column; the queue is
-# flushed once per AoE resolution (or deferred for stray single hits) so tiles
-# don't fall mid-iteration into cells the AoE loop hasn't visited yet.
+# Columns that need a collapse pass after tile destruction (batched per blast).
 var _pending_collapse_cols : Dictionary = {}
-var _collapse_flush_queued : bool = false
 
 func _ready() -> void:
 	_grid.resize(Const.MAP_WIDTH * Const.MAP_HEIGHT)
@@ -91,43 +88,135 @@ func _destroy_tile(col: int, row: int, tile: Tile) -> void:
 	tile_destroyed.emit(col, row, tile.type)
 	EventBus.tile_destroyed.emit(col, row, tile.type)
 	tile_changed.emit(col, row)
-	_pending_collapse_cols[col] = true
-	if not _collapse_flush_queued:
-		_collapse_flush_queued = true
-		flush_collapses.call_deferred()
+	queue_collapse(col)
 
-# --- Collapse: column fall (terrain spec §7.3, batched per plan §1.3) ---------
-func flush_collapses() -> void:
-	_collapse_flush_queued = false
-	var cols := _pending_collapse_cols.keys()
+# --- Collapse (M17): column fall + crush ---------------------------------------
+
+## Mark a column for the next `resolve_collapses()` call (e.g. after manual tile removal).
+func queue_collapse(col: int) -> void:
+	if col >= 0 and col < Const.MAP_WIDTH:
+		_pending_collapse_cols[col] = true
+
+## Process columns queued by recent destroys until stable. Pass living units/deployables so
+## falling tiles can crush occupants (damage = tile max_hp). Callable from any hook after
+## attacks, actions, or scripted terrain changes — queue columns first if needed.
+func resolve_collapses(units: Array = [], deployables: Array = []) -> void:
+	if not Features.collapse_enabled:
+		_pending_collapse_cols.clear()
+		return
+	var cols : Array = _pending_collapse_cols.keys()
 	_pending_collapse_cols.clear()
-	for col in cols:
-		_collapse_column(col)
+	if cols.is_empty():
+		return
+	_run_collapse_until_stable(cols, units, deployables)
 
-func _collapse_column(col: int) -> void:
-	# Bottom-up walk: every fallen tile settles before the tiles above it are checked.
+## Scan every column for unsupported collapsible tiles (end-of-turn, transmutation, etc.).
+func resolve_all_collapses(units: Array = [], deployables: Array = []) -> void:
+	if not Features.collapse_enabled:
+		return
+	var cols : Array = []
+	for c in range(Const.MAP_WIDTH):
+		cols.append(c)
+	_run_collapse_until_stable(cols, units, deployables)
+
+## Back-compat alias — no occupants, so crush damage is skipped. Prefer resolve_collapses().
+func flush_collapses() -> void:
+	resolve_collapses([], [])
+
+func _run_collapse_until_stable(cols: Array, units: Array, deployables: Array) -> void:
+	while true:
+		var any := false
+		for col in cols:
+			if _collapse_column(col, units, deployables):
+				any = true
+		if not any:
+			break
+
+func _collapse_column(col: int, units: Array, deployables: Array) -> bool:
+	# Bottom-up: lower rows (higher index) settle before tiles above them are checked.
+	var changed := false
 	for row in range(Const.MAP_HEIGHT - 2, -1, -1):
 		var tile := get_tile(col, row)
 		if tile == null:
 			continue
-		# Spawn platform tiles are anchored (prototype convenience, spec §6.1 pass 4).
 		if tile.has_flag(Tile.FLAG_INDESTRUCTIBLE):
 			continue
-		# Fixed terrain (the current default): non-collapsible tiles never fall.
 		if not tile.collapsible:
 			continue
-		if get_tile(col, row + 1) == null:
-			_fall_tile(col, row)
+		if not _is_unsupported(col, row):
+			continue
+		if _fall_tile(col, row, units, deployables):
+			changed = true
+	return changed
 
-func _fall_tile(col: int, from_row: int) -> void:
-	var to_row := from_row + 1
-	while to_row < Const.MAP_HEIGHT - 1 and get_tile(col, to_row + 1) == null:
-		to_row += 1
+func _is_unsupported(col: int, row: int) -> bool:
+	# Cannot fall past the bottom row.
+	if row >= Const.MAP_HEIGHT - 1:
+		return false
+	var below := get_tile(col, row + 1)
+	if below != null and _blocks_collapse(below):
+		return false
+	return true
+
+func _blocks_collapse(tile: Tile) -> bool:
+	return not tile.has_flag(Tile.FLAG_PASSABLE)
+
+func _fall_tile(col: int, from_row: int, units: Array, deployables: Array) -> bool:
+	var tile := get_tile(col, from_row)
+	if tile == null:
+		return false
+	var crush_dmg := tile.max_hp
+	for r in range(from_row + 1, Const.MAP_HEIGHT):
+		var victims := _occupants_at(col, r, units, deployables)
+		if not victims.is_empty():
+			_crush(col, from_row, r, crush_dmg, tile, victims)
+			return true
+		if r < Const.MAP_HEIGHT - 1:
+			var below := get_tile(col, r + 1)
+			if below != null and _blocks_collapse(below):
+				if r == from_row:
+					return false
+				_move_tile(col, from_row, r)
+				return true
+		else:
+			# Bottom row of the map — rest here if empty.
+			if r == from_row:
+				return false
+			_move_tile(col, from_row, r)
+			return true
+	return false
+
+func _move_tile(col: int, from_row: int, to_row: int) -> void:
 	var tile = _grid[_idx(col, from_row)]
 	_grid[_idx(col, from_row)] = null
 	_grid[_idx(col, to_row)] = tile
 	tile_changed.emit(col, from_row)
 	tile_changed.emit(col, to_row)
+
+func _crush(col: int, from_row: int, impact_row: int, damage: int,
+		tile: Tile, victims: Array) -> void:
+	_grid[_idx(col, from_row)] = null
+	tile_changed.emit(col, from_row)
+	tile_destroyed.emit(col, from_row, tile.type)
+	EventBus.tile_destroyed.emit(col, from_row, tile.type)
+	for v in victims:
+		if v is Unit:
+			v.take_damage(damage)
+			EventBus.unit_hit_taken.emit(v, damage, "physical", null)
+		elif v is Deployable:
+			v.take_damage(damage)
+	EventBus.terrain_crushed.emit(col, impact_row, damage, victims)
+
+func _occupants_at(col: int, row: int, units: Array, deployables: Array) -> Array:
+	var vox := Vector2i(col, row)
+	var out : Array = []
+	for u in units:
+		if u is Unit and u.hp > 0 and u.contains_voxel(vox):
+			out.append(u)
+	for d in deployables:
+		if d is Deployable and d.hp > 0 and d.contains_voxel(vox):
+			out.append(d)
+	return out
 
 # --- Query (terrain spec §12.3) ----------------------------------------------
 func get_tiles_in_diamond(cx: int, cy: int, radius: int) -> Array:
@@ -189,6 +278,7 @@ func generate(seed: int = Const.NOISE_SEED) -> void:
 			Const.SPAWN_PLATFORM_COL + Const.SPAWN_PLATFORM_WIDTH):
 		var t := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
 		t.flags = Tile.FLAG_INDESTRUCTIBLE
+		t.collapsible = false
 		t.status_tags = []   # indestructible platform does not burn (M3 §5.4)
 		_grid[_idx(col, prow)] = t
 		for row in range(maxi(prow - 6, 0), prow):
@@ -208,7 +298,8 @@ func generate(seed: int = Const.NOISE_SEED) -> void:
 				# Reinforced = metal/ore: conducts electricity, does not burn (M3 decision).
 				t.status_tags = ["CONDUCTIVE"]
 
-	# Pass 6 — visual variants, cosmetic only.
+	# Pass 6 — visual variants, cosmetic only. collapsible stays false (M17 default);
+	# specific tiles opt in via content/transmutation later.
 	var var_rng := RandomNumberGenerator.new()
 	var_rng.seed = seed + 7
 	for row in range(Const.MAP_HEIGHT):

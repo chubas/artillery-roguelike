@@ -33,6 +33,7 @@ signal tile_destroyed(col: int, row: int, tile_type: int)
 signal tile_status_applied(col: int, row: int, status_id: String)
 signal tile_status_removed(col: int, row: int, status_id: String)
 signal tile_status_ticked(col: int, row: int, status_id: String)
+signal terrain_crushed(col: int, row: int, damage: int, victims: Array)
 
 # ── Projectile signals ───────────────────────────────────────────────────────
 signal projectile_impact(world_pos: Vector2, impact_voxel: Vector2i, element: String)

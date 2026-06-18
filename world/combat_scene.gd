@@ -209,6 +209,7 @@ func _smoke_test() -> void:
 	_m14_smoke()
 	_m15_smoke()
 	_m16_smoke()
+	_m17_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1016,6 +1017,62 @@ func _m16_smoke() -> void:
 	var mine := Mine.new()
 	print("  mine.dig=%d strength=%d (expect 4, 4)" % [mine.dig, mine.strength])
 	mine.queue_free()
+
+func _m17_smoke() -> void:
+	print("[smoke] -- M17 collapsible crush --")
+	var col := 50
+	for row in range(Const.MAP_HEIGHT):
+		terrain.clear_tile(col, row)
+	var support := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
+	support.collapsible = false
+	terrain.set_tile(col, 30, support)
+	var faller := Tile.new().setup(Tile.TileType.SOLID, 6, 0)
+	faller.collapsible = true
+	terrain.set_tile(col, 10, faller)
+	var victim : Unit = combat.player_units[0]
+	_reset(victim)
+	victim.shield = 0
+	victim.set_vox_position(Vector2i(col, 25))
+	var hp_pre := victim.hp
+	terrain.resolve_all_collapses(combat.all_units, combat.deployables)
+	var crushed := hp_pre - victim.hp
+	var faller_gone := terrain.get_tile(col, 10) == null
+	print("  crush: victim -%d (expect 6) faller consumed=%s (expect true)" %
+			[crushed, faller_gone])
+
+	print("[smoke] -- M17 stacked collapsibles settle in one tick --")
+	var col2 := 51
+	for row in range(Const.MAP_HEIGHT):
+		terrain.clear_tile(col2, row)
+	var support2 := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
+	support2.collapsible = false
+	terrain.set_tile(col2, 40, support2)
+	var a := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
+	a.collapsible = true
+	terrain.set_tile(col2, 36, a)
+	var b := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
+	b.collapsible = true
+	terrain.set_tile(col2, 34, b)
+	terrain.resolve_all_collapses([], [])
+	var low := terrain.get_tile(col2, 39)
+	var high := terrain.get_tile(col2, 38)
+	print("  stack: tile@39=%s tile@38=%s (expect both non-null)" %
+			[low != null, high != null])
+
+	print("[smoke] -- M17 queued column after destroy --")
+	var col3 := 52
+	for row in range(Const.MAP_HEIGHT):
+		terrain.clear_tile(col3, row)
+	var anchor := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
+	anchor.collapsible = false
+	terrain.set_tile(col3, 28, anchor)
+	var hang := Tile.new().setup(Tile.TileType.SOLID, 3, 0)
+	hang.collapsible = true
+	terrain.set_tile(col3, 26, hang)
+	terrain.damage_tile(col3, 28, 99)   # destroys anchor, queues column
+	terrain.resolve_collapses([], [])
+	var landed := terrain.get_tile(col3, Const.MAP_HEIGHT - 1)
+	print("  after support destroyed: rests on bottom=%s (expect true)" % (landed != null))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

@@ -71,7 +71,7 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 	for d in deployable_hit:
 		d.take_damage(deployable_hit[d])
 	# Collapse once, after the whole blast (terrain + unit damage applied).
-	terrain.flush_collapses()
+	terrain.resolve_collapses(units, deployables)
 	terrain.aoe_resolved.emit(origin, max_dist, affected)
 	EventBus.aoe_resolved.emit(origin, max_dist, affected)
 	return affected

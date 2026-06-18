@@ -20,9 +20,8 @@ var element : Element  = Element.NONE
 var flags   : int      = 0
 var variant : int      = 0   # visual variant 0–3; cosmetic only
 
-## Whether this tile falls when the tile below it is destroyed/removed. Default false:
-## ALL terrain is currently fixed in place (no collapse). Collapse rules come later — when
-## they do, generation will opt specific tiles into collapsing by setting this true.
+## Whether this tile participates in gravity collapse (M17). Mutable so transmutation
+## effects can flip terrain to/from collapsible at runtime. Indestructible tiles never fall.
 var collapsible : bool = false
 
 ## Active tile status instances (M3 §5.4). Key = status id, value = TileStatusInstance.
