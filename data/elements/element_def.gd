@@ -22,7 +22,7 @@ extends Resource
 @export var vs_shielded_mult : float = 0.0
 
 ## Element × mitigation-layer matrix (mechanics-compatibility §1). Applied as damage
-## passes through armor → shield → HP in Unit.take_damage(). 1.0 = normal.
+## passes through shield → armor → HP in Unit.take_damage(). 1.0 = normal.
 enum MitigationLayer { ARMOR, SHIELD, HP }
 @export var vs_armor_mult  : float = 1.0
 @export var vs_shield_mult : float = 1.0

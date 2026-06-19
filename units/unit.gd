@@ -28,8 +28,7 @@ var run_state : RunUnitState = null
 var kills : int = 0   # persists via run_state; enemies killed by this unit (M12)
 # Shield (M5): a flat, per-combat absorb pool above HP. Granted by cards / generators.
 var shield : int = 0
-# Armor (M20): second flat absorb pool, sits above shield. Element layer matrix applies
-# per-layer when damage passes through. Seeded from definition.base_armor each combat.
+# Armor (M20): second flat absorb pool, below shield in the mitigation stack.
 var armor : int = 0
 var vox_position : Vector2i = Vector2i.ZERO
 var aim_angle_deg : float = 45.0        # positive-up convention; preserved per unit
@@ -88,10 +87,10 @@ func take_damage(dmg: int, element: ElementDef = null) -> void:
 	if hp <= 0:
 		return
 	var remaining := dmg
-	remaining = _absorb_mitigation(remaining, element, ElementDef.MitigationLayer.ARMOR,
-			"armor", Features.armor_enabled)
 	remaining = _absorb_mitigation(remaining, element, ElementDef.MitigationLayer.SHIELD,
 			"shield", Features.shields_enabled)
+	remaining = _absorb_mitigation(remaining, element, ElementDef.MitigationLayer.ARMOR,
+			"armor", Features.armor_enabled)
 	if remaining > 0:
 		var hp_mult := element.mitigation_mult(ElementDef.MitigationLayer.HP) if element else 1.0
 		var hp_hit := _layer_damage(remaining, hp_mult)
@@ -241,10 +240,10 @@ func _draw_stat_icons(_w: float) -> void:
 	var cy := -16.0
 	var x := 2.0
 	x = _draw_icon_value(x, cy, Color(0.9, 0.4, 0.25), attack)   # attack — reddish
-	if armor > 0:
-		x = _draw_icon_value(x, cy, Color(0.95, 0.82, 0.25), armor)   # armor — yellow
 	if shield > 0:
 		x = _draw_icon_value(x, cy, Color(0.4, 0.75, 1.0), shield)   # shield — blue
+	if armor > 0:
+		x = _draw_icon_value(x, cy, Color(0.95, 0.82, 0.25), armor)   # armor — yellow
 
 # Effect badges (M10): one placeholder circle + stack value per active effect, in a row just
 # below the body. Replaces the M3 top-of-unit status squares. Buffs are green; debuffs use the

@@ -931,12 +931,13 @@ func _m20_smoke() -> void:
 	var ally : Unit = combat.player_units[0]
 	var elec : ElementDef = load("res://data/elements/electric.tres")
 	var hp_max := ally.definition.max_hp
+	_reset(ally); ally.armor = 4; ally.shield = 4
+	ally.take_damage(3)
+	print("  shield absorbs first: shield=%d armor=%d hp=%d (expect 1, 4, %d)" %
+			[ally.shield, ally.armor, ally.hp, hp_max])
 	_reset(ally); ally.armor = 4; ally.shield = 0
 	ally.take_damage(3)
-	print("  armor absorbs first: armor=%d hp=%d (expect 1, %d)" % [ally.armor, ally.hp, hp_max])
-	_reset(ally); ally.armor = 0; ally.shield = 4
-	ally.take_damage(3)
-	print("  shield after armor empty: shield=%d hp=%d (expect 1, %d)" % [ally.shield, ally.hp, hp_max])
+	print("  armor after shield empty: armor=%d hp=%d (expect 1, %d)" % [ally.armor, ally.hp, hp_max])
 	_reset(ally); ally.armor = 4; ally.shield = 0
 	ally.take_damage(3, elec)
 	print("  electric weak vs armor: armor=%d hp=%d (expect 2, %d)" % [ally.armor, ally.hp, hp_max])

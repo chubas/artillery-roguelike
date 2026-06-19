@@ -48,7 +48,7 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
 Borderlands-style armor pool above shield, with element × mitigation-layer multipliers.
 Full matrix in [artillery-space-mechanics-compatibility.md](artillery-space-mechanics-compatibility.md) §1.
 
-- **`Unit.armor`** — flat per-combat absorb pool; pipeline is armor → shield → HP.
+- **`Unit.armor`** — flat per-combat absorb pool; pipeline is shield → armor → HP.
 - **`ElementDef`** — `vs_armor_mult`, `vs_shield_mult`, `vs_hp_mult` applied per layer in
   `take_damage()`.
 - **`UnitDefinition.base_armor`** — Cluster spawns with 4 armor each combat.
