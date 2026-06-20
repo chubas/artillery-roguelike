@@ -24,3 +24,4 @@ var artifacts_enabled       : bool = true   # M9: passive squad-wide artifact ef
 var keywords_enabled        : bool = false
 var card_deck_enabled       : bool = true   # M5: card UI + targeting input path
 var essences_enabled        : bool = true   # M22: per-unit essence upgrade hooks
+var sandbox_enabled         : bool = true   # M24: debug sandbox overlay in combat scene

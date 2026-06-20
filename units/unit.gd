@@ -44,6 +44,7 @@ var move_origin : Vector2i              # vox_position at turn start (for undo)
 var actions_spent_moving : int = 0
 var selected : bool = false     # the controllable unit (white outline) — see set_selected
 var inspected : bool = false    # whichever unit the inspector panel shows — see set_inspected
+var debug_invulnerable : bool = false   # M24: set by sandbox overlay; blocks all incoming damage
 
 ## Active status instances (M3 §4.4). Key = status id, value = StatusInstance.
 var active_statuses : Dictionary = {}
@@ -85,6 +86,8 @@ func _derive_attack() -> int:
 
 # --- State ---------------------------------------------------------------------
 func take_damage(dmg: int, element: ElementDef = null) -> void:
+	if debug_invulnerable:
+		return
 	if hp <= 0:
 		return
 	var remaining := dmg

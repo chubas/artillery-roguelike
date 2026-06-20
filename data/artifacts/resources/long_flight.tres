@@ -5,5 +5,5 @@
 [resource]
 script = ExtResource("1_mdgib")
 artifact_name = "Long Flight"
-description = "Projectiles airborne for more than 10 seconds deal 20% more damage."
+description = "Projectiles airborne for more than 2 seconds deal 50% more damage."
 faction = "army"

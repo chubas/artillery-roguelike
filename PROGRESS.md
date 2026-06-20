@@ -34,15 +34,31 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M20 (armor mitigation layer + element × layer matrix),
   M21 (Shards currency + upgrade slots),
   M22 (Essence system: EssenceDef/Context/System, Armor Primer, Double Shot),
-  **M23 (Unit capacity + skip rewards)**.
+  M23 (Unit capacity + skip rewards),
+  **M24 (Debug sandbox overlay)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M23 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M23 checklists headless (all pass). M24 has no smoke test — it's a dev tool verified manually.
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-20 — Milestone 24: Debug sandbox overlay
+
+Toggleable debug overlay for rapid content authoring and synergy testing during development. Full design in [docs/planning/milestone-24-plan.md](docs/planning/milestone-24-plan.md).
+
+- **`debug/sandbox_overlay.gd`** — `CanvasLayer` added to `combat_scene` in `_ready()`, gated by `Features.sandbox_enabled`. Toggle with backtick (`` ` ``). Right-side scrollable panel, ~210px wide.
+- **Spawn panel.** Lists all `UnitDefinition` resources from `data/units/` (loaded at setup via `DirAccess`). Select a unit, click [As Player] or [As Enemy] to arm spawn, then click terrain to place. Uses `canvas_transform.affine_inverse()` for world-coordinate conversion from a CanvasLayer.
+- **Card injection.** Lists all `CardDefinition` from `data/cards/`. [→ Hand] calls `combat.debug_inject_card_to_hand()`, [→ Deck] calls `debug_inject_card_to_deck()`.
+- **Artifact injection.** Lists all `ArtifactDef` from `data/artifacts/resources/`. [Activate] calls `combat.debug_inject_artifact()`.
+- **Cheats.** [Refill AP] → `debug_refill_ap()`, [End Player Turn] → `end_player_turn()`, [Force Wave] → `debug_force_next_wave()`.
+- **Isolation toggles.** [Player Invulnerable] sets `debug_invulnerable` on all player units (guard in `Unit.take_damage()`). [Enemies Passive] sets `CombatManager.debug_enemies_passive` (skip in `_run_enemy_turn()`). Toggle buttons turn green when active.
+- **Production entry points only.** All actions route through public `debug_*` methods on `CombatManager` — no direct private-field access from the overlay.
+- No smoke test; verified manually.
 
 ---
 
@@ -52,7 +68,7 @@ Two run-management features. Full design in [docs/planning/milestone-23-plan.md]
 
 - **Unit capacity.** `UnitDefinition.capacity_cost: int = 2` (all current units). `RunState.MAX_SQUAD_CAPACITY = 8` constant → max 4 units in squad. The UNIT reward is suppressed entirely (returns `[]` from `_pick_reward_options`) when capacity is full, so the offer never appears. No bake needed — GDScript defaults are picked up automatically by existing `.tres` files.
 - **Capacity display.** Map screen shows "Squad Capacity: X / 8" in purple below the title, computed from `capacity_cost` sum across live squad. Unit reward cards show a "Capacity: 2" stat line.
-- **Skip rewards.** `RewardScreen` gains `signal reward_skipped()`. A "— Skip —" label (clickable, dim colour) appears below the option cards for ARTIFACT and CARD rewards; hidden for UNIT. `RunController._on_reward_skipped()` calls `_show_next_reward()` with no reward applied.
+- **Skip rewards.** `RewardScreen` gains `signal reward_skipped()`. A "— Skip —" label (clickable, dim colour) appears below the option cards for all reward categories (UNIT, CARD, ARTIFACT). `RunController._on_reward_skipped()` calls `_show_next_reward()` with no reward applied.
 
 ---
 

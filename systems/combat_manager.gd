@@ -70,6 +70,9 @@ var _artifact_ctx : ArtifactContext = null
 # --- Essences (M22): per-unit upgrade hooks. Loaded from each unit's run_state on setup. -----
 var _essence_ctx : EssenceContext = null
 
+# --- Debug sandbox (M24): flags set by SandboxOverlay; zero cost when overlay absent. ----------
+var debug_enemies_passive : bool = false
+
 # --- Wind (M8, profile from _stage M13): environmental force on projectiles + fire spread -----
 var wind_strength : float = 0.0   # -1.0..1.0 (negative = left, positive = right)
 
@@ -519,7 +522,7 @@ func _run_enemy_turn() -> void:
 	for e in enemy_units:
 		if _is_terminal():
 			return
-		if e.hp <= 0:
+		if e.hp <= 0 or debug_enemies_passive:
 			continue
 		await get_tree().create_timer(Const.ENEMY_FIRE_DELAY).timeout
 		if _is_terminal():
@@ -1036,3 +1039,35 @@ func _push_hud_state() -> void:
 	var cards := _hand if Features.card_deck_enabled else []
 	_hud.set_cards(cards, _pending_index, actions_left, _deck.size(), _discard.size())
 	_hud.set_inspected_unit(inspected_unit)
+
+# --- Debug sandbox API (M24) — thin public wrappers; no new state-mutation logic. --------------
+
+func debug_spawn(def: UnitDefinition, col: int, unit_name: String, is_player: bool) -> Unit:
+	var u := _spawn(def, unit_name, col, is_player)
+	if is_player:
+		player_units.append(u)
+	else:
+		enemy_units.append(u)
+	all_units.append(u)
+	return u
+
+func debug_inject_card_to_hand(def: CardDefinition) -> void:
+	_hand.append(def)
+	_push_hud_state()
+
+func debug_inject_card_to_deck(def: CardDefinition) -> void:
+	_deck.append(def)
+	_push_hud_state()
+
+func debug_inject_artifact(def: ArtifactDef) -> void:
+	artifacts.append(def)
+	if _artifact_ctx != null:
+		ArtifactSystem.call_combat_start([def], _artifact_ctx)
+	_push_hud_state()
+
+func debug_refill_ap() -> void:
+	actions_left = _turn_max_actions
+	action_bar_changed.emit(actions_left, _turn_max_actions)
+
+func debug_force_next_wave() -> void:
+	_check_reinforcements()
