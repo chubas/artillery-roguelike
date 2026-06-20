@@ -925,6 +925,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if game_state == GameState.PLACEMENT:
 		_placement_input(event)
 		return
+	if event is InputEventKey and event.pressed and not event.echo \
+			and event.physical_keycode == KEY_K and event.shift_pressed:
+		for u in enemy_units.duplicate():
+			if is_instance_valid(u) and u.hp > 0:
+				u.take_damage(9999)
+		return
 	if game_state != GameState.PLAYER_TURN:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:

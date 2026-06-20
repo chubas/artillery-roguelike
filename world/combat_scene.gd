@@ -86,6 +86,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_zoom_camera(1.1)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_zoom_camera(1.0 / 1.1)
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_EQUAL:
+			_zoom_camera(1.1)
+		elif event.physical_keycode == KEY_MINUS:
+			_zoom_camera(1.0 / 1.1)
 
 func _zoom_camera(factor: float) -> void:
 	var z : float = clampf(camera.zoom.x * factor, ZOOM_MIN, ZOOM_MAX)
