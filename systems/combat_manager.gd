@@ -1071,3 +1071,9 @@ func debug_refill_ap() -> void:
 
 func debug_force_next_wave() -> void:
 	_check_reinforcements()
+
+func debug_advance_round() -> void:
+	round_index += 1
+	TileStatusSystem.tick_all(_terrain, all_units)
+	for u in player_units + enemy_units:
+		UnitStatusSystem.tick_all(u)

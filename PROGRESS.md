@@ -35,7 +35,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M21 (Shards currency + upgrade slots),
   M22 (Essence system: EssenceDef/Context/System, Armor Primer, Double Shot),
   M23 (Unit capacity + skip rewards),
-  **M24 (Debug sandbox overlay)**.
+  M24 (Debug sandbox overlay),
+  **M25 (Sandbox II: spawn overrides, terrain, inspector, round advance)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
@@ -44,6 +45,17 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-20 — Milestone 25: Sandbox II
+
+Enhancements to the debug overlay. Full design in [docs/planning/milestone-25-plan.md](docs/planning/milestone-25-plan.md).
+
+- **Spawn overrides.** HP%, shield, and armor SpinBoxes apply to each newly spawned unit immediately after placement. A status injection sub-panel (OptionButton + stacks SpinBox + [Apply]) writes a `StatusInstance` into the last-spawned unit's `active_statuses`.
+- **Terrain controls.** New TERRAIN section: seed LineEdit + [Regenerate] → `TerrainManager.generate(seed)`. All live units are re-snapped to the new surface via `get_surface_row(col)`.
+- **Inspector click.** When the overlay is open and no spawn is pending, left-clicking any unit calls `hud.set_inspected_unit(unit)`, opening the existing HUD inspector panel for that unit.
+- **Force N rounds.** SpinBox + [Advance Rounds] → loops `debug_advance_round()` N times. New `CombatManager.debug_advance_round()` ticks tile and unit statuses and increments `round_index`.
 
 ---
 

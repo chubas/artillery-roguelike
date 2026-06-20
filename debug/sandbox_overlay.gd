@@ -1,4 +1,4 @@
-# Debug sandbox overlay (M24). Toggled with backtick (`). Sits on top of combat_scene as a
+# Debug sandbox overlay (M24/M25). Toggled with backtick (`). Sits on top of combat_scene as a
 # CanvasLayer; all actions route through CombatManager's public debug_* API — no direct
 # internal access. Gated by Features.sandbox_enabled so it adds zero cost when disabled.
 extends CanvasLayer
@@ -9,13 +9,32 @@ const BTN_H   := 22
 var _combat  : CombatManager  = null
 var _terrain : TerrainManager = null
 var _camera  : Camera2D       = null
+var _hud     : Node           = null
 
 # Selection state
 var _selected_unit_def     : UnitDefinition = null
 var _selected_card_def     : CardDefinition = null
 var _selected_artifact_def : ArtifactDef    = null
+var _selected_status_def   : StatusEffectDef = null
 var _pending_spawn         : bool = false
 var _pending_is_player     : bool = true
+var _last_spawned          : Unit = null
+
+# Spawn override controls
+var _hp_pct_spin   : SpinBox = null
+var _shield_spin   : SpinBox = null
+var _armor_spin    : SpinBox = null
+
+# Status injection controls
+var _status_option : OptionButton = null
+var _stacks_spin   : SpinBox = null
+var _status_defs   : Array[StatusEffectDef] = []
+
+# Terrain controls
+var _seed_field    : LineEdit = null
+
+# Rounds cheat control
+var _rounds_spin   : SpinBox = null
 
 # Labels updated at runtime
 var _spawn_status_lbl : Label = null
@@ -24,10 +43,11 @@ var _art_status_lbl   : Label = null
 var _invuln_btn       : Button = null
 var _passive_btn      : Button = null
 
-func setup(combat: CombatManager, terrain: TerrainManager, camera: Camera2D) -> void:
+func setup(combat: CombatManager, terrain: TerrainManager, camera: Camera2D, hud: Node = null) -> void:
 	_combat  = combat
 	_terrain = terrain
 	_camera  = camera
+	_hud     = hud
 	layer    = 10
 	_build_panel()
 	visible  = false
@@ -41,21 +61,40 @@ func _input(event: InputEvent) -> void:
 		if not visible:
 			_pending_spawn = false
 
-# ── Spawn click (world coordinates from a CanvasLayer) ──────────────────────
+# ── Input: spawn click + inspector click ─────────────────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible or not _pending_spawn:
+	if not visible:
 		return
-	if event is InputEventMouseButton and event.pressed \
-			and event.button_index == MOUSE_BUTTON_LEFT:
-		var world_pos : Vector2 = get_viewport().canvas_transform.affine_inverse() \
-				* event.position
-		var vox := Const.world_to_voxel(world_pos)
+	if not (event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+
+	var world_pos : Vector2 = get_viewport().canvas_transform.affine_inverse() * event.position
+	var vox := Const.world_to_voxel(world_pos)
+
+	if _pending_spawn:
 		var name := _selected_unit_def.display_name if _selected_unit_def != null else "Debug Unit"
-		_combat.debug_spawn(_selected_unit_def, vox.x, name, _pending_is_player)
+		var u : Unit = _combat.debug_spawn(_selected_unit_def, vox.x, name, _pending_is_player)
+		_last_spawned = u
+		# Apply spawn overrides
+		u.hp     = max(1, int(u.definition.max_hp * _hp_pct_spin.value / 100.0))
+		u.shield = int(_shield_spin.value)
+		u.armor  = int(_armor_spin.value)
+		u.queue_redraw()
 		_pending_spawn = false
 		_spawn_status_lbl.text = "Placed %s. Select another." % name
 		get_viewport().set_input_as_handled()
+		return
+
+	# Inspector click: find unit at vox, show in HUD inspector
+	if _hud != null:
+		var all := _combat.player_units + _combat.enemy_units
+		for u in all:
+			if (u as Unit).contains_voxel(vox):
+				_hud.call("set_inspected_unit", u)
+				get_viewport().set_input_as_handled()
+				return
 
 # ── Panel construction ───────────────────────────────────────────────────────
 
@@ -101,6 +140,37 @@ func _build_panel() -> void:
 	spawn_row.add_child(as_enemy_btn)
 	_spawn_status_lbl = _make_label("Select a unit below.")
 	col.add_child(_spawn_status_lbl)
+
+	# Spawn overrides
+	col.add_child(_make_label("HP%  Shield  Armor"))
+	var override_row := HBoxContainer.new()
+	col.add_child(override_row)
+	_hp_pct_spin = _make_spinbox(1.0, 100.0, 100.0)
+	_shield_spin = _make_spinbox(0.0, 99.0, 0.0)
+	_armor_spin  = _make_spinbox(0.0, 99.0, 0.0)
+	override_row.add_child(_hp_pct_spin)
+	override_row.add_child(_shield_spin)
+	override_row.add_child(_armor_spin)
+
+	# Status injection
+	col.add_child(_make_label("Apply status to last spawn:"))
+	_status_defs = _load_status_defs()
+	_status_option = OptionButton.new()
+	_status_option.focus_mode = Control.FOCUS_NONE
+	_status_option.add_theme_font_size_override("font_size", 10)
+	for sd in _status_defs:
+		_status_option.add_item(sd.display_name)
+	col.add_child(_status_option)
+	var status_row := HBoxContainer.new()
+	col.add_child(status_row)
+	_stacks_spin = _make_spinbox(1.0, 10.0, 1.0)
+	status_row.add_child(_stacks_spin)
+	var apply_status_btn := _make_btn("Apply")
+	apply_status_btn.pressed.connect(_apply_status_to_last_spawn)
+	status_row.add_child(apply_status_btn)
+
+	col.add_child(HSeparator.new())
+
 	for def in _load_unit_defs():
 		var d : UnitDefinition = def
 		var b := _make_btn(d.display_name)
@@ -153,6 +223,17 @@ func _build_panel() -> void:
 			_art_status_lbl.text = "Ready: %s" % d.artifact_name)
 		col.add_child(b)
 
+	# ── Terrain ──
+	_add_section(col, "TERRAIN")
+	col.add_child(_make_label("Seed:"))
+	_seed_field = LineEdit.new()
+	_seed_field.text = "12345"
+	_seed_field.add_theme_font_size_override("font_size", 11)
+	col.add_child(_seed_field)
+	var regen_btn := _make_btn("Regenerate")
+	regen_btn.pressed.connect(_regenerate_terrain)
+	col.add_child(regen_btn)
+
 	# ── Cheats ──
 	_add_section(col, "CHEATS")
 	var refill_btn := _make_btn("Refill AP")
@@ -164,6 +245,15 @@ func _build_panel() -> void:
 	var wave_btn := _make_btn("Force Wave")
 	wave_btn.pressed.connect(func() -> void: _combat.debug_force_next_wave())
 	col.add_child(wave_btn)
+	var rounds_row := HBoxContainer.new()
+	col.add_child(rounds_row)
+	_rounds_spin = _make_spinbox(1.0, 20.0, 1.0)
+	rounds_row.add_child(_rounds_spin)
+	var advance_btn := _make_btn("Advance Rounds")
+	advance_btn.pressed.connect(func() -> void:
+		for _i in int(_rounds_spin.value):
+			_combat.debug_advance_round())
+	rounds_row.add_child(advance_btn)
 
 	# ── Isolation ──
 	_add_section(col, "ISOLATION")
@@ -173,6 +263,30 @@ func _build_panel() -> void:
 	_passive_btn = _make_btn("Enemies Passive: OFF")
 	_passive_btn.pressed.connect(_toggle_enemy_passive)
 	col.add_child(_passive_btn)
+
+# ── Terrain regeneration ─────────────────────────────────────────────────────
+
+func _regenerate_terrain() -> void:
+	var seed_val := int(_seed_field.text) if _seed_field.text.is_valid_int() else 12345
+	_terrain.generate(seed_val)
+	# Re-snap all units to the new surface
+	var all := _combat.player_units + _combat.enemy_units
+	for u in all:
+		var unit : Unit = u
+		var new_row := _terrain.get_surface_row(unit.vox_position.x)
+		unit.set_vox_position(Vector2i(unit.vox_position.x, new_row))
+
+# ── Status injection ─────────────────────────────────────────────────────────
+
+func _apply_status_to_last_spawn() -> void:
+	if _last_spawned == null or not is_instance_valid(_last_spawned):
+		return
+	if _status_defs.is_empty():
+		return
+	var def : StatusEffectDef = _status_defs[_status_option.selected]
+	var inst := StatusInstance.new(def, int(_stacks_spin.value))
+	_last_spawned.active_statuses[def.id] = inst
+	_last_spawned.queue_redraw()
 
 # ── Isolation toggles ────────────────────────────────────────────────────────
 
@@ -238,6 +352,21 @@ func _load_artifact_defs() -> Array[ArtifactDef]:
 	out.sort_custom(func(a, b): return a.artifact_name < b.artifact_name)
 	return out
 
+func _load_status_defs() -> Array[StatusEffectDef]:
+	var out : Array[StatusEffectDef] = []
+	var dir := DirAccess.open("res://data/statuses/")
+	if dir == null: return out
+	dir.list_dir_begin()
+	var f := dir.get_next()
+	while f != "":
+		if f.ends_with(".tres"):
+			var res := load("res://data/statuses/" + f)
+			if res is StatusEffectDef:
+				out.append(res as StatusEffectDef)
+		f = dir.get_next()
+	out.sort_custom(func(a, b): return a.display_name < b.display_name)
+	return out
+
 # ── UI helpers ───────────────────────────────────────────────────────────────
 
 func _add_header(parent: Control, text: String) -> void:
@@ -273,3 +402,14 @@ func _make_label(text: String) -> Label:
 	lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return lbl
+
+func _make_spinbox(min_val: float, max_val: float, default_val: float) -> SpinBox:
+	var sb := SpinBox.new()
+	sb.min_value = min_val
+	sb.max_value = max_val
+	sb.value = default_val
+	sb.step = 1.0
+	sb.focus_mode = Control.FOCUS_NONE
+	sb.add_theme_font_size_override("font_size", 10)
+	sb.custom_minimum_size.x = 56
+	return sb

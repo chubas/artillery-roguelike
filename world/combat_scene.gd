@@ -57,7 +57,7 @@ func _ready() -> void:
 	if Features.sandbox_enabled and OS.get_environment("ARTILLERY_SMOKE") != "1":
 		var overlay : Node = load("res://debug/sandbox_overlay.gd").new()
 		add_child(overlay)
-		overlay.call("setup", combat, terrain, camera)
+		overlay.call("setup", combat, terrain, camera, hud)
 	if OS.get_environment("ARTILLERY_SMOKE") == "1":
 		combat._drain_placement_queue()   # drop every queued unit + confirm → start round 1
 		_smoke_test()
