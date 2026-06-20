@@ -8,7 +8,7 @@ extends RefCounted
 var squad     : Array[RunUnitState] = []
 var deck      : Array[String] = []      # canonical card list (resource paths) — edited between stages
 var artifacts : Array[String] = []      # active run-level modifiers (resource paths)
-var resources : Dictionary = { "gold": 0, "scrap": 0, "intel": 0 }
+var resources : Dictionary = { "gold": 0, "scrap": 0, "intel": 0, "shards": 0 }
 var map       : Variant = null          # MapState — placeholder until M14
 var run_meta  : Dictionary = { "seed": 0, "act": 1, "stage_index": 0 }
 # Reward pools (M16): options offered at reward screens. Units/cards repeat OK; artifacts don't.

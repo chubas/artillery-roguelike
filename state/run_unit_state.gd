@@ -10,6 +10,7 @@ var current_hp    : int = 0            # persists across stages — the run-deci
 var max_hp        : int = 0            # = definition.max_hp in M12 (+ permanent upgrades later)
 var is_disabled   : bool = false       # hit 0 HP; persists as disabled; does not deploy
 var kills         : int = 0            # scaling counter, accumulates across the run
+var upgrade_slots : int = 2             # shared pool for upgrades + fused essences (design doc §5)
 var upgrades      : Array[String] = []  # empty in M12 — seam for permanent upgrades
 var equipment     : Array[String] = []  # empty in M12 — seam for equipment loadout
 
@@ -31,6 +32,7 @@ func to_dict() -> Dictionary:
 		"max_hp": max_hp,
 		"is_disabled": is_disabled,
 		"kills": kills,
+		"upgrade_slots": upgrade_slots,
 		"upgrades": upgrades.duplicate(),
 		"equipment": equipment.duplicate(),
 	}
@@ -43,6 +45,7 @@ static func from_dict(d: Dictionary) -> RunUnitState:
 	rus.max_hp = d.get("max_hp", 0)
 	rus.is_disabled = d.get("is_disabled", false)
 	rus.kills = d.get("kills", 0)
+	rus.upgrade_slots = d.get("upgrade_slots", 2)
 	rus.upgrades.assign(d.get("upgrades", []))
 	rus.equipment.assign(d.get("equipment", []))
 	return rus

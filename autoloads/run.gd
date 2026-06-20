@@ -59,4 +59,5 @@ func start_default_run() -> void:
 	]
 	rs.map = MapState.build_diamond(_DEFAULT_MAP)
 	rs.run_meta = { "seed": randi(), "act": 1, "stage_index": 0, "faction": Faction.ARMY }
+	rs.resources["shards"] = 10
 	active = rs

@@ -213,6 +213,7 @@ func _smoke_test() -> void:
 	_m16_smoke()
 	_m17_smoke()
 	_m18_smoke()
+	_m21_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1160,6 +1161,17 @@ func _m18_smoke() -> void:
 	print("  artifact regen=%s debuff=%s (expect neutral, army)" % [regen.faction, debuff.faction])
 	print("  Faction.display_name(army)=%s (expect Seekers)" % Faction.display_name(Faction.ARMY))
 	print("  run faction=%s (expect army)" % Run.active.run_meta.get("faction", ""))
+
+func _m21_smoke() -> void:
+	print("[smoke] -- M21 shards + upgrade slots --")
+	Run.start_default_run()
+	var rs := Run.active
+	_check("shards start", rs.resources.get("shards", -1), 10)
+	for u in rs.squad:
+		_check("upgrade_slots %s" % u.display_name, u.upgrade_slots, 2)
+	var rs2 := RunState.from_dict(rs.to_dict())
+	_check("rt shards", rs2.resources.get("shards", -1), 10)
+	_check("rt upgrade_slots", rs2.squad[0].upgrade_slots, 2)
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

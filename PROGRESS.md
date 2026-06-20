@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-18)
+## Current state (2026-06-19)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -27,19 +27,35 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M13 (stage as data: `StageDescriptor`, objective evaluator, per-stage terrain seed),
   M14 (linear run loop: `MapState`, `RunController` main scene, map↔combat flow),
   M15 (pre-combat placement: per-stage spawn zone, PLACEMENT state, deploy UI),
-  **M16 (battle rewards + dig vs unit damage separation)**,
-  **M17 (collapsible terrain: column collapse, crush damage, resolve API)**,
-  **M18 (faction ids on units, cards, artifacts)**,
-  **M19 (branching map: diamond DAG, click-to-select)**,
-  **M20 (armor mitigation layer + element × layer matrix)**.
+  M16 (battle rewards + dig vs unit damage separation),
+  M17 (collapsible terrain: column collapse, crush damage, resolve API),
+  M18 (faction ids on units, cards, artifacts),
+  M19 (branching map: diamond DAG, click-to-select),
+  M20 (armor mitigation layer + element × layer matrix),
+  **M21 (Shards currency + upgrade slots)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M20 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M21 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-19 — Milestone 21: Shards currency & upgrade slots
+
+Two run-state primitives scaffolding the currency/retire/fusion system (design doc
+[artillery-space-currency-retire-fusion.md](docs/design/artillery-space-currency-retire-fusion.md)).
+Full design in [docs/planning/milestone-21-plan.md](docs/planning/milestone-21-plan.md).
+
+- **Shards.** `RunState.resources["shards"]` is the single fungible run currency. Starts at **10**
+  per `Run.start_default_run()`. Sources (terrain destruction, kills, stage clear) and sinks (shop,
+  repair, fusion, deck thinning, rerolls) are deferred milestones.
+- **Upgrade slots.** `RunUnitState.upgrade_slots: int = 2` — the bounded shared pool for permanent
+  upgrades and fused essences per design doc §5. No upgrade mechanics yet; field serializes through
+  `to_dict`/`from_dict` with a backwards-compatible default of 2.
 
 ---
 
