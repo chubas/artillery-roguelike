@@ -426,8 +426,9 @@ class UnitInspector:
 			if shot.aoe_pattern != null:
 				_draw_pattern_glyph(shot.aoe_pattern, Rect2(Vector2(size.x - 58, 6), Vector2(50, 50)))
 			y += 14
-			if shot.description != "":
-				draw_multiline_string(font, Vector2(10, y), shot.description,
+			var shot_desc := shot.resolve_description(unit)
+			if shot_desc != "":
+				draw_multiline_string(font, Vector2(10, y), shot_desc,
 						HORIZONTAL_ALIGNMENT_LEFT, size.x - 20, 11, 3, Color(1, 1, 1, 0.75))
 				y += 38
 		if unit.active_statuses.is_empty():
@@ -526,7 +527,7 @@ class ArtifactIcon:
 	func _ready() -> void:
 		custom_minimum_size = Vector2(SIZE, SIZE)
 		mouse_filter = Control.MOUSE_FILTER_STOP
-		tooltip_text = "Artifact%d\n%s" % [index + 1, artifact.description]
+		tooltip_text = "Artifact%d\n%s" % [index + 1, artifact.resolve_description()]
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, Vector2(SIZE, SIZE))

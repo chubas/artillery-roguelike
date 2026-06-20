@@ -36,15 +36,31 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M22 (Essence system: EssenceDef/Context/System, Armor Primer, Double Shot),
   M23 (Unit capacity + skip rewards),
   M24 (Debug sandbox overlay),
-  **M25 (Sandbox II: spawn overrides, terrain, inspector, round advance)**.
+  M25 (Sandbox II: spawn overrides, terrain, inspector, round advance),
+  **M26 (Tooltip templating + formula-driven leveling)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M23 checklists headless (all pass). M24 has no smoke test — it's a dev tool verified manually.
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless --path . res://world/combat_scene.tscn` runs M3–M23 checklists headless (all pass). Use the `.tscn` form — `-s combat_scene.gd` skips autoload registration at parse time and fails to compile. M24/M25 have no smoke test — they're dev tools verified manually.
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-20 — Milestone 26: Tooltip Templating + Formula-Driven Leveling
+
+Description strings now resolve from the same formula the gameplay code uses. Full design in [docs/planning/milestone-26-plan.md](docs/planning/milestone-26-plan.md).
+
+- **`description_template` + `resolve_description()`** added to all def types: `ShotDefinition`, `CardDefinition`, `ArtifactDef`, `EssenceDef`, `StatusEffectDef`. Templates use `{token}` placeholders resolved by `String.format()`.
+- **Shot resolver** (`ShotDefinition.resolve_params(unit)`) computes `damage`, `dig`, `count`, `cost`, `uses` from the same formula `ProjectileManager` uses — tooltip values and gameplay values are mechanically coupled. AoE shape is NOT tokenized (use `[[shape]]` placeholder where text is needed; visual glyph is the display).
+- **Card level scaling** (`CardDefinition.effective_magnitude(level)`): `magnitude + magnitude_per_level * level`. Level source is card upgrade tier from `Run.active.card_upgrades.get(card.id, 0)` (not unit level). `RunState.card_upgrades: Dictionary = {}` added as the seam.
+- **Essence level scaling** (`EssenceDef.effective_value(level)`): `base_value + value_per_level * level`. Level from `unit.run_state.level`. `RunUnitState.level: int = 0` added as the seam. `EssenceArmorPrimer` reads `def.effective_value(level)` instead of a hardcoded 10.
+- **Display sites updated:** `hud.gd` (shot inspector panel + artifact icon tooltip), `reward_screen.gd` (artifact option cards).
+- **Bake script updated:** all `description` → `description_template` assignments use `{token}` placeholders where values come from def fields. `armor_primer.tres` gains `base_value = 10`.
+- **Smoke test command fixed:** `-s combat_scene.gd` silently skipped autoload registration at GDScript parse time, causing `Identifier not found: Run` after any cache invalidation. Correct form: `godot --headless --path . res://world/combat_scene.tscn`.
+- **Type annotation fix:** `var card_level : int =` (not `:=`) on the `Dictionary.get()` call in `CombatManager._apply_card()` — Godot 4 treats inferred-Variant as an error.
 
 ---
 

@@ -5,4 +5,4 @@
 [resource]
 script = ExtResource("1_ykyhh")
 artifact_name = "Free First Card"
-description = "The first card played each combat costs 0 actions."
+description_template = "The first card played each combat costs 0 actions."

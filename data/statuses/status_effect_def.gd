@@ -29,3 +29,15 @@ extends Resource
 
 ## Status that cleanses this one on application (e.g. fire cleanses chill)
 @export var cleansed_by_element : String = ""
+
+## Tokens: {tick_damage}, {ap_reduction}, {duration}, {max_stacks}. Leave empty = no tooltip.
+@export var description_template : String = ""
+
+func resolve_description() -> String:
+	if description_template.is_empty(): return ""
+	return description_template.format({
+		"tick_damage":  tick_damage,
+		"ap_reduction": ap_reduction,
+		"duration":     duration,
+		"max_stacks":   max_stacks,
+	})

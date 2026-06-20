@@ -5,4 +5,4 @@
 [resource]
 script = ExtResource("1_sj23i")
 essence_name = "Double Shot"
-description = "After firing, automatically shoot again with the same angle and power after 2 seconds."
+description_template = "After firing, automatically shoot again with the same angle and power after 2 seconds."

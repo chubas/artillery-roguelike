@@ -868,17 +868,19 @@ func _apply_card(card: CardDefinition, target: Unit, vox: Vector2i) -> void:
 	var cost := ArtifactSystem.apply_card_cost(artifacts, _artifact_ctx, card, card.action_cost)
 	actions_left -= cost
 	action_bar_changed.emit(actions_left, _turn_max_actions)
+	var card_level : int = Run.active.card_upgrades.get(card.id, 0) if Run.active != null else 0
+	var mag := card.effective_magnitude(card_level)
 	match card.effect_type:
 		CardDefinition.EffectType.SHIELD_BUFF:
-			target.add_shield(card.magnitude)
+			target.add_shield(mag)
 			EventBus.unit_shield_changed.emit(target, target.shield)
 		CardDefinition.EffectType.ARMOR_BUFF:
-			target.add_armor(card.magnitude)
+			target.add_armor(mag)
 			EventBus.unit_armor_changed.emit(target, target.armor)
 		CardDefinition.EffectType.DIRECT_DAMAGE:
-			target.take_damage(card.magnitude)   # routes through shield, like any other hit
+			target.take_damage(mag)   # routes through shield, like any other hit
 		CardDefinition.EffectType.ADD_BOOSTED:
-			UnitStatusSystem.apply(target, load("res://data/statuses/boosted.tres"), card.magnitude)
+			UnitStatusSystem.apply(target, load("res://data/statuses/boosted.tres"), mag)
 		CardDefinition.EffectType.DEPLOY_MINE:
 			_deploy_mine_at(vox.x)
 		CardDefinition.EffectType.HALVE_WIND:

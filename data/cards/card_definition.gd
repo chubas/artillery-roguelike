@@ -15,8 +15,21 @@ enum EffectType { SHIELD_BUFF, ARMOR_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MI
 
 @export var target_type : TargetType = TargetType.ALLY
 @export var effect_type : EffectType = EffectType.SHIELD_BUFF
-@export var magnitude : int = 0           # shield/armor points, damage dealt, or Boosted stacks
+@export var description_template : String = ""
+@export var magnitude       : int = 0   # shield/armor points, damage dealt, or Boosted stacks
+@export var magnitude_per_level : int = 0   # seam for card-shop upgrades; 0 = no scaling yet
 @export var action_cost : int = 1
 
 @export var color : Color = Color(0.6, 0.6, 0.9)   # HUD chip tint
+
+## Effective magnitude given the card's upgrade tier from Run.active.card_upgrades.
+func effective_magnitude(level: int = 0) -> int:
+	return magnitude + magnitude_per_level * level
+
+func resolve_params(level: int = 0) -> Dictionary:
+	return {"magnitude": effective_magnitude(level), "cost": action_cost}
+
+func resolve_description(level: int = 0) -> String:
+	if description_template.is_empty(): return ""
+	return description_template.format(resolve_params(level))
 

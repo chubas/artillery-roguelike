@@ -4,8 +4,9 @@ extends Resource
 
 @export var id : String = ""
 @export var display_name : String = "Shell"
-## Short flavor/mechanic phrase shown in the unit inspector panel (M5 polish).
-@export var description : String = ""
+## Flavor/mechanic phrase shown in the unit inspector. Use {damage}, {dig}, {count}, {cost},
+## {uses} tokens; AoE shape is not tokened — use [[shape]] as a visual placeholder.
+@export var description_template : String = ""
 
 ## Physics
 @export var base_speed : float = 600.0     # px/s at full charge
@@ -71,3 +72,20 @@ enum TrajectoryType { ARC, FLAT, MORTAR, BYPASS, BOUNCING, BURROWING }
 ## True when this shot launches more than one projectile body (cluster or spiral).
 func is_salvo() -> bool:
 	return projectile_count > 1 or spiral_arms > 0
+
+## Returns the substitution dict for description_template given a live unit (may be null).
+## Uses the same formula as ProjectileManager so tooltip and gameplay always agree.
+func resolve_params(unit: Unit = null) -> Dictionary:
+	var atk := unit.attack if unit != null else 3
+	var dg  := unit.dig    if unit != null else 1
+	return {
+		"damage": maxi(0, roundi(atk * strength_mult)),
+		"dig":    maxi(0, roundi(dg  * dig_mult)),
+		"count":  projectile_count,
+		"cost":   action_cost,
+		"uses":   (str(uses_per_stage) if uses_per_stage >= 0 else "∞"),
+	}
+
+func resolve_description(unit: Unit = null) -> String:
+	if description_template.is_empty(): return ""
+	return description_template.format(resolve_params(unit))

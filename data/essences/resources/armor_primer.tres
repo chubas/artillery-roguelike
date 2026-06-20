@@ -5,4 +5,5 @@
 [resource]
 script = ExtResource("1_mplir")
 essence_name = "Armor Primer"
-description = "Enter each combat with 10 extra armor."
+description_template = "Enter each combat with {value} extra armor."
+base_value = 10

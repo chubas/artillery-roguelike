@@ -162,7 +162,7 @@ class OptionCard:
 		y += 22
 		draw_line(Vector2(12, y), Vector2(W - 12, y), Color(1, 1, 1, 0.2), 1.0)
 		y += 12
-		draw_multiline_string(font, Vector2(12, y), def.description,
+		draw_multiline_string(font, Vector2(12, y), def.resolve_description(),
 				HORIZONTAL_ALIGNMENT_LEFT, W - 24, 12, 7, Color(1, 1, 1, 0.85))
 
 	func _draw_card(font: Font, y: float) -> void:

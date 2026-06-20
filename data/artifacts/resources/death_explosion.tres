@@ -5,5 +5,5 @@
 [resource]
 script = ExtResource("1_n1lpj")
 artifact_name = "Death Explosion"
-description = "The first enemy to die each combat explodes in a diamond doing 5 damage."
+description_template = "The first enemy to die each combat explodes in a diamond doing 5 damage."
 faction = "army"

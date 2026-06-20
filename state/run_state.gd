@@ -16,7 +16,8 @@ var run_meta  : Dictionary = { "seed": 0, "act": 1, "stage_index": 0 }
 # Reward pools (M16): options offered at reward screens. Units/cards repeat OK; artifacts don't.
 var unit_pool     : Array[String] = []
 var card_pool     : Array[String] = []
-var artifact_pool : Array[String] = []   # shrinks as artifacts are claimed (no repeats)
+var artifact_pool  : Array[String] = []   # shrinks as artifacts are claimed (no repeats)
+var card_upgrades  : Dictionary   = {}    # card.id → upgrade tier (int); seam for card-shop upgrades
 
 func to_dict() -> Dictionary:
 	var squad_d : Array = []

@@ -5,4 +5,4 @@
 [resource]
 script = ExtResource("1_3uejg")
 artifact_name = "Lifesteal"
-description = "Units heal half of missing HP when killing an enemy."
+description_template = "Units heal half of missing HP when killing an enemy."

@@ -1,8 +1,11 @@
 class_name ArtifactDef
 extends Resource
 
-@export var artifact_name : String = ""
-@export var description   : String = ""
+@export var artifact_name        : String = ""
+@export var description_template : String = ""
+
+func resolve_description() -> String:
+	return description_template
 
 ## Faction tag (M18): neutral artifacts are cross-faction; tagged ones bias reward pools later.
 @export var faction : String = Faction.NEUTRAL

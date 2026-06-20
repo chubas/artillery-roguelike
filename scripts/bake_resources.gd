@@ -94,7 +94,7 @@ func _initialize() -> void:
 	# ── Phase F: shots ────────────────────────────────────────────────────────
 	var basic := ShotDefinition.new()
 	basic.id = "basic_shell"; basic.display_name = "Basic"
-	basic.description = "A plain explosive shell. Free to fire, no element."
+	basic.description_template = "Free to fire. Deals {damage} damage on impact."
 	basic.base_speed = 600.0; basic.gravity_scale = 1.0; basic.action_cost = 0
 	basic.aoe_pattern = load("res://data/shots/aoe/diamond_r2.tres")
 	basic.trajectory = ShotDefinition.TrajectoryType.ARC
@@ -103,7 +103,7 @@ func _initialize() -> void:
 
 	var fire_shell := ShotDefinition.new()
 	fire_shell.id = "fire_shell"; fire_shell.display_name = "Fire"
-	fire_shell.description = "Burns on impact; strong vs organic, ignites flammable terrain."
+	fire_shell.description_template = "Burns on impact; strong vs organic, ignites flammable terrain."
 	fire_shell.base_speed = 580.0; fire_shell.gravity_scale = 1.0; fire_shell.action_cost = 1
 	fire_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_fire.tres")
 	fire_shell.trajectory = ShotDefinition.TrajectoryType.ARC
@@ -112,7 +112,7 @@ func _initialize() -> void:
 
 	var electric_shell := ShotDefinition.new()
 	electric_shell.id = "electric_shell"; electric_shell.display_name = "Electric"
-	electric_shell.description = "Shocks on impact; strong vs mechanical, chains through conductive terrain."
+	electric_shell.description_template = "Shocks on impact; strong vs mechanical, chains through conductive terrain."
 	electric_shell.base_speed = 650.0; electric_shell.gravity_scale = 0.85
 	electric_shell.action_cost = 1
 	electric_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_electric.tres")
@@ -280,8 +280,10 @@ func _initialize() -> void:
 			"res://data/artifacts/resources/start_boosted.tres", Faction.ARMY)
 
 	# ── M22: essences ─────────────────────────────────────────────────────────
-	_bake_essence(EssenceArmorPrimer.new(), "Armor Primer",
-			"Enter each combat with 10 extra armor.",
+	var armor_primer := EssenceArmorPrimer.new()
+	armor_primer.base_value = 10
+	_bake_essence(armor_primer, "Armor Primer",
+			"Enter each combat with {value} extra armor.",
 			1, "res://data/essences/resources/armor_primer.tres")
 	_bake_essence(EssenceDoubleShot.new(), "Double Shot",
 			"After firing, automatically shoot again with the same angle and power after 2 seconds.",
@@ -379,7 +381,7 @@ func _make_family(type_id: String, label: String, base_cost_unused: int) -> Arra
 		var s := ShotDefinition.new()
 		s.id = type_id + ("_" + variant[0] if variant[0] != "" else "_basic")
 		s.display_name = label if variant[0] == "" else "%s %s" % [label, str(variant[0]).capitalize()]
-		s.description = _family_description(type_id, variant[0])
+		s.description_template = _family_description(type_id, variant[0])
 		s.base_speed = 600.0
 		s.gravity_scale = 1.0
 		s.action_cost = variant[2]
@@ -464,14 +466,14 @@ func _save_player_unit(id: String, dname: String,
 func _bake_artifact(a: ArtifactDef, name: String, desc: String, path: String,
 		faction: String = Faction.NEUTRAL) -> void:
 	a.artifact_name = name
-	a.description = desc
+	a.description_template = desc
 	a.faction = faction
 	_save(a, path)
 
 func _bake_essence(e: EssenceDef, name: String, desc: String, slot_cost: int,
 		path: String, faction: String = Faction.NEUTRAL) -> void:
 	e.essence_name = name
-	e.description  = desc
+	e.description_template = desc
 	e.slot_cost    = slot_cost
 	e.faction      = faction
 	_save(e, path)

@@ -5,4 +5,4 @@
 [resource]
 script = ExtResource("1_bjs8c")
 artifact_name = "Squad Regen"
-description = "At the start of each round, all player units heal 1 HP."
+description_template = "At the start of each round, all player units heal 1 HP."

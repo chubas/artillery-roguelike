@@ -5,5 +5,5 @@
 [resource]
 script = ExtResource("1_73hi7")
 artifact_name = "Idle Actions"
-description = "At round start, gain +1 action for each ally that did not move last round."
+description_template = "At round start, gain +1 action for each ally that did not move last round."
 faction = "army"
