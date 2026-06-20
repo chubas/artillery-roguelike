@@ -125,7 +125,7 @@ func _build_bottom_right() -> void:
 	_inspector.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_inspector.offset_left = -240
 	_inspector.offset_right = -12
-	_inspector.offset_top = -150
+	_inspector.offset_top = -195
 	_inspector.offset_bottom = -12
 	_inspector.visible = false
 	add_child(_inspector)
@@ -440,6 +440,19 @@ class UnitInspector:
 				parts.append("%s x%d" % [inst.definition.display_name, inst.stacks])
 			draw_string(font, Vector2(10, y), "Effects: " + ", ".join(parts),
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 0.85, 0.4))
+		y += 18
+		var used_slots := 0
+		for e in unit.essences:
+			used_slots += (e as EssenceDef).slot_cost
+		var total_slots := unit.run_state.upgrade_slots if unit.run_state != null else 2
+		var slot_col := Color(0.75, 0.5, 1.0)
+		draw_string(font, Vector2(10, y), "[%d/%d] Slots" % [used_slots, total_slots],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 11, slot_col)
+		y += 14
+		for e in unit.essences:
+			draw_string(font, Vector2(10, y), "  " + (e as EssenceDef).essence_name,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, slot_col)
+			y += 13
 
 	# Pattern-zone glyph (M7): small grid of the active shot's footprint, colored by
 	# zone (orange = full strength, yellow = half) via the same palette the in-world

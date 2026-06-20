@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="EssenceDoubleShot" format=3]
+
+[ext_resource type="Script" path="res://data/essences/essence_double_shot.gd" id="1_sj23i"]
+
+[resource]
+script = ExtResource("1_sj23i")
+essence_name = "Double Shot"
+description = "After firing, automatically shoot again with the same angle and power after 2 seconds."

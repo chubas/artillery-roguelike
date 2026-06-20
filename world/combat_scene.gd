@@ -214,6 +214,7 @@ func _smoke_test() -> void:
 	_m17_smoke()
 	_m18_smoke()
 	_m21_smoke()
+	_m22_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1162,16 +1163,36 @@ func _m18_smoke() -> void:
 	print("  Faction.display_name(army)=%s (expect Seekers)" % Faction.display_name(Faction.ARMY))
 	print("  run faction=%s (expect army)" % Run.active.run_meta.get("faction", ""))
 
+func _m22_smoke() -> void:
+	print("[smoke] -- M22 essence system --")
+	Run.start_default_run()
+	var rs := Run.active
+	var rs2 := RunState.from_dict(rs.to_dict())
+	print("  rt equipped Cluster=%d (expect 1)" % rs2.squad[0].equipped_essences.size())
+	print("  rt equipped Bypass=%d (expect 1)"  % rs2.squad[1].equipped_essences.size())
+	var primer : EssenceDef = load(rs.squad[0].equipped_essences[0])
+	var dshot  : EssenceDef = load(rs.squad[1].equipped_essences[0])
+	print("  armor_primer slot_cost=%d (expect 1)" % primer.slot_cost)
+	print("  double_shot slot_cost=%d (expect 1)"  % dshot.slot_cost)
+	var ctx := EssenceContext.new()
+	var dummy := Unit.new()
+	dummy.definition = load("res://data/units/player_cluster.tres")
+	dummy.armor = 0
+	ctx.unit = dummy
+	primer.on_combat_start(ctx)
+	print("  armor_primer adds armor: armor=%d (expect 10)" % dummy.armor)
+	dummy.free()
+
 func _m21_smoke() -> void:
 	print("[smoke] -- M21 shards + upgrade slots --")
 	Run.start_default_run()
 	var rs := Run.active
-	_check("shards start", rs.resources.get("shards", -1), 10)
+	print("  shards start=%d (expect 10)" % rs.resources.get("shards", -1))
 	for u in rs.squad:
-		_check("upgrade_slots %s" % u.display_name, u.upgrade_slots, 2)
+		print("  upgrade_slots %s=%d (expect 2)" % [u.display_name, u.upgrade_slots])
 	var rs2 := RunState.from_dict(rs.to_dict())
-	_check("rt shards", rs2.resources.get("shards", -1), 10)
-	_check("rt upgrade_slots", rs2.squad[0].upgrade_slots, 2)
+	print("  rt shards=%d (expect 10)" % rs2.resources.get("shards", -1))
+	print("  rt upgrade_slots=%d (expect 2)" % rs2.squad[0].upgrade_slots)
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

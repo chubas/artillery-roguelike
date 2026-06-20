@@ -60,4 +60,8 @@ func start_default_run() -> void:
 	rs.map = MapState.build_diamond(_DEFAULT_MAP)
 	rs.run_meta = { "seed": randi(), "act": 1, "stage_index": 0, "faction": Faction.ARMY }
 	rs.resources["shards"] = 10
+	# M22: pre-equip one essence per starting unit for testing. Essences are not unit-specific
+	# by design; this wiring will move to the reward/event system in a later milestone.
+	rs.squad[0].equipped_essences = ["res://data/essences/resources/armor_primer.tres"]
+	rs.squad[1].equipped_essences = ["res://data/essences/resources/double_shot.tres"]
 	active = rs

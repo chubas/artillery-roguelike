@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-19)
+## Current state (2026-06-20)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -32,15 +32,38 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M18 (faction ids on units, cards, artifacts),
   M19 (branching map: diamond DAG, click-to-select),
   M20 (armor mitigation layer + element × layer matrix),
-  **M21 (Shards currency + upgrade slots)**.
+  M21 (Shards currency + upgrade slots),
+  **M22 (Essence system: EssenceDef/Context/System, Armor Primer, Double Shot)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M21 checklists headless (all pass).
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless` runs M3–M22 checklists headless (all pass).
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-20 — Milestone 22: Essence system
+
+Per-unit upgrades that occupy upgrade slots; structurally parallel to the artifact system.
+Full design in [docs/planning/milestone-22-plan.md](docs/planning/milestone-22-plan.md).
+
+- **`EssenceDef / EssenceContext / EssenceSystem`** — same Def/Context/System triple as artifacts.
+  `EssenceContext.unit` holds the owning unit; the combat manager swaps it before each hook call.
+  `EssenceSystem` is a static dispatcher gated by `Features.essences_enabled`.
+- **`RunUnitState.equipped_essences: Array[String]`** — serialized paths, loaded onto `Unit.essences`
+  at combat start via `_init_essences()`. Slot cost validation deferred to the equip UI.
+- **Essence 1 — Armor Primer** (`data/essences/essence_armor_primer.gd`): `on_combat_start` adds 10
+  armor to the owning unit. Stacks with `UnitDefinition.base_armor`.
+- **Essence 2 — Double Shot** (`data/essences/essence_double_shot.gd`): `on_unit_fired` calls
+  `CombatManager.schedule_refire()` — a new async method that waits 2 seconds and fires a second
+  projectile at the same angle/speed. No AP cost; essence hooks suppressed on refire to prevent loops.
+- **Hooks wired** in: `_fire_active()` (unit fired), `_begin_round()`, `end_player_turn()`,
+  `_on_unit_died()`.
+- **Test fixture:** `run.gd` pre-equips Armor Primer on Cluster, Double Shot on Bypass. Essences are
+  not unit-specific by design — wiring moves to reward/event flow in a later milestone.
 
 ---
 

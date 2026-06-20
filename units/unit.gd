@@ -25,6 +25,7 @@ var dig : int = 1
 # and CombatBridge.write_back() copies hp/kills/disabled back to it on combat exit. null in
 # pure-combat / smoke contexts (then the unit spawns at full HP).
 var run_state : RunUnitState = null
+var essences  : Array[EssenceDef] = []   # M22: per-unit essences loaded from run_state at combat start
 var kills : int = 0   # persists via run_state; enemies killed by this unit (M12)
 # Shield (M5): a flat, per-combat absorb pool above HP. Granted by cards / generators.
 var shield : int = 0

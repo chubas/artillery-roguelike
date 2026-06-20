@@ -11,7 +11,8 @@ extends SceneTree
 func _initialize() -> void:
 	for d in ["res://data/elements", "res://data/statuses", "res://data/tile_statuses",
 			"res://data/shots/aoe", "res://data/units", "res://data/cards",
-			"res://data/artifacts/resources", "res://data/stages"]:
+			"res://data/artifacts/resources", "res://data/stages",
+			"res://data/essences/resources"]:
 		DirAccess.make_dir_recursive_absolute(d)
 
 	# ── Unit statuses (leaf — no refs) ────────────────────────────────────────
@@ -278,6 +279,14 @@ func _initialize() -> void:
 			"At the start of the stage, give your units Boosted (3).",
 			"res://data/artifacts/resources/start_boosted.tres", Faction.ARMY)
 
+	# ── M22: essences ─────────────────────────────────────────────────────────
+	_bake_essence(EssenceArmorPrimer.new(), "Armor Primer",
+			"Enter each combat with 10 extra armor.",
+			1, "res://data/essences/resources/armor_primer.tres")
+	_bake_essence(EssenceDoubleShot.new(), "Double Shot",
+			"After firing, automatically shoot again with the same angle and power after 2 seconds.",
+			1, "res://data/essences/resources/double_shot.tres")
+
 	# ── M13: stage descriptors ─────────────────────────────────────────────────
 	var W := Const.MAP_WIDTH
 	# stage_01 reproduces the historical hardcoded stage exactly (defeat-all).
@@ -458,6 +467,14 @@ func _bake_artifact(a: ArtifactDef, name: String, desc: String, path: String,
 	a.description = desc
 	a.faction = faction
 	_save(a, path)
+
+func _bake_essence(e: EssenceDef, name: String, desc: String, slot_cost: int,
+		path: String, faction: String = Faction.NEUTRAL) -> void:
+	e.essence_name = name
+	e.description  = desc
+	e.slot_cost    = slot_cost
+	e.faction      = faction
+	_save(e, path)
 
 func _save(res: Resource, path: String) -> void:
 	var err := ResourceSaver.save(res, path)

@@ -67,6 +67,9 @@ var _artifact_paths : Array = []
 var artifacts : Array[ArtifactDef] = []
 var _artifact_ctx : ArtifactContext = null
 
+# --- Essences (M22): per-unit upgrade hooks. Loaded from each unit's run_state on setup. -----
+var _essence_ctx : EssenceContext = null
+
 # --- Wind (M8, profile from _stage M13): environmental force on projectiles + fire spread -----
 var wind_strength : float = 0.0   # -1.0..1.0 (negative = left, positive = right)
 
@@ -143,6 +146,23 @@ func _init_artifacts() -> void:
 			artifacts.append(a)
 	ArtifactSystem.call_combat_start(artifacts, _artifact_ctx)
 	_hud.set_artifacts(artifacts)
+	_init_essences()
+
+func _init_essences() -> void:
+	_essence_ctx = EssenceContext.new()
+	_essence_ctx.terrain  = _terrain
+	_essence_ctx.all_units = all_units
+	_essence_ctx.combat   = self
+	for unit in player_units:
+		if unit.run_state == null:
+			continue
+		for path in unit.run_state.equipped_essences:
+			var e := load(path) as EssenceDef
+			if e != null:
+				unit.essences.append(e)
+	for unit in player_units:
+		_essence_ctx.unit = unit
+		EssenceSystem.call_combat_start(unit.essences, _essence_ctx)
 
 # --- Spawning (M2 spec §9.3, surface-snap + no-overlap per plan §1.5) -----------
 # Place the run squad (M12): pre-built Units from CombatBridge.build_squad() — definition +
@@ -423,6 +443,10 @@ func _begin_round() -> void:
 	_check_reinforcements()
 	_update_wind_for_round(round_index)
 	ArtifactSystem.call_round_start(artifacts, _artifact_ctx)
+	if _essence_ctx != null:
+		for unit in player_units:
+			_essence_ctx.unit = unit
+			EssenceSystem.call_round_start(unit.essences, _essence_ctx)
 	# 1. Tile statuses tick (burning damages/spreads, electrified chains/decays).
 	TileStatusSystem.tick_all(_terrain, all_units)
 	_wind_spread_fire()
@@ -473,6 +497,10 @@ func end_player_turn() -> void:
 			u.mark_done()
 	_set_selection(null)
 	ArtifactSystem.call_player_turn_end(artifacts, _artifact_ctx)
+	if _essence_ctx != null:
+		for unit in player_units:
+			_essence_ctx.unit = unit
+			EssenceSystem.call_player_turn_end(unit.essences, _essence_ctx)
 	_log_phase("PLAYER TURN END")
 	EventBus.turn_ended.emit("player")
 	game_state = GameState.ENEMY_TURN
@@ -531,6 +559,10 @@ func _on_unit_died(unit: Unit) -> void:
 		ArtifactSystem.call_unit_died(artifacts, _artifact_ctx, unit)
 		if _last_firing_unit != null and is_instance_valid(_last_firing_unit):
 			ArtifactSystem.call_unit_killed(artifacts, _artifact_ctx, unit, _last_firing_unit)
+	if _essence_ctx != null:
+		for pu in player_units:
+			_essence_ctx.unit = pu
+			EssenceSystem.call_unit_died(pu.essences, _essence_ctx, unit)
 	_check_objective()
 
 # Run the stage's objective against current combat state; transition + announce on a result.
@@ -721,10 +753,24 @@ func _fire_active() -> void:
 	_last_firing_unit = u
 	_projectiles.fire(u.barrel_origin_world(), u.aim_dir(), speed, shot, false, u)
 	EventBus.unit_fired.emit(u, shot)
+	if _essence_ctx != null:
+		_essence_ctx.unit      = u
+		_essence_ctx.last_shot  = shot
+		_essence_ctx.last_speed = speed
+		EssenceSystem.call_unit_fired(u.essences, _essence_ctx)
 	u.mark_done()
 	_save_checkpoint()
 	# NOTE: the next unit is NOT focused here. The camera follows the projectile, then lingers
 	# on the impact while the shot resolves; _on_shot_resolved advances once that's done.
+
+# M22: fired by EssenceDoubleShot — fires the unit again with the same angle/speed after a delay.
+# Essence hooks are NOT called on the refire to prevent infinite recursion.
+func schedule_refire(unit: Unit, shot: ShotDefinition, speed: float, delay: float) -> void:
+	await get_tree().create_timer(delay).timeout
+	if not is_instance_valid(unit) or unit.hp <= 0:
+		return
+	_projectiles.fire(unit.barrel_origin_world(), unit.aim_dir(), speed, shot, false, unit)
+	EventBus.unit_fired.emit(unit, shot)
 
 # A shot finished its full resolution routine. For player shots, focus the next available
 # unit now (camera pans to it); enemy shots are sequenced by _run_enemy_turn's own wait.
