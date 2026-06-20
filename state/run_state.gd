@@ -5,6 +5,8 @@
 class_name RunState
 extends RefCounted
 
+const MAX_SQUAD_CAPACITY := 8
+
 var squad     : Array[RunUnitState] = []
 var deck      : Array[String] = []      # canonical card list (resource paths) — edited between stages
 var artifacts : Array[String] = []      # active run-level modifiers (resource paths)

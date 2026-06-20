@@ -8,6 +8,7 @@ signal new_run_requested
 
 var _map : MapState
 var _graph : MapGraphView
+var _capacity_label : Label
 var _detail : Label
 var _hint : Label
 var _end_box : VBoxContainer
@@ -36,6 +37,11 @@ func _build() -> void:
 	var title := _label("ARTILLERY SPACE — RUN MAP", 24)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
+
+	_capacity_label = _label("", 14)
+	_capacity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_capacity_label.add_theme_color_override("font_color", Color(0.75, 0.6, 1.0))
+	box.add_child(_capacity_label)
 
 	_graph = MapGraphView.new()
 	_graph.custom_minimum_size = Vector2(640, 320)
@@ -73,6 +79,12 @@ func _on_node_clicked(node_index: int) -> void:
 	stage_selected.emit(_map.nodes[node_index])
 
 func _refresh() -> void:
+	var used := 0
+	for u in Run.active.squad:
+		var def := load(u.definition_id) as UnitDefinition
+		if def != null:
+			used += def.capacity_cost
+	_capacity_label.text = "Squad Capacity: %d / %d" % [used, RunState.MAX_SQUAD_CAPACITY]
 	_graph.map = _map
 	_graph.queue_redraw()
 	var choices := _map.next_choice_indices()

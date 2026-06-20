@@ -53,4 +53,4 @@ extends Resource
 ## Prototype visuals (replaced by sprites post-M2)
 @export var color : Color = Color(0.5, 0.5, 0.5)
 
-# POST-M3: capacity_cost, action_points, upgrade slots, race, mount type
+@export var capacity_cost : int = 2

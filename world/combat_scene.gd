@@ -215,6 +215,7 @@ func _smoke_test() -> void:
 	_m18_smoke()
 	_m21_smoke()
 	_m22_smoke()
+	_m23_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1182,6 +1183,19 @@ func _m22_smoke() -> void:
 	primer.on_combat_start(ctx)
 	print("  armor_primer adds armor: armor=%d (expect 10)" % dummy.armor)
 	dummy.free()
+
+func _m23_smoke() -> void:
+	print("[smoke] -- M23 unit capacity + skip rewards --")
+	Run.start_default_run()
+	var def := load("res://data/units/player_cluster.tres") as UnitDefinition
+	print("  cluster.capacity_cost=%d (expect 2)" % def.capacity_cost)
+	print("  MAX_SQUAD_CAPACITY=%d (expect 8)" % RunState.MAX_SQUAD_CAPACITY)
+	var used := 0
+	for u in Run.active.squad:
+		var ud := load(u.definition_id) as UnitDefinition
+		if ud != null:
+			used += ud.capacity_cost
+	print("  used_capacity (2-unit run)=%d (expect 4)" % used)
 
 func _m21_smoke() -> void:
 	print("[smoke] -- M21 shards + upgrade slots --")

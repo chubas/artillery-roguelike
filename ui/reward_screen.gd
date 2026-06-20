@@ -5,6 +5,7 @@ class_name RewardScreen
 extends CanvasLayer
 
 signal reward_chosen(path: String)
+signal reward_skipped()
 
 enum Category { UNIT, ARTIFACT, CARD }
 
@@ -51,8 +52,20 @@ func _build() -> void:
 		card.clicked.connect(_on_option_clicked)
 		row.add_child(card)
 
+	var skip_lbl := _make_label("— Skip —", 16)
+	skip_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	skip_lbl.mouse_filter = Control.MOUSE_FILTER_STOP
+	skip_lbl.add_theme_color_override("font_color", Color(0.55, 0.58, 0.68))
+	skip_lbl.gui_input.connect(_on_skip_input)
+	col.add_child(skip_lbl)
+
 func _on_option_clicked(path: String) -> void:
 	reward_chosen.emit(path)
+
+func _on_skip_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT:
+		reward_skipped.emit()
 
 func _make_label(text: String, font_size: int) -> Label:
 	var l := Label.new()
@@ -136,6 +149,9 @@ class OptionCard:
 		y += 20
 		draw_string(font, Vector2(12, y), "Shots: %d" % def.available_shots.size(),
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.75))
+		y += 20
+		draw_string(font, Vector2(12, y), "Capacity: %d" % def.capacity_cost,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.75, 0.6, 1.0))
 
 	func _draw_artifact(font: Font, y: float) -> void:
 		var def : ArtifactDef = _resource as ArtifactDef

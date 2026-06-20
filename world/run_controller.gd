@@ -91,9 +91,13 @@ func _show_next_reward() -> void:
 		var rs := RewardScreen.new()
 		rs.setup(cat, opts)
 		rs.reward_chosen.connect(_on_reward_chosen)
+		rs.reward_skipped.connect(_on_reward_skipped)
 		_swap(rs)
 		return   # wait for player selection
 	_on_all_rewards_done()
+
+func _on_reward_skipped() -> void:
+	_show_next_reward()
 
 func _on_reward_chosen(path: String) -> void:
 	match _current_reward_cat:
@@ -120,11 +124,21 @@ func _on_all_rewards_done() -> void:
 
 # Sample `count` entries from `pool`. `allow_repeat` true = with replacement (units/cards);
 # false = without replacement (artifacts — no duplicates in the same offer or across runs).
+func _used_capacity() -> int:
+	var total := 0
+	for u in Run.active.squad:
+		var def := load(u.definition_id) as UnitDefinition
+		if def != null:
+			total += def.capacity_cost
+	return total
+
 func _pick_reward_options(cat: int) -> Array[String]:
 	var pool : Array[String]
 	var allow_repeat : bool
 	match cat:
 		RewardScreen.Category.UNIT:
+			if _used_capacity() >= RunState.MAX_SQUAD_CAPACITY:
+				return []
 			pool = Run.active.unit_pool
 			allow_repeat = true
 		RewardScreen.Category.ARTIFACT:
