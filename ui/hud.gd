@@ -24,7 +24,8 @@ var _card_box : HBoxContainer
 var _card_chips : Array = []
 var _card_sig : String = ""   # cache: rebuild chips only when the card list changes
 var _deck_label : Label       # M11: draw-pile / discard counts
-var _inspector : UnitInspector
+var _inspector     : UnitInspector
+var _dep_inspector : DeployableInspector   # M28
 var _wind_indicator : WindIndicator
 var _artifact_bar : HBoxContainer
 var _placement_box : VBoxContainer   # M15: instruction + Start Battle, shown only in placement
@@ -129,11 +130,29 @@ func _build_bottom_right() -> void:
 	_inspector.offset_bottom = -12
 	_inspector.visible = false
 	add_child(_inspector)
+	_dep_inspector = DeployableInspector.new()
+	_dep_inspector.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_dep_inspector.offset_left   = -240
+	_dep_inspector.offset_right  = -12
+	_dep_inspector.offset_top    = -195
+	_dep_inspector.offset_bottom = -12
+	_dep_inspector.visible = false
+	add_child(_dep_inspector)
 
 func set_inspected_unit(unit: Unit) -> void:
 	_inspector.unit = unit
 	_inspector.visible = unit != null and is_instance_valid(unit)
 	_inspector.queue_redraw()
+	if _inspector.visible:
+		_dep_inspector.visible = false
+
+func set_inspected_deployable(d: Deployable) -> void:
+	_dep_inspector.deployable = d
+	var show := d != null and is_instance_valid(d)
+	_dep_inspector.visible = show
+	_dep_inspector.queue_redraw()
+	if show:
+		_inspector.visible = false
 
 # Placement controls (M15): a bottom-center instruction + Start Battle button, shown only while
 # deploying the squad (set_placement_mode), hidden during the fight.
@@ -547,3 +566,42 @@ class ArtifactIcon:
 		# Index number, bottom-right corner.
 		draw_string(font, Vector2(SIZE - 11, SIZE - 3), str(index + 1),
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.7))
+
+
+# Deployable Inspector (M28): bottom-right panel for a selected deployable.
+# Type-specific stats via `is ShieldGenerator` / `is Mine` checks.
+# Mutually exclusive with UnitInspector — set_inspected_deployable() hides the other.
+class DeployableInspector:
+	extends Control
+
+	var deployable : Deployable = null
+
+	func _draw() -> void:
+		if deployable == null or not is_instance_valid(deployable):
+			return
+		var r := Rect2(Vector2.ZERO, size)
+		draw_rect(r, Color(0.06, 0.07, 0.1, 0.85))
+		draw_rect(r, Color(1, 1, 1, 0.25), false, 1.0)
+		var font := ThemeDB.fallback_font
+		var y := 18.0
+		draw_string(font, Vector2(10, y), deployable.display_name,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 15,
+				Color(deployable.color.r, deployable.color.g, deployable.color.b))
+		y += 20
+		draw_string(font, Vector2(10, y), "HP: %d / %d" % [deployable.hp, deployable.max_hp],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
+		y += 18
+		if deployable is ShieldGenerator:
+			var sg := deployable as ShieldGenerator
+			draw_string(font, Vector2(10, y), "Shield / turn: %d" % sg.shield_amount,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.6, 0.85, 1.0))
+			y += 16
+			draw_string(font, Vector2(10, y), "Radius: %d voxels" % sg.aura_radius,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.75, 0.85, 1.0))
+		elif deployable is Mine:
+			var m := deployable as Mine
+			draw_string(font, Vector2(10, y), "Damage: %d" % m.strength,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1.0, 0.5, 0.4))
+			y += 16
+			draw_string(font, Vector2(10, y), "Terrain dmg: %d" % m.dig,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.85, 0.7, 0.4))

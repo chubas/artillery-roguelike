@@ -38,7 +38,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M24 (Debug sandbox overlay),
   M25 (Sandbox II: spawn overrides, terrain, inspector, round advance),
   **M26 (Tooltip templating + formula-driven leveling)**,
-  **M27 (Map squad bar, Shards HUD, repair & retire)**.
+  **M27 (Map squad bar, Shards HUD, repair & retire)**,
+  **M28 (Aura visualization + deployable selection)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.

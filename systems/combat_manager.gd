@@ -23,7 +23,8 @@ var active_unit : Unit = null
 # Inspector-panel focus (M5 polish): whichever unit (ally OR enemy) was last clicked,
 # shown in the bottom-right info panel. Distinct from active_unit, which is only ever
 # the player's controllable unit (move/fire/Tab cycle).
-var inspected_unit : Unit = null
+var inspected_unit       : Unit       = null
+var inspected_deployable : Deployable = null   # M28: deployable selection
 
 var charging : bool = false
 var charge_frac : float = 0.0
@@ -328,10 +329,15 @@ func _chebyshev(a: Vector2i, b: Vector2i) -> int:
 func _pulse_shield_generators() -> void:
 	for d in deployables:
 		if d is ShieldGenerator and d.hp > 0:
+			var sg := d as ShieldGenerator
+			var r2 := sg.aura_radius * sg.aura_radius
 			for u in player_units:
-				if u.hp > 0 and _chebyshev(d.vox_position, u.vox_position) <= d.aura_radius:
-					u.add_shield(d.shield_amount)
-					EventBus.unit_shield_changed.emit(u, u.shield)
+				if u.hp > 0:
+					var dx : int = u.vox_position.x - sg.vox_position.x
+					var dy : int = u.vox_position.y - sg.vox_position.y
+					if dx * dx + dy * dy <= r2:
+						u.add_shield(sg.shield_amount)
+						EventBus.unit_shield_changed.emit(u, u.shield)
 
 func _check_mine_triggers(unit: Unit, _from: Vector2i, to: Vector2i) -> void:
 	if not Features.deployables_enabled:
@@ -349,6 +355,9 @@ func _on_mine_detonated(mine: Deployable) -> void:
 
 func _on_deployable_died(d: Deployable) -> void:
 	deployables.erase(d)
+	if inspected_deployable == d:
+		_inspect_deployable(null)
+		_push_hud_state()
 	d.queue_free()
 
 # --- Reinforcements (M5, schedule from _stage.reinforcements M13) ------------------
@@ -486,6 +495,7 @@ func _start_player_turn() -> void:
 	_save_checkpoint()
 	if Features.deployables_enabled:
 		_pulse_shield_generators()
+	_inspect_deployable(null)   # M28: clear stale deployable selection on turn start
 	_select_first_available()
 	_log_phase("PLAYER TURN START")
 	EventBus.turn_started.emit("player")
@@ -632,16 +642,35 @@ func _tab_cycle() -> void:
 	var idx := pool.find(active_unit)
 	_set_selection(pool[(idx + 1) % pool.size()])
 
+func _inspect_deployable(d: Deployable) -> void:
+	if inspected_deployable != null and is_instance_valid(inspected_deployable):
+		inspected_deployable.selected = false
+		inspected_deployable.queue_redraw()
+	inspected_deployable = d
+	if d != null:
+		d.selected = true
+		d.queue_redraw()
+
 func _try_click_select(world_pos: Vector2) -> void:
 	for u in player_units:
 		if u.bounds_rect_world().has_point(world_pos):
 			_set_selection(u)
+			_inspect_deployable(null)
 			return
 	# Enemies aren't controllable, but clicking one focuses + inspects it (M5 polish) —
 	# Tab still only cycles allies.
 	for u in enemy_units:
 		if u.bounds_rect_world().has_point(world_pos):
 			_inspect(u)
+			_inspect_deployable(null)
+			return
+	# M28: clicking a deployable opens the deployable inspector panel.
+	for d in deployables:
+		if d.hp > 0 and d.bounds_rect_world().has_point(world_pos):
+			_inspect_deployable(d)
+			if inspected_unit != null and is_instance_valid(inspected_unit):
+				inspected_unit.set_inspected(false)
+			inspected_unit = null
 			return
 
 # --- Movement (M2 spec §5.2 + unit-collision rule from plan §1.5) -----------------
@@ -1041,6 +1070,7 @@ func _push_hud_state() -> void:
 	var cards := _hand if Features.card_deck_enabled else []
 	_hud.set_cards(cards, _pending_index, actions_left, _deck.size(), _discard.size())
 	_hud.set_inspected_unit(inspected_unit)
+	_hud.set_inspected_deployable(inspected_deployable)
 
 # --- Debug sandbox API (M24) — thin public wrappers; no new state-mutation logic. --------------
 

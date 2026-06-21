@@ -13,6 +13,10 @@ var height_voxels : int = 1
 var display_name : String = "Deployable"
 var color : Color = Color.GRAY
 
+# M28: selection and hover state for visual feedback and inspector panel.
+var hovered  : bool = false
+var selected : bool = false
+
 func set_vox_position(p: Vector2i) -> void:
 	vox_position = p
 	position = Const.voxel_to_world(p)
@@ -42,4 +46,6 @@ func _draw() -> void:
 	var h := height_voxels * Const.VOXEL_SIZE
 	var body := Rect2(0, 0, w, h)
 	draw_rect(body, color)
-	draw_rect(body, color.darkened(0.4), false, 1.0)
+	var border_col := Color.WHITE if selected \
+			else (color.lightened(0.4) if hovered else color.darkened(0.4))
+	draw_rect(body, border_col, false, 2.0 if (selected or hovered) else 1.0)
