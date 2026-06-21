@@ -217,6 +217,7 @@ func _ready() -> void:
 			"On landing, crawls along terrain away from you (up to 10 voxels), then explodes [[shape]].",
 			ShotDefinition.ShotBehavior.WALKER, blast_242, dig_242)
 	walker_shot.walker_max_steps = 10
+	walker_shot.walker_crawl_speed = float(Const.VOXEL_SIZE) / 0.12
 	_save(walker_shot, "res://data/shots/walker_basic.tres")
 
 	var barrier_shot := _make_behavior_shot("barrier_basic", "Barrier",

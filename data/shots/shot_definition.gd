@@ -49,6 +49,8 @@ enum ShotBehavior { STANDARD, SPLIT, WALKER, BARRIER, TELEPORT, BIG_BALL }
 
 ## Walker: on terrain impact, crawl along the surface up to `walker_max_steps` voxels.
 @export var walker_max_steps : int = 10
+## Continuous crawl speed in px/s between voxel waypoints. 0 = default (~one voxel / 0.12s).
+@export var walker_crawl_speed : float = 0.0
 
 ## Barrier: after `barrier_delay_sec`, leave `barrier_tile_hp` tiles in void voxels passed.
 @export var barrier_delay_sec : float = 0.0

@@ -144,19 +144,19 @@ func _draw_charge_preview(barrel: Vector2) -> void:
 
 func _draw_single_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
-			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
+			speed, shot.gravity_scale, 8.0, false, _wind_force_x, units, false)
 	_draw_arc_dots(sim["points"], 3)
 	if sim["hit"] and shot.aoe_pattern != null:
 		_draw_pattern_footprint(sim["impact_voxel"], shot)
 
 func _draw_barrier_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
-			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
+			speed, shot.gravity_scale, 8.0, false, _wind_force_x, units, false)
 	_draw_arc_dots(sim["points"], 3)
 
 func _draw_teleport_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
-			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
+			speed, shot.gravity_scale, 8.0, false, _wind_force_x, units, false)
 	_draw_arc_dots(sim["points"], 3)
 	if not sim["hit"]:
 		return
@@ -177,22 +177,18 @@ func _draw_cluster_preview(barrel: Vector2, shot: ShotDefinition, speed: float) 
 		var off_deg := (float(i) - mid) * shot.spread_deg
 		var dir := active_unit.aim_dir().rotated(deg_to_rad(off_deg))
 		var sim := Trajectory.simulate_arc(terrain, barrel, dir, speed, shot.gravity_scale,
-				8.0, false, _wind_force_x)
+				8.0, false, _wind_force_x, units, false)
 		_draw_arc_dots(sim["points"], 4)
 		if sim["hit"]:
 			_draw_pattern_footprint(sim["impact_voxel"], shot)
 
-# Bypass: the ghost flies through terrain; mark the first opposing unit it would strike (M4).
+# Bypass: the ghost flies through terrain; stops on the first opposing unit voxel (M4).
 func _draw_bypass_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
-			speed, shot.gravity_scale, 8.0, true, _wind_force_x)
-	var points : PackedVector2Array = sim["points"]
-	_draw_arc_dots(points, 3)
-	for p in points:
-		var vox := Const.world_to_voxel(p)
-		if _hits_damageable_unit(vox):
-			_draw_pattern_footprint(vox, shot)
-			return
+			speed, shot.gravity_scale, 8.0, true, _wind_force_x, units, false)
+	_draw_arc_dots(sim["points"], 3)
+	if sim["hit"] and shot.aoe_pattern != null:
+		_draw_pattern_footprint(sim["impact_voxel"], shot)
 
 func _draw_arc_dots(points: PackedVector2Array, stride: int) -> void:
 	for i in range(0, points.size(), stride):

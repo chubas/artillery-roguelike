@@ -49,7 +49,7 @@ func _physics_process(delta: float) -> void:
 	var perp := _main.velocity.normalized().orthogonal()
 	var prev := position
 	position = _main.position + perp * amplitude * sin(TAU * frequency * _elapsed) * arm_sign
-	var hit := Trajectory.check_segment(_terrain, prev, position)
+	var hit := _manager.check_flight_segment(prev, position, _salvo)
 	if hit["collided"]:
 		_active = false
 		_manager.report_impact(_salvo, self, hit["contact_point"], hit["impact_voxel"], false)

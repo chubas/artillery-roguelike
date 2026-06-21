@@ -12,3 +12,4 @@ description_template = "On landing, crawls along terrain away from you (up to 10
 aoe_pattern = ExtResource("1_o58te")
 dig_pattern = ExtResource("2_pknb0")
 behavior = 2
+walker_crawl_speed = 133.33333333333334

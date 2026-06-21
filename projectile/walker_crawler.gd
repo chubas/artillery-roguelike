@@ -1,23 +1,32 @@
 # Post-impact mine that crawls along the terrain contour (M5 Walker shot).
 # Keeps its salvo alive until it explodes; direction is away from the firing side.
+#
+# Animation pattern (reusable for future shot bodies):
+#   • Gameplay resolves on a discrete voxel grid (_vox, step budget, enemy overlap).
+#   • The Node2D position slides continuously between voxel-centre waypoints at crawl_speed.
+#   • Checks run only when a waypoint is reached — not every physics frame.
 class_name WalkerCrawler
 extends Node2D
 
-const STEP_DELAY : float = 0.12
+const DEFAULT_CRAWL_SPEED : float = float(Const.VOXEL_SIZE) / 0.12   # ~one voxel / 0.12s
 
 var _terrain : TerrainManager
 var _manager : ProjectileManager
 var _salvo : RefCounted
 var _units_provider : Callable
 var _vox : Vector2i
+var _next_vox : Vector2i
 var _dir : int
 var _steps_left : int
 var _is_enemy : bool
+var _crawl_speed : float = DEFAULT_CRAWL_SPEED
+var _target_world : Vector2 = Vector2.ZERO
+var _has_target : bool = false
 var _active : bool = true
 
 func setup(terrain: TerrainManager, manager: ProjectileManager, salvo: RefCounted,
 		units_provider: Callable, impact_voxel: Vector2i, direction: int,
-		max_steps: int, is_enemy: bool) -> void:
+		max_steps: int, is_enemy: bool, crawl_speed: float = 0.0) -> void:
 	_terrain = terrain
 	_manager = manager
 	_salvo = salvo
@@ -25,6 +34,7 @@ func setup(terrain: TerrainManager, manager: ProjectileManager, salvo: RefCounte
 	_dir = direction
 	_steps_left = max_steps
 	_is_enemy = is_enemy
+	_crawl_speed = crawl_speed if crawl_speed > 0.0 else DEFAULT_CRAWL_SPEED
 	var surface := _terrain.get_surface_row(impact_voxel.x)
 	if surface == -1:
 		_explode(impact_voxel)
@@ -34,28 +44,46 @@ func setup(terrain: TerrainManager, manager: ProjectileManager, salvo: RefCounte
 	if _opponent_at(_vox):
 		_explode(_vox)
 		return
-	_run()
+	_queue_next_waypoint()
 
 func is_active() -> bool:
 	return _active
 
-func _run() -> void:
-	while _active and _steps_left > 0:
-		await get_tree().create_timer(STEP_DELAY).timeout
-		if not _active:
-			return
-		if _opponent_at(_vox):
-			_explode(_vox)
-			return
-		var next := _crawl_step(_vox, _dir)
-		if next == UnitMovement.NO_MOVE:
-			_explode(_vox)
-			return
-		_vox = next
-		_steps_left -= 1
-		position = Const.voxel_center_world(_vox)
-		queue_redraw()
-	_explode(_vox)
+func _physics_process(delta: float) -> void:
+	if not _active or not _has_target:
+		return
+	var to_target := _target_world - position
+	var dist := to_target.length()
+	var step := _crawl_speed * delta
+	if dist <= step:
+		position = _target_world
+		_on_reached_waypoint()
+	else:
+		position += to_target * (step / dist)
+
+func _queue_next_waypoint() -> void:
+	if _steps_left <= 0:
+		_explode(_vox)
+		return
+	var next := _crawl_step(_vox, _dir)
+	if next == UnitMovement.NO_MOVE:
+		_explode(_vox)
+		return
+	_next_vox = next
+	_target_world = Const.voxel_center_world(next)
+	_has_target = true
+
+func _on_reached_waypoint() -> void:
+	_has_target = false
+	_vox = _next_vox
+	_steps_left -= 1
+	if _opponent_at(_vox):
+		_explode(_vox)
+		return
+	if _steps_left <= 0:
+		_explode(_vox)
+		return
+	_queue_next_waypoint()
 
 func _crawl_step(from: Vector2i, direction: int) -> Vector2i:
 	var new_x := from.x + direction
@@ -84,6 +112,8 @@ func _explode(vox: Vector2i) -> void:
 	if not _active:
 		return
 	_active = false
+	_has_target = false
+	set_physics_process(false)
 	_manager.resolve_walker_explosion(_salvo, Const.voxel_center_world(vox), vox)
 	_salvo.members.erase(self)
 	queue_free()

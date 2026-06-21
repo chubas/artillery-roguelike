@@ -5,7 +5,7 @@
 # ProjectileManager, which resolves impacts in collision order and may RESUME this projectile
 # if an earlier impact in the same salvo cleared the blocking voxel (so a later pellet flies on
 # through the hole the first one punched). Bypass projectiles skip terrain collision entirely,
-# damaging the centre-voxel trail and stopping only on an opposing unit (checked by the manager).
+# damaging the centre-voxel trail and stopping only on an opposing unit hitbox voxel.
 class_name Projectile
 extends Node2D
 
@@ -66,14 +66,19 @@ func _physics_process(delta: float) -> void:
 		_place_barrier_segment(position, new_pos, shot.barrier_tile_hp)
 	if bypass_mode:
 		_damage_trail(position, new_pos)
+		var bypass_hit := _manager.check_flight_segment(position, new_pos, _salvo, true)
+		if bypass_hit["collided"]:
+			_active = false
+			_manager.report_impact(_salvo, self, bypass_hit["contact_point"],
+					bypass_hit["impact_voxel"], false)
+			return
 		position = new_pos
-		# Unit hit is detected by the manager (it owns the unit list); terrain never stops us.
 		if _out_of_bounds():
 			_active = false
 			_manager.report_despawn(_salvo, self)
 		return
 	# Shared with the charge preview (Trajectory) so the ghost arc never lies.
-	var hit := Trajectory.check_segment(_terrain, position, new_pos)
+	var hit := _manager.check_flight_segment(position, new_pos, _salvo)
 	if hit["collided"]:
 		_active = false   # pause — manager decides resolve vs resume; it frees us on resolve.
 		_manager.report_impact(_salvo, self, hit["contact_point"], hit["impact_voxel"], false)

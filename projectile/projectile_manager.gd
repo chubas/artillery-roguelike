@@ -123,7 +123,7 @@ func _spawn_walker(salvo: Salvo, impact_voxel: Vector2i) -> void:
 	var w := WalkerCrawler.new()
 	add_child(w)
 	w.setup(_terrain, self, salvo, _units_provider, impact_voxel, dir,
-			salvo.shot.walker_max_steps, salvo.is_enemy)
+			salvo.shot.walker_max_steps, salvo.is_enemy, salvo.shot.walker_crawl_speed)
 	salvo.members.append(w)
 
 func _try_teleport(salvo: Salvo, impact_voxel: Vector2i) -> bool:
@@ -202,8 +202,12 @@ func debug_member_count() -> int:
 # --- Per-frame salvo processing ---------------------------------------------------
 # Runs BEFORE child bodies' _physics_process (tree order), so `pending` only ever holds
 # impacts from strictly-earlier frames — no frame is half-collected when we drain.
+func check_flight_segment(from: Vector2, to: Vector2, salvo: RefCounted,
+		ignore_terrain: bool = false) -> Dictionary:
+	return Trajectory.check_segment(_terrain, from, to, _units_provider.call(),
+			salvo.is_enemy, ignore_terrain)
+
 func _physics_process(_delta: float) -> void:
-	_check_bypass_unit_hits()
 	for s in _salvos:
 		if not s.pending.is_empty():
 			_drain_salvo(s)
@@ -212,26 +216,10 @@ func _physics_process(_delta: float) -> void:
 		if not s.settling and s.members.is_empty() and s.pending.is_empty():
 			_finish_salvo(s)
 
-# Bypass drills don't stop on terrain — they stop when they overlap an OPPOSING unit.
-func _check_bypass_unit_hits() -> void:
-	for s in _salvos:
-		for m in s.members:
-			if m is Projectile and m.bypass_mode and m.is_active():
-				var u := _opponent_overlapping(m.position, s.is_enemy)
-				if u != null:
-					m._active = false
-					# Force resolve: the unit-hit explosion fires in open air, not on terrain.
-					report_impact(s, m, m.position, Const.world_to_voxel(m.position), true)
-
-func _opponent_overlapping(world_pos: Vector2, is_enemy: bool) -> Unit:
-	var vox := Const.world_to_voxel(world_pos)
-	for u in _units_provider.call():
-		if u.hp <= 0:
-			continue
-		var is_opponent : bool = u.is_player if is_enemy else not u.is_player
-		if is_opponent and u.contains_voxel(vox):
-			return u
-	return null
+func _impact_blocker_present(salvo: Salvo, vox: Vector2i) -> bool:
+	if _terrain.is_blocked(vox.x, vox.y):
+		return true
+	return Trajectory.opponent_at_voxel(vox, _units_provider.call(), salvo.is_enemy)
 
 # Resolve this salvo's queued impacts in collision order, re-checking terrain between each so
 # a pellet that finds its blocker already gone flies on instead of detonating in the gap.
@@ -249,7 +237,7 @@ func _drain_salvo(salvo: Salvo) -> void:
 		var vox : Vector2i = it["voxel"]
 		var behavior := salvo.shot.behavior if salvo.shot != null \
 				else ShotDefinition.ShotBehavior.STANDARD
-		if it["force"] or _terrain.is_blocked(vox.x, vox.y):
+		if it["force"] or _impact_blocker_present(salvo, vox):
 			salvo.members.erase(node)
 			node.queue_free()
 			match behavior:
