@@ -37,16 +37,29 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M23 (Unit capacity + skip rewards),
   M24 (Debug sandbox overlay),
   M25 (Sandbox II: spawn overrides, terrain, inspector, round advance),
-  **M26 (Tooltip templating + formula-driven leveling)**.
+  **M26 (Tooltip templating + formula-driven leveling)**,
+  **M27 (Map squad bar, Shards HUD, repair & retire)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless --path . res://world/combat_scene.tscn` runs M3–M23 checklists headless (all pass). Use the `.tscn` form — `-s combat_scene.gd` skips autoload registration at parse time and fails to compile. M24/M25 have no smoke test — they're dev tools verified manually.
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless --path . res://world/combat_scene.tscn` runs M3–M27 checklists headless (all pass). Use the `.tscn` form — `-s combat_scene.gd` skips autoload registration at parse time and fails to compile. After adding new `class_name` scripts, run `godot --headless --import` once (and commit the generated `.uid` files). M24/M25 have no smoke test — they're dev tools verified manually.
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless --path . res://scripts/bake_runner.tscn` → `godot --headless --import`.
   Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-20 — Milestone 27: Map Squad Bar, Shards HUD, Repair & Retire
+
+World map is now the squad-management hub between stages. Full design in [docs/planning/milestone-27-plan.md](docs/planning/milestone-27-plan.md).
+
+- **Shards HUD** on `MapScreen`: `◆ Shards: N` always visible (starts at 10 from M21).
+- **Squad portrait bar** (`UnitPortrait`): card-frame placeholders using `UnitDefinition.color`; hover tooltip shows name + HP; disabled units are desaturated with a red border.
+- **Unit actions** (click any portrait): **Retire (+2 ◆)** on any unit; **Repair (5 ◆)** on disabled units only. `SquadOps` static utility owns repair/retire/capacity logic.
+- **Repair** restores full HP and clears `is_disabled`. **Retire** removes the unit from squad and frees capacity.
+- **Smoke:** `_m27_smoke()` in `combat_scene.gd`. New `class_name` scripts require `godot --headless --import` once (commit the generated `.uid` files).
 
 ---
 

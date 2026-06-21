@@ -225,6 +225,7 @@ func _smoke_test() -> void:
 	_m21_smoke()
 	_m22_smoke()
 	_m23_smoke()
+	_m27_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1199,12 +1200,35 @@ func _m23_smoke() -> void:
 	var def := load("res://data/units/player_cluster.tres") as UnitDefinition
 	print("  cluster.capacity_cost=%d (expect 2)" % def.capacity_cost)
 	print("  MAX_SQUAD_CAPACITY=%d (expect 8)" % RunState.MAX_SQUAD_CAPACITY)
-	var used := 0
-	for u in Run.active.squad:
-		var ud := load(u.definition_id) as UnitDefinition
-		if ud != null:
-			used += ud.capacity_cost
-	print("  used_capacity (2-unit run)=%d (expect 4)" % used)
+	print("  used_capacity (2-unit run)=%d (expect 4)" % SquadOps.used_capacity(Run.active))
+
+func _m27_smoke() -> void:
+	print("[smoke] -- M27 map squad bar + repair/retire --")
+	Run.start_default_run()
+	var rs := Run.active
+	print("  shards start=%d (expect 10)" % rs.resources.get("shards", -1))
+	rs.squad[0].is_disabled = true
+	rs.squad[0].current_hp = 0
+	print("  used_capacity disabled=%d (expect 4)" % SquadOps.used_capacity(rs))
+	print("  repair ok=%s (expect true)" % SquadOps.repair_unit(rs, 0))
+	print("  shards after repair=%d (expect 5)" % rs.resources.get("shards", -1))
+	print("  repaired hp=%d disabled=%s (expect full/false)" %
+			[rs.squad[0].current_hp, rs.squad[0].is_disabled])
+	rs.squad[0].is_disabled = true
+	rs.squad[0].current_hp = 0
+	print("  retire disabled ok=%s squad=%d shards=%d cap=%d (expect true/1/7/2)" %
+			[SquadOps.retire_unit(rs, 0), rs.squad.size(),
+			rs.resources.get("shards", -1), SquadOps.used_capacity(rs)])
+	Run.start_default_run()
+	rs = Run.active
+	print("  retire healthy ok=%s squad=%d shards=%d cap=%d (expect true/1/12/2)" %
+			[SquadOps.retire_unit(rs, 0), rs.squad.size(),
+			rs.resources.get("shards", -1), SquadOps.used_capacity(rs)])
+	rs.squad[0].is_disabled = true
+	rs.squad[0].current_hp = 0
+	var rs2 := RunState.from_dict(rs.to_dict())
+	print("  rt shards=%d disabled=%s (expect 12/true)" %
+			[rs2.resources.get("shards", -1), rs2.squad[0].is_disabled])
 
 func _m21_smoke() -> void:
 	print("[smoke] -- M21 shards + upgrade slots --")

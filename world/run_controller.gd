@@ -125,12 +125,7 @@ func _on_all_rewards_done() -> void:
 # Sample `count` entries from `pool`. `allow_repeat` true = with replacement (units/cards);
 # false = without replacement (artifacts — no duplicates in the same offer or across runs).
 func _used_capacity() -> int:
-	var total := 0
-	for u in Run.active.squad:
-		var def := load(u.definition_id) as UnitDefinition
-		if def != null:
-			total += def.capacity_cost
-	return total
+	return SquadOps.used_capacity(Run.active)
 
 func _pick_reward_options(cat: int) -> Array[String]:
 	var pool : Array[String]

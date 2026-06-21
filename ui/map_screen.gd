@@ -1,5 +1,5 @@
-# Run-map screen (M14+M19): branching DAG drawn as a diamond. The player picks a legal
-# forward node (click) to enter combat. RunController owns flow; this screen reads MapState only.
+# Run-map screen (M14+M19+M27): branching DAG, squad bar, Shards HUD, repair/retire.
+# RunController owns flow; this screen reads MapState and Run.active for squad actions.
 class_name MapScreen
 extends CanvasLayer
 
@@ -8,11 +8,17 @@ signal new_run_requested
 
 var _map : MapState
 var _graph : MapGraphView
+var _shards_label : Label
 var _capacity_label : Label
+var _squad_bar : HBoxContainer
 var _detail : Label
 var _hint : Label
 var _end_box : VBoxContainer
 var _banner : Label
+var _action_menu : PopupPanel
+var _repair_btn : Button
+var _retire_btn : Button
+var _selected_index : int = -1
 
 func setup(map: MapState) -> void:
 	_map = map
@@ -25,9 +31,37 @@ func _build() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
+	var root := MarginContainer.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_theme_constant_override("margin_left", 16)
+	root.add_theme_constant_override("margin_top", 12)
+	root.add_theme_constant_override("margin_right", 16)
+	root.add_theme_constant_override("margin_bottom", 12)
+	add_child(root)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 10)
+	root.add_child(outer)
+
+	var top_row := HBoxContainer.new()
+	_shards_label = _label("", 14)
+	_shards_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.35))
+	top_row.add_child(_shards_label)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(spacer)
+	_capacity_label = _label("", 14)
+	_capacity_label.add_theme_color_override("font_color", Color(0.75, 0.6, 1.0))
+	top_row.add_child(_capacity_label)
+	outer.add_child(top_row)
+
+	_squad_bar = HBoxContainer.new()
+	_squad_bar.add_theme_constant_override("separation", 8)
+	outer.add_child(_squad_bar)
+
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(center)
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
@@ -37,11 +71,6 @@ func _build() -> void:
 	var title := _label("ARTILLERY SPACE — RUN MAP", 24)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
-
-	_capacity_label = _label("", 14)
-	_capacity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_capacity_label.add_theme_color_override("font_color", Color(0.75, 0.6, 1.0))
-	box.add_child(_capacity_label)
 
 	_graph = MapGraphView.new()
 	_graph.custom_minimum_size = Vector2(640, 320)
@@ -71,6 +100,31 @@ func _build() -> void:
 	_end_box.add_child(newrun)
 	box.add_child(_end_box)
 
+	_build_action_menu()
+
+func _build_action_menu() -> void:
+	_action_menu = PopupPanel.new()
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	_action_menu.add_child(margin)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	margin.add_child(box)
+	_repair_btn = Button.new()
+	_repair_btn.text = "Repair (5 ◆)"
+	_repair_btn.focus_mode = Control.FOCUS_NONE
+	_repair_btn.pressed.connect(_on_repair_pressed)
+	box.add_child(_repair_btn)
+	_retire_btn = Button.new()
+	_retire_btn.text = "Retire (+2 ◆)"
+	_retire_btn.focus_mode = Control.FOCUS_NONE
+	_retire_btn.pressed.connect(_on_retire_pressed)
+	box.add_child(_retire_btn)
+	add_child(_action_menu)
+
 func _on_node_clicked(node_index: int) -> void:
 	if not _map.can_select(node_index):
 		return
@@ -78,13 +132,32 @@ func _on_node_clicked(node_index: int) -> void:
 		_map.select_next(node_index)
 	stage_selected.emit(_map.nodes[node_index])
 
+func _on_portrait_clicked(index: int, portrait: UnitPortrait) -> void:
+	_selected_index = index
+	var unit : RunUnitState = Run.active.squad[index]
+	_repair_btn.visible = unit.is_disabled
+	_repair_btn.disabled = not SquadOps.can_repair(Run.active, unit)
+	var pos : Vector2 = portrait.global_position + Vector2(0.0, portrait.size.y + 4.0)
+	_action_menu.popup(Rect2i(int(pos.x), int(pos.y), 1, 1))
+
+func _on_repair_pressed() -> void:
+	if _selected_index >= 0:
+		SquadOps.repair_unit(Run.active, _selected_index)
+	_action_menu.hide()
+	_refresh()
+
+func _on_retire_pressed() -> void:
+	if _selected_index >= 0:
+		SquadOps.retire_unit(Run.active, _selected_index)
+	_action_menu.hide()
+	_selected_index = -1
+	_refresh()
+
 func _refresh() -> void:
-	var used := 0
-	for u in Run.active.squad:
-		var def := load(u.definition_id) as UnitDefinition
-		if def != null:
-			used += def.capacity_cost
-	_capacity_label.text = "Squad Capacity: %d / %d" % [used, RunState.MAX_SQUAD_CAPACITY]
+	_shards_label.text = "◆ Shards: %d" % Run.active.resources.get("shards", 0)
+	_capacity_label.text = "Squad Capacity: %d / %d" % [
+			SquadOps.used_capacity(Run.active), RunState.MAX_SQUAD_CAPACITY]
+	_rebuild_squad_bar()
 	_graph.map = _map
 	_graph.queue_redraw()
 	var choices := _map.next_choice_indices()
@@ -101,11 +174,23 @@ func _refresh() -> void:
 			_detail.text = "%s   ·   Objective: %s   ·   Threats: %s" % [
 					s.id, obj, ", ".join(s.threat_tags)]
 	if choices.size() == 1:
-		_hint.text = "Click the highlighted stage to enter combat."
+		_hint.text = "Click a highlighted stage to continue."
 	else:
 		_hint.text = "Choose your next stage (%d paths)." % choices.size()
 
+func _rebuild_squad_bar() -> void:
+	for child in _squad_bar.get_children():
+		child.queue_free()
+	for i in range(Run.active.squad.size()):
+		var rus : RunUnitState = Run.active.squad[i]
+		var portrait : UnitPortrait = UnitPortrait.new()
+		portrait.setup(rus)
+		var idx := i
+		portrait.clicked.connect(func() -> void: _on_portrait_clicked(idx, portrait))
+		_squad_bar.add_child(portrait)
+
 func show_end(text: String) -> void:
+	_refresh()
 	_detail.visible = false
 	_hint.visible = false
 	_end_box.visible = true
