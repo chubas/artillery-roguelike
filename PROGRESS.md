@@ -43,7 +43,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
 - **Verify:** `ARTILLERY_SMOKE=1 godot --headless --path . res://world/combat_scene.tscn` runs M3–M23 checklists headless (all pass). Use the `.tscn` form — `-s combat_scene.gd` skips autoload registration at parse time and fails to compile. M24/M25 have no smoke test — they're dev tools verified manually.
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
-  `godot --headless --import` → `godot --headless -s scripts/bake_resources.gd` → `godot --headless --import`.
+  `godot --headless --import` → `godot --headless --path . res://scripts/bake_runner.tscn` → `godot --headless --import`.
+  Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
 

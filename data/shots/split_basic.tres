@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r4.tres" id="1_8ljtk"]
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_dig_r2.tres" id="2_aqmfd"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="3_v0nw4"]
+
+[resource]
+script = ExtResource("3_v0nw4")
+id = "split_basic"
+display_name = "Split"
+description_template = "Splits after 2s into five shells (±10°). Each detonates [[shape]]."
+aoe_pattern = ExtResource("1_8ljtk")
+dig_pattern = ExtResource("2_aqmfd")
+behavior = 1
+split_delay_sec = 2.0

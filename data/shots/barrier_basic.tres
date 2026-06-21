@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_ms0c5"]
+
+[resource]
+script = ExtResource("1_ms0c5")
+id = "barrier_basic"
+display_name = "Barrier"
+description_template = "After 2s, leaves 1-HP terrain in open air along its path. No blast on impact."
+behavior = 3
+barrier_delay_sec = 2.0

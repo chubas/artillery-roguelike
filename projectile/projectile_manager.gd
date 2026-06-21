@@ -106,6 +106,55 @@ func _spawn_spiral(salvo: Salvo, origin: Vector2, direction: Vector2, speed: flo
 				shot.spiral_amplitude, shot.spiral_frequency)
 		salvo.members.append(sat)
 
+func spawn_split_from(salvo: Salvo, _node: Projectile, origin: Vector2, direction: Vector2,
+		speed: float) -> void:
+	var shot := salvo.shot
+	var n := shot.split_count
+	var half := shot.split_spread_deg
+	for i in range(n):
+		var t := float(i) / maxf(float(n - 1), 1.0)
+		var off_deg := lerpf(-half, half, t)
+		var dir := direction.rotated(deg_to_rad(off_deg))
+		_spawn_projectile(salvo, origin, dir, speed, shot, 100 + i, false)
+
+func _spawn_walker(salvo: Salvo, impact_voxel: Vector2i) -> void:
+	# Away from the player side: player (left) → +X, enemy (right) → −X.
+	var dir := -1 if salvo.is_enemy else 1
+	var w := WalkerCrawler.new()
+	add_child(w)
+	w.setup(_terrain, self, salvo, _units_provider, impact_voxel, dir,
+			salvo.shot.walker_max_steps, salvo.is_enemy)
+	salvo.members.append(w)
+
+func _try_teleport(salvo: Salvo, impact_voxel: Vector2i) -> bool:
+	var unit : Unit = salvo.firing_unit
+	if unit == null or not is_instance_valid(unit):
+		print("[teleport] failed: no firing unit")
+		return false
+	var def := unit.definition
+	var w := def.width_voxels
+	var h := def.height_voxels
+	var top_left := Vector2i(impact_voxel.x - w / 2, impact_voxel.y - h)
+	top_left = UnitMovement.settle_at(top_left, w, h, _terrain)
+	if top_left.x < 0 or top_left.x + w > Const.MAP_WIDTH:
+		print("[teleport] failed: out of bounds at %s" % impact_voxel)
+		return false
+	if not UnitMovement.bbox_terrain_clear(_terrain, top_left, w, h):
+		print("[teleport] failed: terrain blocked at %s" % top_left)
+		return false
+	var foot := top_left.y + h - 1
+	if not UnitMovement.grounded(_terrain, top_left.x, foot, w):
+		print("[teleport] failed: not grounded at %s" % top_left)
+		return false
+	if UnitMovement.overlaps_any_unit(_units_provider.call(), top_left, def, unit):
+		print("[teleport] failed: unit overlap at %s" % top_left)
+		return false
+	unit.set_vox_position(top_left)
+	return true
+
+func resolve_walker_explosion(salvo: Salvo, world_pos: Vector2, voxel: Vector2i) -> void:
+	_resolve_blast(salvo, world_pos, voxel, 0.0)
+
 # --- Body callbacks ---------------------------------------------------------------
 # A body hit something and paused; queue its impact for ordered resolution.
 func report_impact(salvo: RefCounted, node: Node2D, world_pos: Vector2,
@@ -134,7 +183,7 @@ func active_projectile() -> Projectile:
 func has_active() -> bool:
 	for s in _salvos:
 		for m in s.members:
-			if is_instance_valid(m) and m.is_active():
+			if is_instance_valid(m) and m.has_method("is_active") and m.is_active():
 				return true
 	return false
 
@@ -198,15 +247,30 @@ func _drain_salvo(salvo: Salvo) -> void:
 		if not is_instance_valid(node):
 			continue
 		var vox : Vector2i = it["voxel"]
+		var behavior := salvo.shot.behavior if salvo.shot != null \
+				else ShotDefinition.ShotBehavior.STANDARD
 		if it["force"] or _terrain.is_blocked(vox.x, vox.y):
-			_resolve_impact(salvo, it["world_pos"], vox, it.get("flight_time", 0.0))
 			salvo.members.erase(node)
 			node.queue_free()
+			match behavior:
+				ShotDefinition.ShotBehavior.BARRIER:
+					pass   # trail only — no impact effect
+				ShotDefinition.ShotBehavior.WALKER:
+					_spawn_walker(salvo, vox)
+				ShotDefinition.ShotBehavior.TELEPORT:
+					if not _try_teleport(salvo, vox):
+						pass   # wasted shot — debug logged in _try_teleport
+				_:
+					_resolve_impact(salvo, it["world_pos"], vox, it.get("flight_time", 0.0))
 		else:
 			node.resume()   # blocker cleared by an earlier impact this drain → fly on
 
 # One impact's consequences. THIS is the pluggable seam — new resolve actions are added here.
 func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i, flight_time: float = 0.0) -> void:
+	_resolve_blast(salvo, world_pos, voxel, flight_time)
+
+func _resolve_blast(salvo: Salvo, world_pos: Vector2, voxel: Vector2i,
+		flight_time: float = 0.0) -> void:
 	var pattern := salvo.pattern
 	var element_id := "physical"
 	if Features.elements_enabled and pattern != null and not pattern.groups.is_empty() \

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="UnitDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_stiu4"]
+[ext_resource type="Resource" path="res://data/shots/bigball_basic.tres" id="2_auibj"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="3_wypb5"]
+
+[resource]
+script = ExtResource("3_wypb5")
+id = "player_bigball"
+display_name = "Big Ball"
+faction = "army"
+default_shot = ExtResource("2_auibj")
+available_shots = Array[ExtResource("1_stiu4")]([ExtResource("2_auibj")])
+color = Color(0.9, 0.55, 0.2, 1)

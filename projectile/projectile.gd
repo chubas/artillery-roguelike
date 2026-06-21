@@ -21,6 +21,8 @@ var _manager : ProjectileManager
 var _salvo : RefCounted             # ProjectileManager.Salvo — opaque back-reference
 var _active : bool = false
 var _bypass_hit : Dictionary = {}   # Vector2i → true: trail voxels already damaged once
+var _split_done : bool = false
+var _barrier_hit : Dictionary = {}  # void voxels already walled this flight
 
 func launch(origin: Vector2, direction: Vector2, speed: float, gscale: float,
 		terrain: TerrainManager, manager: ProjectileManager, salvo: RefCounted,
@@ -47,9 +49,21 @@ func _physics_process(delta: float) -> void:
 	if not _active:
 		return
 	flight_time += delta
+	var shot : ShotDefinition = _salvo.shot
+	if shot != null and shot.behavior == ShotDefinition.ShotBehavior.SPLIT \
+			and not _split_done and flight_time >= shot.split_delay_sec:
+		_split_done = true
+		_active = false
+		_manager.spawn_split_from(_salvo, self, position, velocity.normalized(),
+				velocity.length())
+		_manager.report_despawn(_salvo, self)
+		return
 	velocity.y += Const.GRAVITY * gravity_scale * delta
 	velocity.x += wind_force_x * delta
 	var new_pos := position + velocity * delta
+	if shot != null and shot.behavior == ShotDefinition.ShotBehavior.BARRIER \
+			and flight_time >= shot.barrier_delay_sec:
+		_place_barrier_segment(position, new_pos, shot.barrier_tile_hp)
 	if bypass_mode:
 		_damage_trail(position, new_pos)
 		position = new_pos
@@ -79,6 +93,20 @@ func _damage_trail(from: Vector2, to: Vector2) -> void:
 			_bypass_hit[vox] = true
 			_terrain.damage_tile(vox.x, vox.y, 1)
 
+# Barrier trail: fill void voxels with fragile solid tiles (no damage on impact).
+func _place_barrier_segment(from: Vector2, to: Vector2, tile_hp: int) -> void:
+	var steps := int(from.distance_to(to) / (Const.VOXEL_SIZE * 0.5)) + 1
+	for i in range(steps + 1):
+		var pt := from.lerp(to, float(i) / steps)
+		var vox := Const.world_to_voxel(pt)
+		if _barrier_hit.has(vox):
+			continue
+		_barrier_hit[vox] = true
+		if _terrain.get_tile(vox.x, vox.y) != null:
+			continue
+		_terrain.set_tile(vox.x, vox.y,
+				Tile.new().setup(Tile.TileType.SOLID, tile_hp, 0))
+
 func _out_of_bounds() -> bool:
 	var w := Const.world_pixel_size()
 	# Arcs may exit the top and return, so only sides + bottom despawn.
@@ -86,4 +114,7 @@ func _out_of_bounds() -> bool:
 
 func _draw() -> void:
 	var c := Color(0.5, 0.85, 1.0) if bypass_mode else Color(1.0, 0.9, 0.3)
-	draw_circle(Vector2.ZERO, 4.0, c)
+	var r := 4.0
+	if _salvo != null and _salvo.shot != null:
+		r = _salvo.shot.projectile_draw_radius
+	draw_circle(Vector2.ZERO, r, c)

@@ -37,6 +37,26 @@ extends Resource
 enum TrajectoryType { ARC, FLAT, MORTAR, BYPASS, BOUNCING, BURROWING }
 @export var trajectory : TrajectoryType = TrajectoryType.ARC
 
+## Primary behaviour hook — ProjectileManager branches on this for spawn/resolve.
+enum ShotBehavior { STANDARD, SPLIT, WALKER, BARRIER, TELEPORT, BIG_BALL }
+@export var behavior : ShotBehavior = ShotBehavior.STANDARD
+
+# ── M5 shot behaviours ────────────────────────────────────────────────────────
+## Split: after `split_delay_sec`, fan `split_count` pellets ±`split_spread_deg`.
+@export var split_delay_sec : float = 0.0
+@export var split_count : int = 5
+@export var split_spread_deg : float = 10.0   # half-angle of the fan cone
+
+## Walker: on terrain impact, crawl along the surface up to `walker_max_steps` voxels.
+@export var walker_max_steps : int = 10
+
+## Barrier: after `barrier_delay_sec`, leave `barrier_tile_hp` tiles in void voxels passed.
+@export var barrier_delay_sec : float = 0.0
+@export var barrier_tile_hp : int = 1
+
+## Big ball: visual-only scale multiplier on the projectile body (default 4 px radius).
+@export var projectile_draw_radius : float = 4.0
+
 # ── M4 shot-variety payloads ──────────────────────────────────────────────────
 # A single ShotDefinition can describe a multi-projectile salvo, a terrain-bypassing
 # drill, a gravity-pull blast, or a spiral. ProjectileManager.fire() reads these to
@@ -69,9 +89,9 @@ enum TrajectoryType { ARC, FLAT, MORTAR, BYPASS, BOUNCING, BURROWING }
 # Element lives per-group on the AoEPattern (M3 §3.2), not here — a shot can mix
 # elements across rings. POST-M3: flags (PIERCING, SEEKING, etc.)
 
-## True when this shot launches more than one projectile body (cluster or spiral).
+## True when this shot launches more than one projectile body (cluster, spiral, or split).
 func is_salvo() -> bool:
-	return projectile_count > 1 or spiral_arms > 0
+	return projectile_count > 1 or spiral_arms > 0 or behavior == ShotBehavior.SPLIT
 
 ## Returns the substitution dict for description_template given a live unit (may be null).
 ## Uses the same formula as ProjectileManager so tooltip and gameplay always agree.

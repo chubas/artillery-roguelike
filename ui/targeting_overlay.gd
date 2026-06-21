@@ -135,6 +135,10 @@ func _draw_charge_preview(barrel: Vector2) -> void:
 		_draw_bypass_preview(barrel, shot, speed)
 	elif shot.projectile_count > 1:
 		_draw_cluster_preview(barrel, shot, speed)
+	elif shot.behavior == ShotDefinition.ShotBehavior.BARRIER:
+		_draw_barrier_preview(barrel, shot, speed)
+	elif shot.behavior == ShotDefinition.ShotBehavior.TELEPORT:
+		_draw_teleport_preview(barrel, shot, speed)
 	else:
 		_draw_single_preview(barrel, shot, speed)
 
@@ -142,8 +146,28 @@ func _draw_single_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -
 	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
 			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
 	_draw_arc_dots(sim["points"], 3)
-	if sim["hit"]:
+	if sim["hit"] and shot.aoe_pattern != null:
 		_draw_pattern_footprint(sim["impact_voxel"], shot)
+
+func _draw_barrier_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
+	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
+			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
+	_draw_arc_dots(sim["points"], 3)
+
+func _draw_teleport_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
+	var sim := Trajectory.simulate_arc(terrain, barrel, active_unit.aim_dir(),
+			speed, shot.gravity_scale, 8.0, false, _wind_force_x)
+	_draw_arc_dots(sim["points"], 3)
+	if not sim["hit"]:
+		return
+	var def := active_unit.definition
+	var impact : Vector2i = sim["impact_voxel"]
+	var top_left := Vector2i(impact.x - def.width_voxels / 2, impact.y - def.height_voxels)
+	top_left = UnitMovement.settle_at(top_left, def.width_voxels, def.height_voxels, terrain)
+	var vs := float(Const.VOXEL_SIZE)
+	var rect := Rect2(Const.voxel_to_world(top_left), Vector2(def.width_voxels, def.height_voxels) * vs)
+	draw_rect(rect, Color(0.7, 0.45, 0.95, 0.35))
+	draw_rect(rect, Color(0.85, 0.55, 1.0, 0.85), false, 1.5)
 
 # Cluster: ghost every pellet's arc so the player reads the fan and each footprint (M4).
 func _draw_cluster_preview(barrel: Vector2, shot: ShotDefinition, speed: float) -> void:
@@ -176,6 +200,8 @@ func _draw_arc_dots(points: PackedVector2Array, stride: int) -> void:
 
 func _draw_pattern_footprint(center: Vector2i, shot: ShotDefinition) -> void:
 	var pattern := shot.aoe_pattern
+	if pattern == null:
+		return
 	var vs := float(Const.VOXEL_SIZE)
 	var aoe_map := pattern.to_map()
 	for offset in aoe_map:

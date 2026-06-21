@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_s2_w3.tres" id="1_7isek"]
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_dig_r1.tres" id="2_tyn3g"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="3_a865j"]
+
+[resource]
+script = ExtResource("3_a865j")
+id = "bigball_basic"
+display_name = "Big Ball"
+description_template = "Oversized shell. Detonates [[shape]] on impact."
+aoe_pattern = ExtResource("1_7isek")
+dig_pattern = ExtResource("2_tyn3g")
+behavior = 5
+projectile_draw_radius = 12.0

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_yxykn"]
+
+[resource]
+script = ExtResource("1_yxykn")
+id = "teleport_basic"
+display_name = "Teleporter"
+description_template = "On landing, moves you to the impact site if there is room. Otherwise nothing happens."
+behavior = 4

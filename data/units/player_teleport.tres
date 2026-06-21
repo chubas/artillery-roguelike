@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="UnitDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_jvlys"]
+[ext_resource type="Resource" path="res://data/shots/teleport_basic.tres" id="2_hoooc"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="3_nyeo1"]
+
+[resource]
+script = ExtResource("3_nyeo1")
+id = "player_teleport"
+display_name = "Blink"
+faction = "army"
+default_shot = ExtResource("2_hoooc")
+available_shots = Array[ExtResource("1_jvlys")]([ExtResource("2_hoooc")])
+color = Color(0.85, 0.4, 0.95, 1)

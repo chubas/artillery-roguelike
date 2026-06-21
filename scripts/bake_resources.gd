@@ -1,14 +1,16 @@
 # Authoring aid (M2 §2.2, extended M3): bakes every .tres data file from generators.
 # Run:  godot --headless --import   (once, to register class_names)
-# then: godot --headless -s scripts/bake_resources.gd
+# then: godot --headless --path . res://scripts/bake_runner.tscn
+# Do NOT use `-s scripts/bake_resources.gd` — that entry skips autoload registration at
+# parse time and fails to compile scripts that reference EventBus / Features / Run.
 # The runtime always uses the baked .tres files, never this script.
 #
 # Reference graph is a clean DAG: fire → {burn, burning}; burning → burn; burn → ∅.
 # (See TileStatusDef note: we store applied_status, not a back-reference to the element,
 #  precisely to avoid a load-breaking fire ↔ burning cycle.) So a single pass suffices.
-extends SceneTree
+extends Node
 
-func _initialize() -> void:
+func _ready() -> void:
 	for d in ["res://data/elements", "res://data/statuses", "res://data/tile_statuses",
 			"res://data/shots/aoe", "res://data/units", "res://data/cards",
 			"res://data/artifacts/resources", "res://data/stages",
@@ -90,6 +92,11 @@ func _initialize() -> void:
 				"res://data/shots/aoe/diamond_r3%s.tres" % variant[0])
 		_save(_diamond_pattern(2, 4, variant[1]),
 				"res://data/shots/aoe/diamond_r4%s.tres" % variant[0])
+
+	# ── M5 AoE patterns (Strong/Weak/Terrain radii) ───────────────────────────
+	_save(AoEPattern.make_diamond(2, 2), "res://data/shots/aoe/diamond_dig_r2.tres")
+	_save(AoEPattern.make_diamond(2, 3), "res://data/shots/aoe/diamond_s2_w3.tres")
+	_save(AoEPattern.make_diamond(1, 1), "res://data/shots/aoe/diamond_dig_r1.tres")
 
 	# ── Phase F: shots ────────────────────────────────────────────────────────
 	var basic := ShotDefinition.new()
@@ -191,6 +198,61 @@ func _initialize() -> void:
 			Color(0.9, 0.45, 0.4), 3)       # coral
 	_save_player_unit("player_spiral", "Spiral", spiral_loadout,
 			Color(0.6, 0.4, 0.85), 3)       # purple
+
+	# ── M5: five behaviour shots (basic only — no elemental loadout variants) ─
+	var blast_242 : AoEPattern = load("res://data/shots/aoe/diamond_r4.tres")
+	var dig_242 : AoEPattern = load("res://data/shots/aoe/diamond_dig_r2.tres")
+	var blast_231 : AoEPattern = load("res://data/shots/aoe/diamond_s2_w3.tres")
+	var dig_231 : AoEPattern = load("res://data/shots/aoe/diamond_dig_r1.tres")
+
+	var split_shot := _make_behavior_shot("split_basic", "Split",
+			"Splits after 2s into five shells (±10°). Each detonates [[shape]].",
+			ShotDefinition.ShotBehavior.SPLIT, blast_242, dig_242)
+	split_shot.split_delay_sec = 2.0
+	split_shot.split_count = 5
+	split_shot.split_spread_deg = 10.0
+	_save(split_shot, "res://data/shots/split_basic.tres")
+
+	var walker_shot := _make_behavior_shot("walker_basic", "Walker",
+			"On landing, crawls along terrain away from you (up to 10 voxels), then explodes [[shape]].",
+			ShotDefinition.ShotBehavior.WALKER, blast_242, dig_242)
+	walker_shot.walker_max_steps = 10
+	_save(walker_shot, "res://data/shots/walker_basic.tres")
+
+	var barrier_shot := _make_behavior_shot("barrier_basic", "Barrier",
+			"After 2s, leaves 1-HP terrain in open air along its path. No blast on impact.",
+			ShotDefinition.ShotBehavior.BARRIER, null, null)
+	barrier_shot.barrier_delay_sec = 2.0
+	barrier_shot.barrier_tile_hp = 1
+	_save(barrier_shot, "res://data/shots/barrier_basic.tres")
+
+	var teleport_shot := _make_behavior_shot("teleport_basic", "Teleporter",
+			"On landing, moves you to the impact site if there is room. Otherwise nothing happens.",
+			ShotDefinition.ShotBehavior.TELEPORT, null, null)
+	_save(teleport_shot, "res://data/shots/teleport_basic.tres")
+
+	var bigball_shot := _make_behavior_shot("bigball_basic", "Big Ball",
+			"Oversized shell. Detonates [[shape]] on impact.",
+			ShotDefinition.ShotBehavior.BIG_BALL, blast_231, dig_231)
+	bigball_shot.projectile_draw_radius = 12.0
+	_save(bigball_shot, "res://data/shots/bigball_basic.tres")
+
+	var split_ref : ShotDefinition = load("res://data/shots/split_basic.tres")
+	var walker_ref : ShotDefinition = load("res://data/shots/walker_basic.tres")
+	var barrier_ref : ShotDefinition = load("res://data/shots/barrier_basic.tres")
+	var teleport_ref : ShotDefinition = load("res://data/shots/teleport_basic.tres")
+	var bigball_ref : ShotDefinition = load("res://data/shots/bigball_basic.tres")
+
+	_save_player_unit("player_split", "Splitter", [split_ref],
+			Color(0.95, 0.75, 0.25), 3)
+	_save_player_unit("player_walker", "Crawler", [walker_ref],
+			Color(0.55, 0.85, 0.35), 3)
+	_save_player_unit("player_barrier", "Builder", [barrier_ref],
+			Color(0.45, 0.55, 0.95), 3)
+	_save_player_unit("player_teleport", "Blink", [teleport_ref],
+			Color(0.85, 0.4, 0.95), 3)
+	_save_player_unit("player_bigball", "Big Ball", [bigball_ref],
+			Color(0.9, 0.55, 0.2), 3)
 
 	# ── M5: cards ─────────────────────────────────────────────────────────────
 	var shield_card := CardDefinition.new()
@@ -359,7 +421,7 @@ func _initialize() -> void:
 	_save(s3, "res://data/stages/stage_03.tres")
 
 	print("[bake] all M14 resources written")
-	quit()
+	get_tree().quit()
 
 # Build a core1/edge2 diamond pattern with every group carrying `element`.
 func _elemental_diamond(element: ElementDef) -> AoEPattern:
@@ -440,6 +502,27 @@ func _apply_family_payload(s: ShotDefinition, type_id: String) -> void:
 			s.spiral_arms = 2
 			s.spiral_amplitude = 24.0
 			s.spiral_frequency = 2.0
+
+func _make_behavior_shot(id: String, label: String, desc: String,
+		behavior: ShotDefinition.ShotBehavior,
+		aoe: AoEPattern, dig: AoEPattern) -> ShotDefinition:
+	var s := ShotDefinition.new()
+	s.id = id
+	s.display_name = label
+	s.description_template = desc
+	s.behavior = behavior
+	s.base_speed = 600.0
+	s.gravity_scale = 1.0
+	s.action_cost = 0
+	s.strength = 3
+	s.strength_mult = 1.0
+	s.dig_mult = 1.0
+	s.aoe_pattern = aoe
+	if dig != null:
+		s.dig_pattern = dig
+	elif aoe != null:
+		s.dig_pattern = aoe
+	return s
 
 func _save_player_unit(id: String, dname: String,
 		loadout: Array[ShotDefinition], color: Color, attack: int = 3, dig: int = 1,

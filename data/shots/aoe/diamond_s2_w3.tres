@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="AoEPattern" format=3]
+
+[ext_resource type="Script" path="res://data/shots/aoe_group.gd" id="1_luhva"]
+[ext_resource type="Script" path="res://data/shots/aoe_pattern.gd" id="2_wsudg"]
+
+[sub_resource type="Resource" id="Resource_ovpmr"]
+script = ExtResource("1_luhva")
+offsets = Array[Vector2i]([Vector2i(0, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-2, 0), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(0, 2), Vector2i(0, -2), Vector2i(1, 1), Vector2i(1, -1), Vector2i(2, 0)])
+
+[sub_resource type="Resource" id="Resource_fk1fv"]
+script = ExtResource("1_luhva")
+offsets = Array[Vector2i]([Vector2i(-3, 0), Vector2i(-2, 1), Vector2i(-2, -1), Vector2i(-1, 2), Vector2i(-1, -2), Vector2i(0, 3), Vector2i(0, -3), Vector2i(1, 2), Vector2i(1, -2), Vector2i(2, 1), Vector2i(2, -1), Vector2i(3, 0)])
+multiplier = 0.5
+
+[resource]
+script = ExtResource("2_wsudg")
+groups = Array[ExtResource("1_luhva")]([SubResource("Resource_ovpmr"), SubResource("Resource_fk1fv")])

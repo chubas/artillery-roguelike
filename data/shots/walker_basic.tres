@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ShotDefinition" format=3]
+
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_r4.tres" id="1_o58te"]
+[ext_resource type="Resource" path="res://data/shots/aoe/diamond_dig_r2.tres" id="2_pknb0"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="3_dciv3"]
+
+[resource]
+script = ExtResource("3_dciv3")
+id = "walker_basic"
+display_name = "Walker"
+description_template = "On landing, crawls along terrain away from you (up to 10 voxels), then explodes [[shape]]."
+aoe_pattern = ExtResource("1_o58te")
+dig_pattern = ExtResource("2_pknb0")
+behavior = 2
