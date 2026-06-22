@@ -26,6 +26,7 @@ class Salvo extends RefCounted:
 	var strength : int = 0   # unit.attack * shot.strength_mult * power + modifier, at fire time (M10)
 	var dig_strength : int = 0   # unit.dig * shot.dig_mult + dig_modifier; 0 = skip dig pass (M16)
 	var firing_unit : Unit = null   # M9: for on_unit_killed killer reference
+	var element_overrides : Array[ElementDef] = []   # M30: captured from firing_unit.primed_elements
 	var members : Array = []     # live Projectile / SpiralSatellite nodes
 	var pending : Array = []     # queued impacts: {node, world_pos, voxel, frame, index, force}
 	var settling : bool = false  # settle-beat coroutine running → don't re-enter
@@ -51,6 +52,10 @@ func fire(origin: Vector2, direction: Vector2, speed: float,
 	salvo.shot = shot
 	salvo.pattern = shot.aoe_pattern
 	salvo.firing_unit = firing_unit
+	if firing_unit != null and not firing_unit.primed_elements.is_empty():
+		salvo.element_overrides = firing_unit.primed_elements.duplicate()
+		firing_unit.primed_elements.clear()
+		firing_unit.queue_redraw()
 	# M10: strength derives from the firing unit's attack value, scaled by the shot's relative
 	# multiplier and the unit's power, plus any flat attack_modifier (M9 debuffs). Clamped ≥ 0.
 	var atk : int = firing_unit.attack if firing_unit != null else 3
@@ -260,10 +265,10 @@ func _resolve_impact(salvo: Salvo, world_pos: Vector2, voxel: Vector2i, flight_t
 func _resolve_blast(salvo: Salvo, world_pos: Vector2, voxel: Vector2i,
 		flight_time: float = 0.0) -> void:
 	var pattern := salvo.pattern
-	var element_id := "physical"
-	if Features.elements_enabled and pattern != null and not pattern.groups.is_empty() \
-			and pattern.groups[0].element != null:
-		element_id = pattern.groups[0].element.id
+	var eff_element : ElementDef = salvo.element_overrides[0] if not salvo.element_overrides.is_empty() \
+			else (pattern.groups[0].element if Features.elements_enabled and pattern != null \
+			and not pattern.groups.is_empty() else null)
+	var element_id := eff_element.id if eff_element != null else "physical"
 	EventBus.projectile_impact.emit(world_pos, voxel, element_id)
 	# 1. Area damage to terrain + units (and element statuses).
 	var final_strength : int = salvo.strength
@@ -272,9 +277,16 @@ func _resolve_blast(salvo: Salvo, world_pos: Vector2, voxel: Vector2i,
 		if cm != null and cm._artifact_ctx != null:
 			final_strength = ArtifactSystem.apply_projectile_strength(
 					cm.artifacts, cm._artifact_ctx, salvo.strength, flight_time)
-	AoEResolver.resolve(_terrain, _units_provider.call(), voxel, pattern, final_strength,
-			salvo.is_enemy, _deployables_provider.call(),
-			salvo.dig_strength, salvo.shot.dig_pattern if salvo.shot != null else null)
+	var deployables_ref : Array = _deployables_provider.call()
+	var units_ref : Array = _units_provider.call()
+	var dig_pat : AoEPattern = salvo.shot.dig_pattern if salvo.shot != null else null
+	if salvo.element_overrides.is_empty():
+		AoEResolver.resolve(_terrain, units_ref, voxel, pattern, final_strength,
+				salvo.is_enemy, deployables_ref, salvo.dig_strength, dig_pat)
+	else:
+		for el in salvo.element_overrides:
+			AoEResolver.resolve(_terrain, units_ref, voxel, pattern, final_strength,
+					salvo.is_enemy, deployables_ref, salvo.dig_strength, dig_pat, el)
 	# 2. Explosion FX.
 	var fx := ExplosionFX.new()
 	fx.position = world_pos

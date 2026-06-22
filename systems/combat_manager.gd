@@ -110,7 +110,6 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_artifact_paths = artifact_paths  # RunState.artifacts (paths); loaded in _init_artifacts
 	_hud.end_turn_pressed.connect(end_player_turn)
 	_hud.undo_pressed.connect(try_undo)
-	_hud.shot_selected.connect(_select_shot)
 	_hud.card_selected.connect(_select_card)
 	# Auto-advance to the next unit only once a player shot has FULLY resolved (§ resolution
 	# routine in ProjectileManager), so the camera lingers on the impact before panning.
@@ -875,16 +874,6 @@ func _on_shot_resolved(is_enemy: bool) -> void:
 			return
 	_set_selection(null)   # all player units done → HUD shows the end-turn prompt
 
-# --- Shot selection (M3 §8): keys 1/2/3 or HUD chips set active_unit.selected_shot ----
-func _select_shot(idx: int) -> void:
-	if game_state != GameState.PLAYER_TURN or charging:
-		return
-	if active_unit == null or active_unit.is_done or active_unit.hp <= 0:
-		return
-	var shots := active_unit.available_shots()
-	if idx >= 0 and idx < shots.size():
-		active_unit.selected_shot = shots[idx]
-
 # --- Deck (M11): build, draw a fresh hand each turn, reshuffle discard when the draw pile runs out.
 func _build_deck() -> void:
 	_deck.clear()
@@ -974,6 +963,12 @@ func _apply_card(card: CardDefinition, target: Unit, vox: Vector2i) -> void:
 			_deploy_mine_at(vox.x)
 		CardDefinition.EffectType.HALVE_WIND:
 			_halve_wind()
+		CardDefinition.EffectType.PRIME_FIRE:
+			target.primed_elements.append(load("res://data/elements/fire.tres"))
+			target.queue_redraw()
+		CardDefinition.EffectType.PRIME_ELECTRIC:
+			target.primed_elements.append(load("res://data/elements/electric.tres"))
+			target.queue_redraw()
 	_hand.erase(card)
 	_discard.append(card)
 	_pending_card = null
@@ -1043,15 +1038,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_TAB:
 				if not charging:
 					_tab_cycle()
-			KEY_1:
-				if not charging:
-					_select_shot(0)
-			KEY_2:
-				if not charging:
-					_select_shot(1)
-			KEY_3:
-				if not charging:
-					_select_shot(2)
 			KEY_SPACE:
 				if not charging and active_unit != null \
 						and not active_unit.is_done and active_unit.hp > 0:
@@ -1127,12 +1113,10 @@ func _push_hud_state() -> void:
 		_hud.set_unit_info("%s — %d / %d" % [active_unit.display_name,
 				active_unit.hp, active_unit.definition.max_hp])
 		_hud.set_angle(active_unit.aim_angle_deg)
-		_hud.set_shots(active_unit.available_shots(), active_unit.get_active_shot(), actions_left)
 		last_power = active_unit.last_power_frac
 	else:
 		_hud.set_unit_info("")
 		_hud.set_angle_none()
-		_hud.set_shots([], null, actions_left)
 	_hud.set_power(charge_frac, charging, last_power)
 	var cards := _hand if Features.card_deck_enabled else []
 	_hud.set_cards(cards, _pending_index, actions_left, _deck.size(), _discard.size())

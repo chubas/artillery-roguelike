@@ -1,17 +1,15 @@
 [gd_resource type="Resource" script_class="UnitDefinition" format=3]
 
-[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_vnc0p"]
-[ext_resource type="Resource" path="res://data/shots/bypass_basic.tres" id="2_c8fmk"]
-[ext_resource type="Resource" path="res://data/shots/bypass_fire.tres" id="3_f8edn"]
-[ext_resource type="Resource" path="res://data/shots/bypass_electric.tres" id="4_02640"]
-[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="5_s7xea"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_d5jjq"]
+[ext_resource type="Resource" path="res://data/shots/bypass_basic.tres" id="2_0xya8"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="3_vnc0p"]
 
 [resource]
-script = ExtResource("5_s7xea")
+script = ExtResource("3_vnc0p")
 id = "player_bypass"
 display_name = "Drill"
 faction = "army"
 attack = 10
-default_shot = ExtResource("2_c8fmk")
-available_shots = Array[ExtResource("1_vnc0p")]([ExtResource("2_c8fmk"), ExtResource("3_f8edn"), ExtResource("4_02640")])
+default_shot = ExtResource("2_0xya8")
+available_shots = Array[ExtResource("1_d5jjq")]([ExtResource("2_0xya8")])
 color = Color(0.2, 0.7, 0.65, 1)

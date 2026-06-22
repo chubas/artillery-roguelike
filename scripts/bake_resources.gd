@@ -145,7 +145,7 @@ func _ready() -> void:
 	heavy.id = "player_heavy"; heavy.display_name = "Unit1"
 	heavy.width_voxels = 2; heavy.height_voxels = 3; heavy.max_hp = 9
 	heavy.move_range = 99; heavy.climb_max = 1
-	heavy.default_shot = basic_ref; heavy.available_shots = loadout
+	heavy.default_shot = basic_ref; heavy.available_shots = [basic_ref]
 	heavy.tags = []; heavy.element_affinities = {}
 	heavy.faction = Faction.ARMY
 	heavy.color = Color(0.25, 0.45, 0.9)
@@ -155,7 +155,7 @@ func _ready() -> void:
 	light.id = "player_light"; light.display_name = "Unit2"
 	light.width_voxels = 1; light.height_voxels = 3; light.max_hp = 4
 	light.move_range = 99; light.climb_max = 1
-	light.default_shot = basic_ref; light.available_shots = loadout
+	light.default_shot = basic_ref; light.available_shots = [basic_ref]
 	light.tags = []; light.element_affinities = {}
 	light.faction = Faction.ARMY
 	light.color = Color(0.35, 0.75, 0.95)
@@ -311,6 +311,25 @@ func _ready() -> void:
 	wind_card.color = Color(0.4, 0.8, 0.95)
 	_save(wind_card, "res://data/cards/halve_wind.tres")
 
+	# ── M30: elemental prime cards ────────────────────────────────────────────
+	var fire_prime := CardDefinition.new()
+	fire_prime.id = "fire_prime"; fire_prime.display_name = "Fire Prime"
+	fire_prime.description_template = "Target ally's next shot burns on impact."
+	fire_prime.target_type = CardDefinition.TargetType.ALLY
+	fire_prime.effect_type = CardDefinition.EffectType.PRIME_FIRE
+	fire_prime.action_cost = 2; fire_prime.faction = Faction.ARMY
+	fire_prime.color = Color(0.9, 0.35, 0.15)
+	_save(fire_prime, "res://data/cards/fire_prime.tres")
+
+	var elec_prime := CardDefinition.new()
+	elec_prime.id = "electric_prime"; elec_prime.display_name = "Electric Prime"
+	elec_prime.description_template = "Target ally's next shot shocks on impact."
+	elec_prime.target_type = CardDefinition.TargetType.ALLY
+	elec_prime.effect_type = CardDefinition.EffectType.PRIME_ELECTRIC
+	elec_prime.action_cost = 2; elec_prime.faction = Faction.ARMY
+	elec_prime.color = Color(0.25, 0.65, 0.95)
+	_save(elec_prime, "res://data/cards/electric_prime.tres")
+
 	# ── M6: deployables ────────────────────────────────────────────────────────
 	_save(AoEPattern.make_diamond(1, 2), "res://data/shots/aoe/diamond_mine.tres")
 
@@ -458,7 +477,8 @@ func _make_family(type_id: String, label: String, base_cost_unused: int) -> Arra
 		var path := "res://data/shots/%s.tres" % s.id
 		_save(s, path)
 		trio.append(load(path))
-	return trio
+	var basic_only : Array[ShotDefinition] = [trio[0]]
+	return basic_only
 
 # Short flavor phrase per family + element variant, shown in the unit inspector (M5 polish).
 func _family_description(type_id: String, element: String) -> String:

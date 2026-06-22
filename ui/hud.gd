@@ -5,7 +5,6 @@ extends CanvasLayer
 
 signal end_turn_pressed
 signal undo_pressed
-signal shot_selected(index: int)
 signal card_selected(index: int)
 signal start_battle_pressed   # M15: confirm pre-combat placement
 
@@ -17,9 +16,6 @@ var _unit_info_label : Label
 var _turn_label : Label
 var _end_turn_btn : Button
 var _undo_btn : Button
-var _shot_box : HBoxContainer
-var _shot_buttons : Array = []
-var _shot_sig : String = ""   # cache: rebuild chips only when the shot list changes
 var _card_box : HBoxContainer
 var _card_chips : Array = []
 var _card_sig : String = ""   # cache: rebuild chips only when the card list changes
@@ -54,9 +50,6 @@ func _build_top_left() -> void:
 	_action_pips = ActionPips.new()
 	_action_pips.custom_minimum_size = Vector2(Const.MAX_ACTIONS * 20, 18)
 	box.add_child(_action_pips)
-	_shot_box = HBoxContainer.new()
-	_shot_box.add_theme_constant_override("separation", 4)
-	box.add_child(_shot_box)
 	_card_box = HBoxContainer.new()
 	_card_box.add_theme_constant_override("separation", 4)
 	box.add_child(_card_box)
@@ -64,7 +57,7 @@ func _build_top_left() -> void:
 	_deck_label.modulate = Color(1, 1, 1, 0.8)
 	box.add_child(_deck_label)
 	var hint := _make_label(11)
-	hint.text = "↑/↓ angle · ←/→ move · Space charge/fire · 1/2/3 shot · Q/E card · Esc cancel · Tab select · WASD pan"
+	hint.text = "↑/↓ angle · ←/→ move · Space charge/fire · Q/E card · Esc cancel · Tab select · WASD pan"
 	hint.modulate = Color(1, 1, 1, 0.55)
 	box.add_child(hint)
 
@@ -229,34 +222,6 @@ func set_actions(current: int, maximum: int) -> void:
 
 func set_unit_info(text: String) -> void:
 	_set_text(_unit_info_label, text)
-
-# Shot selector chips (M3 §8). Rebuilds buttons only when the shot list identity changes;
-# otherwise just refreshes highlight (active shot) and affordability (greys unaffordable).
-func set_shots(shots: Array, active: ShotDefinition, actions_left: int) -> void:
-	var sig := ""
-	for s in shots:
-		sig += (s.id if s != null else "?") + "|"
-	if sig != _shot_sig:
-		_shot_sig = sig
-		for b in _shot_buttons:
-			b.queue_free()
-		_shot_buttons.clear()
-		for i in range(shots.size()):
-			var btn := Button.new()
-			btn.focus_mode = Control.FOCUS_NONE
-			btn.add_theme_font_size_override("font_size", 11)
-			btn.pressed.connect(func(): shot_selected.emit(i))
-			_shot_box.add_child(btn)
-			_shot_buttons.append(btn)
-	for i in range(_shot_buttons.size()):
-		var s : ShotDefinition = shots[i]
-		var btn : Button = _shot_buttons[i]
-		var afford := actions_left >= s.action_cost
-		var cost_txt := "" if s.action_cost <= 0 else " (%d)" % s.action_cost
-		btn.text = "%d:%s%s" % [i + 1, s.display_name, cost_txt]
-		btn.disabled = not afford
-		var is_active := active != null and s == active
-		btn.modulate = Color(1.0, 0.95, 0.5) if is_active else Color(1, 1, 1, 0.85)
 
 # Card chips (M5). Little card-faces (description + AP cost) instead of text buttons.
 # Same rebuild-only-on-identity-change pattern as set_shots(); greys out unaffordable
@@ -461,6 +426,14 @@ class UnitInspector:
 			draw_string(font, Vector2(10, y), "Effects: " + ", ".join(parts),
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 0.85, 0.4))
 		y += 18
+		if not unit.primed_elements.is_empty():
+			var font_size := 11
+			var line_h := 14.0
+			for el in unit.primed_elements:
+				var col := Color(1.0, 0.45, 0.1) if el.id == "fire" else Color(0.3, 0.85, 0.95)
+				draw_string(font, Vector2(10, y), "PRIMED: " + el.display_name.to_upper(),
+						HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, col)
+				y += line_h
 		var used_slots := 0
 		for e in unit.essences:
 			used_slots += (e as EssenceDef).slot_cost

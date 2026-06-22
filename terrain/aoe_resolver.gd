@@ -17,7 +17,8 @@ class_name AoEResolver
 
 static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 		pattern: AoEPattern, strength: int, is_enemy: bool, deployables: Array = [],
-		dig_strength: int = 0, dig_pattern: AoEPattern = null) -> Array:
+		dig_strength: int = 0, dig_pattern: AoEPattern = null,
+		element_override: ElementDef = null) -> Array:
 	var aoe_map := pattern.to_map() if pattern != null else {}
 	var affected : Array = []
 	var unit_hit : Dictionary = {}         # Unit -> { "dmg": int, "element": ElementDef }
@@ -26,7 +27,9 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 	for offset in aoe_map:
 		var target : Vector2i = origin + offset
 		var group : AoEGroup = aoe_map[offset]
-		var element : ElementDef = group.element if Features.elements_enabled else null
+		var element : ElementDef = \
+				(element_override if element_override != null else group.element) \
+				if Features.elements_enabled else null
 		var zone_dmg := _zone_damage(strength, group.multiplier)
 		max_dist = maxi(max_dist, absi(offset.x) + absi(offset.y))
 		affected.append(target)

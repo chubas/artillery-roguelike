@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/cards/card_definition.gd" id="1_8rvg2"]
+
+[resource]
+script = ExtResource("1_8rvg2")
+id = "fire_prime"
+display_name = "Fire Prime"
+faction = "army"
+effect_type = 6
+description_template = "Target ally's next shot burns on impact."
+action_cost = 2
+color = Color(0.9, 0.35, 0.15, 1)

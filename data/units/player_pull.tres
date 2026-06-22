@@ -1,16 +1,14 @@
 [gd_resource type="Resource" script_class="UnitDefinition" format=3]
 
-[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_rfml1"]
-[ext_resource type="Resource" path="res://data/shots/pull_basic.tres" id="2_sj80p"]
-[ext_resource type="Resource" path="res://data/shots/pull_fire.tres" id="3_33qjm"]
-[ext_resource type="Resource" path="res://data/shots/pull_electric.tres" id="4_hxux2"]
-[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="5_2na2w"]
+[ext_resource type="Script" path="res://data/shots/shot_definition.gd" id="1_482f7"]
+[ext_resource type="Resource" path="res://data/shots/pull_basic.tres" id="2_yobg4"]
+[ext_resource type="Script" path="res://data/units/unit_definition.gd" id="3_rfml1"]
 
 [resource]
-script = ExtResource("5_2na2w")
+script = ExtResource("3_rfml1")
 id = "player_pull"
 display_name = "Magnet"
 faction = "army"
-default_shot = ExtResource("2_sj80p")
-available_shots = Array[ExtResource("1_rfml1")]([ExtResource("2_sj80p"), ExtResource("3_33qjm"), ExtResource("4_hxux2")])
+default_shot = ExtResource("2_yobg4")
+available_shots = Array[ExtResource("1_482f7")]([ExtResource("2_yobg4")])
 color = Color(0.9, 0.45, 0.4, 1)

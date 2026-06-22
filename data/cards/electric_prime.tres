@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/cards/card_definition.gd" id="1_y21cx"]
+
+[resource]
+script = ExtResource("1_y21cx")
+id = "electric_prime"
+display_name = "Electric Prime"
+faction = "army"
+effect_type = 7
+description_template = "Target ally's next shot shocks on impact."
+action_cost = 2
+color = Color(0.25, 0.65, 0.95, 1)

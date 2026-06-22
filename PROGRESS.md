@@ -40,7 +40,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M26 (Tooltip templating + formula-driven leveling),
   M27 (Map squad bar, Shards HUD, repair & retire),
   M28 (Aura visualization + deployable selection),
-  **M29 (Unit stacking: remove overlap constraint, 2.5D depth offset, scroll-wheel inspector cycle)**.
+  M29 (Unit stacking: remove overlap constraint, 2.5D depth offset, scroll-wheel inspector cycle),
+  **M30 (Elemental prime cards: fire/electric prime cards replace always-on shot selector; shot selector removed)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
@@ -50,6 +51,22 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-21 — Milestone 30: Elemental Prime Cards + Shot Selector Removal
+
+Fire and electric shots were always-available 1/2/3 key options. M30 converts them to one-use cards that prime the next shot with an element, and removes the shot-selection UI. Full design in [docs/planning/milestone-30-plan.md](docs/planning/milestone-30-plan.md).
+
+- **Two new cards** — `Fire Prime` (2 AP) and `Electric Prime` (2 AP), both ALLY-targeted. Baked to `data/cards/fire_prime.tres` and `data/cards/electric_prime.tres`. Starting deck gets 2 copies of each; `card_pool` includes both for rewards.
+- **`Unit.primed_elements: Array[ElementDef]`** — accumulated by prime cards; multiple elements stack (a single shot can be fire + electric). Consumed at fire time, not on impact.
+- **`Salvo.element_overrides: Array[ElementDef]`** — captured from `firing_unit.primed_elements` in `ProjectileManager.fire()` at launch time.
+- **Multi-element AoE** — `_resolve_blast()` loops over `element_overrides`, calling `AoEResolver.resolve()` once per element at full strength. When empty, resolves normally (one pass with the pattern's own element).
+- **`AoEResolver.resolve()` extended** — optional `element_override: ElementDef = null` param; overrides `group.element` when set. All existing callers pass no override → unchanged behavior.
+- **Shot selector fully removed** — `_select_shot()`, `signal shot_selected`, KEY_1/2/3 branches, `set_shots()` HUD method, and shot-chip strip all deleted. `unit.selected_shot` kept (inert).
+- **Family unit loadouts trimmed** — `_make_family()` still bakes the full trio (elemental shots stay on disk) but returns `[trio[0]]` (basic only). `player_heavy` and `player_light` also set to `[basic_ref]`.
+- **Primed indicator** — `UnitInspector._draw()` shows `PRIMED: FIRE` (orange) / `PRIMED: ELECTRIC` (cyan) lines for each active prime.
+- **Smoke:** `_m30_smoke()` — applies fire prime card to ally, verifies `primed_elements[0].id == "fire"`, fires AoE on enemy with the element, confirms damage.
 
 ---
 

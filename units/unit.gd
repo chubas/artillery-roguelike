@@ -38,6 +38,7 @@ var aim_angle_deg : float = 45.0        # positive-up convention; preserved per 
 var last_power_frac : float = 0.5
 var is_done : bool = false              # true after firing this turn
 var attack_modifier : int = 0           # M9: cumulative buff/debuff to firing strength
+var primed_elements : Array[ElementDef] = []   # M30: accumulated by prime cards; consumed on next fire
 var dig_modifier : int = 0              # M16: flat dig adjustment at fire time (unused in M16 content)
 var moved_this_turn : bool = false      # M9: set true by CombatManager.try_move(), reset each round
 var move_origin : Vector2i              # vox_position at turn start (for undo)

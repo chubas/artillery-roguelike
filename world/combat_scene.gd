@@ -222,6 +222,7 @@ func _smoke_test() -> void:
 	_m23_smoke()
 	_m27_smoke()
 	_m29_smoke()
+	_m30_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1256,6 +1257,26 @@ func _m29_smoke() -> void:
 				pattern, 5, false, combat.deployables)
 		print("  u1 took dmg=%s u2 took dmg=%s (expect true true)" \
 				% [u1.hp < hp1, u2.hp < hp2])
+
+func _m30_smoke() -> void:
+	print("[smoke] -- M30 elemental prime cards --")
+	var ally : Unit = combat.player_units[0]
+	var foe  : Unit = combat.enemy_units[0]
+	_reset(foe)
+	var fire_prime := load("res://data/cards/fire_prime.tres") as CardDefinition
+	if fire_prime == null:
+		print("  skip: fire_prime.tres not found"); return
+	combat._apply_card(fire_prime, ally, Vector2i.ZERO)
+	print("  primed count=%d first=%s (expect 1, fire)" %
+			[ally.primed_elements.size(),
+			ally.primed_elements[0].id if not ally.primed_elements.is_empty() else "null"])
+	var hp_before : int = foe.hp
+	for el : ElementDef in ally.primed_elements:
+		AoEResolver.resolve(terrain, combat.all_units, foe.center_voxel(),
+				load("res://data/shots/aoe/diamond_r2.tres"),
+				5, false, combat.deployables, 0, null, el)
+	print("  foe took fire dmg=%s (expect true)" % (foe.hp < hp_before))
+	ally.primed_elements.clear()
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:
