@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-21)
+## Current state (2026-06-22)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -41,7 +41,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M27 (Map squad bar, Shards HUD, repair & retire),
   M28 (Aura visualization + deployable selection),
   M29 (Unit stacking: remove overlap constraint, 2.5D depth offset, scroll-wheel inspector cycle),
-  **M30 (Elemental prime cards: fire/electric prime cards replace always-on shot selector; shot selector removed)**.
+  M30 (Elemental prime cards: fire/electric prime cards replace always-on shot selector; shot selector removed),
+  **M31 (Animation Sequencer: central autoload batch-parallel queue, placeholder animations, EventBus wiring)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
@@ -51,6 +52,24 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-22 — Milestone 31: Animation Sequencer
+
+Introduced the central `AnimationSequencer` autoload to decouple logic resolution from visual playback. All placeholder animations (color flashes, fades, world bursts) are now queued through a batch-parallel system. Full design in [docs/planning/milestone-31-plan.md](docs/planning/milestone-31-plan.md).
+
+- **`AnimationSequencer` autoload** — registered in `project.godot`. Subscribes to 8 EventBus signals in `_ready()`. Guards on `Features.animations_enabled`. `fast_forward = true` when `ARTILLERY_SMOKE=1` so all animations complete synchronously.
+- **Batch-parallel queue** — `_batches: Array` of sealed batches; entries in the same batch play in parallel; batches play sequentially. `enqueue(entry)` appends to the open `_current_batch`. `next_batch()` seals and pushes it. `_flush_and_play()` / `_play_next_batch()` drive playback.
+- **`AnimationEntry` class** (`animation/animation_entry.gd`) — `RefCounted` with fields: `anim_id`, `target`, `params`, `duration`, `interruptible`, `on_complete: Callable`, `event_type`, `wave`, `tags: Array[String]`.
+- **Auto-batching by `event_type`** — impact and death handlers call `next_batch()` before enqueue; this automatically separates hit wave → impact wave → death wave in a single turn resolution.
+- **CONNECT_ONE_SHOT completion** — `entry.target.anim_done.connect(_on_entry_done.bind(entry), CONNECT_ONE_SHOT)`. Nodes own their tween logic and emit `anim_done` when done; they never reference the sequencer.
+- **`WorldFXLayer`** (`animation/world_fx_layer.gd`) — `Node2D` child of `combat_scene.tscn`. Handles null-target world FX (projectile impact burst: circle tween, radius + alpha). `combat_scene._ready()` sets `AnimationSequencer.world_fx = world_fx`.
+- **Unit animation interface** (`units/unit.gd`) — added `signal anim_done`, `var _dying: bool`, `play_anim()`, `snap_anim()`, `_apply_anim_end_state()`. Animations: `hit_flash` (tint tween), `death_fade` (alpha to 0), `status_pulse` (alpha flicker). Dead units stay in the scene tree until `death_fade` completes — no `queue_free`.
+- **Deployable animation interface** (`world/deployable.gd`) — same interface. Animations: `deploy_appear` (scale 0→1), `deploy_destroyed` (modulate flash + alpha to 0). `queue_free` deferred to `on_complete` callback on the `deploy_destroyed` entry; `CombatManager._on_deployable_died()` no longer calls `d.queue_free()` directly.
+- **EventBus: `deployable_placed`** — new signal in `event_bus.gd`; emitted in `CombatManager._spawn_deployables()` and mine spawn.
+- **`Features.animations_enabled`** — kill switch added to `features.gd`.
+- **Smoke:** `_m31_smoke()` — verifies `fast_forward=true`, `world_fx` valid, sequencer idle after resolve, and foe took damage.
 
 ---
 

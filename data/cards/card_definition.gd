@@ -12,7 +12,7 @@ extends Resource
 # TILE = pick a ground space (mine); NONE = instant, no target (applied on select). (M11)
 enum TargetType { ALLY, ENEMY, TILE, NONE }
 enum EffectType { SHIELD_BUFF, ARMOR_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MINE, HALVE_WIND,
-                  PRIME_FIRE, PRIME_ELECTRIC }   # M30: elemental prime cards
+				  PRIME_FIRE, PRIME_ELECTRIC }   # M30: elemental prime cards
 
 @export var target_type : TargetType = TargetType.ALLY
 @export var effect_type : EffectType = EffectType.SHIELD_BUFF
@@ -33,4 +33,3 @@ func resolve_params(level: int = 0) -> Dictionary:
 func resolve_description(level: int = 0) -> String:
 	if description_template.is_empty(): return ""
 	return description_template.format(resolve_params(level))
-

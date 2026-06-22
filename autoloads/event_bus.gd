@@ -40,7 +40,8 @@ signal terrain_crushed(col: int, row: int, damage: int, victims: Array)
 signal projectile_impact(world_pos: Vector2, impact_voxel: Vector2i, element: String)
 signal aoe_resolved(center: Vector2i, radius: int, affected_tiles: Array)
 
-# ── Deployable signals (M6) ────────────────────────────────────────────────────
+# ── Deployable signals (M6, M31) ──────────────────────────────────────────────
+signal deployable_placed(deployable: Deployable)   # M31: for deploy_appear animation
 signal deployable_died(deployable: Deployable)
 signal mine_detonated(mine: Deployable)
 

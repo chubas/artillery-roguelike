@@ -5,6 +5,7 @@ extends Node2D
 
 signal unit_damaged(unit: Unit, dmg: int, remaining_hp: int)
 signal unit_died(unit: Unit)
+signal anim_done   # M31: emitted by play_anim when the animation finishes
 
 @export var definition : UnitDefinition
 @export var is_player : bool = true
@@ -47,6 +48,7 @@ var selected : bool = false     # the controllable unit (white outline) — see 
 var inspected : bool = false    # whichever unit the inspector panel shows — see set_inspected
 var debug_invulnerable : bool = false   # M24: set by sandbox overlay; blocks all incoming damage
 var stack_visual_offset : Vector2 = Vector2.ZERO   # M29: 2.5D draw-only depth cue; does not affect vox_position or hitbox
+var _dying : bool = false   # M31: true while death_fade plays; blocks click/hover interaction
 
 ## Active status instances (M3 §4.4). Key = status id, value = StatusInstance.
 var active_statuses : Dictionary = {}
@@ -287,3 +289,48 @@ func _effect_color(def: StatusEffectDef) -> Color:
 	if "ELECTRIC" in def.tags:
 		return Color(0.4, 0.8, 1.0)
 	return Color(0.75, 0.75, 0.75)
+
+# --- Animation interface (M31) ------------------------------------------------
+func play_anim(anim_id: String, params: Dictionary, duration: float) -> void:
+	if duration == 0.0:
+		_apply_anim_end_state(anim_id, params)
+		anim_done.emit()
+		return
+	match anim_id:
+		"hit_flash":
+			var col : Color = params.get("color", Color.WHITE)
+			var t := create_tween()
+			t.tween_property(self, "modulate", col, duration * 0.4)
+			t.tween_property(self, "modulate", Color.WHITE, duration * 0.6)
+			await t.finished
+			anim_done.emit()
+		"death_fade":
+			_dying = true
+			var t := create_tween()
+			t.tween_property(self, "modulate:a", 0.0, duration)
+			await t.finished
+			anim_done.emit()
+		"status_pulse":
+			var t := create_tween()
+			t.tween_property(self, "modulate:a", 0.5, duration * 0.5)
+			t.tween_property(self, "modulate:a", 1.0, duration * 0.5)
+			await t.finished
+			anim_done.emit()
+		_:
+			anim_done.emit()
+
+func snap_anim(anim_id: String) -> void:
+	match anim_id:
+		"death_fade":
+			modulate.a = 0.0
+			_dying = true
+		_:
+			modulate = Color.WHITE
+
+func _apply_anim_end_state(anim_id: String, _params: Dictionary) -> void:
+	match anim_id:
+		"death_fade":
+			modulate.a = 0.0
+			_dying = true
+		_:
+			modulate = Color.WHITE

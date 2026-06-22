@@ -316,6 +316,7 @@ func _spawn_deployables() -> void:
 		d.set_vox_position(top_left)
 		layer.add_child(d)
 		deployables.append(d)
+		EventBus.deployable_placed.emit(d)
 
 func _chebyshev(a: Vector2i, b: Vector2i) -> int:
 	return maxi(absi(a.x - b.x), absi(a.y - b.y))
@@ -353,7 +354,10 @@ func _on_deployable_died(d: Deployable) -> void:
 	if inspected_deployable == d:
 		_inspect_deployable(null)
 		_push_hud_state()
-	d.queue_free()
+	# M31: queue_free is deferred to deploy_destroyed animation's on_complete callback.
+	# If animations are disabled, free immediately.
+	if not Features.animations_enabled:
+		d.queue_free()
 
 # --- Reinforcements (M5, schedule from _stage.reinforcements M13) ------------------
 func _check_reinforcements() -> void:
@@ -985,6 +989,7 @@ func _deploy_mine_at(col: int) -> void:
 	m.set_vox_position(top_left)
 	_deployable_layer_back.add_child(m)
 	deployables.append(m)
+	EventBus.deployable_placed.emit(m)
 
 func _halve_wind() -> void:
 	wind_strength *= 0.5

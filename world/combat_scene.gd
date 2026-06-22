@@ -18,6 +18,7 @@ const ZOOM_MAX := 3.0
 @onready var combat : CombatManager = $CombatManager
 @onready var targeting : TargetingUI = $TargetingUI
 @onready var camera : Camera2D = $Camera2D
+@onready var world_fx : WorldFXLayer = $WorldFXLayer
 
 var hud : HUD
 
@@ -32,6 +33,7 @@ var _focusing : bool = false
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color8(24, 26, 34))
+	AnimationSequencer.world_fx = world_fx
 	# M13: the stage descriptor drives terrain generation (its seed) before the renderer builds
 	# chunks, plus enemies/reinforcements/wind/deployables/objective inside combat.
 	if stage == null:
@@ -223,6 +225,7 @@ func _smoke_test() -> void:
 	_m27_smoke()
 	_m29_smoke()
 	_m30_smoke()
+	_m31_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1277,6 +1280,20 @@ func _m30_smoke() -> void:
 				5, false, combat.deployables, 0, null, el)
 	print("  foe took fire dmg=%s (expect true)" % (foe.hp < hp_before))
 	ally.primed_elements.clear()
+
+func _m31_smoke() -> void:
+	print("[smoke] -- M31 animation sequencer --")
+	print("  fast_forward=%s (expect true)" % AnimationSequencer.fast_forward)
+	print("  world_fx valid=%s (expect true)" % is_instance_valid(AnimationSequencer.world_fx))
+	var foe : Unit = combat.enemy_units[0]
+	_reset(foe)
+	var hp_before := foe.hp
+	# A high-strength resolve should fire unit_hit_taken → hit_flash, unit_died → death_fade.
+	# In fast_forward mode all animations complete synchronously within the resolve() call.
+	AoEResolver.resolve(terrain, combat.all_units, foe.center_voxel(),
+			load("res://data/shots/aoe/diamond_r2.tres"), 99, false, combat.deployables)
+	print("  sequencer idle=%s (expect true)" % AnimationSequencer._active_batch.is_empty())
+	print("  foe took dmg=%s (expect true)" % (foe.hp < hp_before))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

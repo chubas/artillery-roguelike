@@ -5,6 +5,8 @@
 class_name Deployable
 extends Node2D
 
+signal anim_done   # M31: emitted by play_anim when the animation finishes
+
 var max_hp : int = 1
 var hp : int = 1
 var vox_position : Vector2i = Vector2i.ZERO
@@ -50,3 +52,34 @@ func _draw() -> void:
 	var border_col := Color.WHITE if selected \
 			else (color.lightened(0.4) if hovered else color.darkened(0.4))
 	draw_rect(body, border_col, false, 2.0 if (selected or hovered) else 1.0)
+
+# --- Animation interface (M31) ------------------------------------------------
+func play_anim(anim_id: String, _params: Dictionary, duration: float) -> void:
+	if duration == 0.0:
+		_apply_anim_end_state(anim_id)
+		anim_done.emit()
+		return
+	match anim_id:
+		"deploy_appear":
+			scale = Vector2.ZERO
+			var t := create_tween()
+			t.tween_property(self, "scale", Vector2.ONE, duration)
+			await t.finished
+			anim_done.emit()
+		"deploy_destroyed":
+			var t := create_tween()
+			t.tween_property(self, "modulate", color.lightened(0.8), duration * 0.25)
+			t.tween_property(self, "modulate:a", 0.0, duration * 0.75)
+			await t.finished
+			anim_done.emit()
+		_:
+			anim_done.emit()
+
+func snap_anim(anim_id: String) -> void:
+	_apply_anim_end_state(anim_id)
+
+func _apply_anim_end_state(anim_id: String) -> void:
+	match anim_id:
+		"deploy_appear":    scale = Vector2.ONE
+		"deploy_destroyed": modulate.a = 0.0
+		_:                  modulate = Color.WHITE
