@@ -22,11 +22,11 @@ static func resolve_move(unit: Unit, direction: int,
 		var f := foot
 		while f < Const.MAP_HEIGHT - 1 and not grounded(terrain, new_x, f, w):
 			f += 1
-		return _final_if_unit_free(units, new_x, f, unit)
+		return Vector2i(new_x, f - h + 1)
 	# Climb candidate: 1 voxel up (climb_max; 2+ is blocked).
 	if unit.definition.climb_max >= 1 \
 			and bbox_terrain_clear(terrain, Vector2i(new_x, foot - h), w, h):
-		return _final_if_unit_free(units, new_x, foot - 1, unit)
+		return Vector2i(new_x, foot - 1)
 	return NO_MOVE
 
 # Vertical-only fall: where the unit lands if terrain under it gives way. Returns the
@@ -72,8 +72,3 @@ static func overlaps_any_unit(units: Array, top_left: Vector2i,
 			return true
 	return false
 
-static func _final_if_unit_free(units: Array, x: int, foot: int, unit: Unit) -> Vector2i:
-	var top_left := Vector2i(x, foot - unit.definition.height_voxels + 1)
-	if overlaps_any_unit(units, top_left, unit.definition, unit):
-		return NO_MOVE
-	return top_left

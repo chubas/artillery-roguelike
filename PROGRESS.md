@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-20)
+## Current state (2026-06-21)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -37,9 +37,10 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M23 (Unit capacity + skip rewards),
   M24 (Debug sandbox overlay),
   M25 (Sandbox II: spawn overrides, terrain, inspector, round advance),
-  **M26 (Tooltip templating + formula-driven leveling)**,
-  **M27 (Map squad bar, Shards HUD, repair & retire)**,
-  **M28 (Aura visualization + deployable selection)**.
+  M26 (Tooltip templating + formula-driven leveling),
+  M27 (Map squad bar, Shards HUD, repair & retire),
+  M28 (Aura visualization + deployable selection),
+  **M29 (Unit stacking: remove overlap constraint, 2.5D depth offset, scroll-wheel inspector cycle)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
@@ -49,6 +50,19 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-21 — Milestone 29: Unit Stacking
+
+Dropped the constraint that two units (or deployables) cannot occupy the same voxel. Full design in [docs/planning/milestone-29-plan.md](docs/planning/milestone-29-plan.md).
+
+- **Stacking allowed** — `UnitMovement.resolve_move()` no longer calls `overlaps_any_unit()` after settling. `_placement_drop()` and `_find_valid_spawn()` also drop their overlap guards. `overlaps_any_unit()` kept as a utility for future queries.
+- **2.5D depth offset** — `stack_visual_offset: Vector2` added to `Unit` and `Deployable`. `_recompute_stack_offsets()` in `CombatManager` assigns `Vector2(-2*i, -2*i)` to stacked entities and is called after every move, death, placement confirm, and reinforcement spawn. `Unit._draw()` applies the offset via `draw_set_transform(stack_visual_offset)`. `Deployable._draw()` shifts only the body rect (shield generator aura stays at true map position).
+- **Scroll-wheel inspector cycling** — hovering 2+ stacked entities and scrolling cycles the HUD inspector through them (inspect-only; active-turn unit unchanged). Scroll zoom removed from `combat_scene._unhandled_input()`; keyboard +/- still zooms. `CombatManager._scroll_stack_cycle()` + `_entities_at_vox()` handle the cycle logic.
+- **AoE/mine triggers unchanged** — `AoEResolver` already iterates all units; stacked units each take damage independently. Mine Chebyshev trigger already catches distance 0.
+- **Feature flag** — `Features.stacking_enabled` gates the system (`features.gd`).
+- **Smoke:** `_m29_smoke()` — stacks two enemies, checks same-voxel, verifies `-2,-2` offset, fires `diamond_r2` AoE and confirms both took damage.
 
 ---
 

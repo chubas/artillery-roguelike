@@ -85,11 +85,6 @@ func _setup_camera() -> void:
 	camera.position = Const.voxel_to_world(Vector2i(mid_col, mid_row))
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_zoom_camera(1.1)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_zoom_camera(1.0 / 1.1)
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_EQUAL:
 			_zoom_camera(1.1)
@@ -226,6 +221,7 @@ func _smoke_test() -> void:
 	_m22_smoke()
 	_m23_smoke()
 	_m27_smoke()
+	_m29_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1240,6 +1236,26 @@ func _m21_smoke() -> void:
 	var rs2 := RunState.from_dict(rs.to_dict())
 	print("  rt shards=%d (expect 10)" % rs2.resources.get("shards", -1))
 	print("  rt upgrade_slots=%d (expect 2)" % rs2.squad[0].upgrade_slots)
+
+func _m29_smoke() -> void:
+	print("[smoke] -- M29 unit stacking --")
+	if combat.enemy_units.size() < 2:
+		print("  skip: need 2+ enemy units")
+		return
+	var u1 : Unit = combat.enemy_units[0]
+	var u2 : Unit = combat.enemy_units[1]
+	_reset(u1); _reset(u2)
+	u2.set_vox_position(u1.vox_position)
+	print("  same vox=%s (expect true)" % (u1.vox_position == u2.vox_position))
+	combat._recompute_stack_offsets()
+	print("  u2 offset=(%s,%s) (expect -2,-2)" % [u2.stack_visual_offset.x, u2.stack_visual_offset.y])
+	var hp1 : int = u1.hp; var hp2 : int = u2.hp
+	var pattern := load("res://data/shots/aoe/diamond_r2.tres") as AoEPattern
+	if pattern != null:
+		AoEResolver.resolve(terrain, combat.all_units, u1.center_voxel(),
+				pattern, 5, false, combat.deployables)
+		print("  u1 took dmg=%s u2 took dmg=%s (expect true true)" \
+				% [u1.hp < hp1, u2.hp < hp2])
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

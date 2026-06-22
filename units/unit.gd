@@ -45,6 +45,7 @@ var actions_spent_moving : int = 0
 var selected : bool = false     # the controllable unit (white outline) — see set_selected
 var inspected : bool = false    # whichever unit the inspector panel shows — see set_inspected
 var debug_invulnerable : bool = false   # M24: set by sandbox overlay; blocks all incoming damage
+var stack_visual_offset : Vector2 = Vector2.ZERO   # M29: 2.5D draw-only depth cue; does not affect vox_position or hitbox
 
 ## Active status instances (M3 §4.4). Key = status id, value = StatusInstance.
 var active_statuses : Dictionary = {}
@@ -200,6 +201,7 @@ func contains_voxel(vox: Vector2i) -> bool:
 
 # --- Visuals (M2 spec §3.3–3.4) --------------------------------------------------
 func _draw() -> void:
+	draw_set_transform(stack_visual_offset)
 	var w := definition.width_voxels * Const.VOXEL_SIZE
 	var h := definition.height_voxels * Const.VOXEL_SIZE
 	var body := Rect2(0, 0, w, h)

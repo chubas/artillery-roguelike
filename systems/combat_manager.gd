@@ -199,6 +199,7 @@ func _start_placement() -> void:
 func _confirm_placement() -> void:
 	if game_state != GameState.PLACEMENT or not _placement_queue.is_empty():
 		return
+	_recompute_stack_offsets()
 	_begin_round()
 
 # Drop `unit` at `col`: clamp into spawn zone, snap to surface, validate, make visible.
@@ -217,10 +218,6 @@ func _placement_drop(unit: Unit, col: int) -> bool:
 	if top_left.y < 0:
 		return false
 	if not UnitMovement.bbox_terrain_clear(_terrain, top_left, def.width_voxels, def.height_voxels):
-		return false
-	# Only check overlap against already-placed units (invisible queue units are at vox(0,0)).
-	var placed := all_units.filter(func(u): return u.visible)
-	if UnitMovement.overlaps_any_unit(placed, top_left, def, null):
 		return false
 	unit.set_vox_position(top_left)
 	unit.visible = true
@@ -292,8 +289,6 @@ func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 		if not UnitMovement.bbox_terrain_clear(_terrain, top_left,
 				def.width_voxels, def.height_voxels):
 			continue
-		if UnitMovement.overlaps_any_unit(all_units, top_left, def, null):
-			continue
 		return top_left
 	push_error("No valid spawn near col %d" % preferred_col)
 	return Vector2i(preferred_col, 0)
@@ -355,6 +350,7 @@ func _on_mine_detonated(mine: Deployable) -> void:
 
 func _on_deployable_died(d: Deployable) -> void:
 	deployables.erase(d)
+	_recompute_stack_offsets()
 	if inspected_deployable == d:
 		_inspect_deployable(null)
 		_push_hud_state()
@@ -387,6 +383,7 @@ func _spawn_reinforcement(wave: Dictionary) -> void:
 	u.unit_died.connect(_on_unit_died)
 	enemy_units.append(u)
 	all_units.append(u)
+	_recompute_stack_offsets()
 
 # List of not-yet-spawned future waves, for the HUD/overlay countdown indicator.
 func _reinforcement_warnings() -> Array:
@@ -576,6 +573,7 @@ func _on_unit_died(unit: Unit) -> void:
 		for pu in player_units:
 			_essence_ctx.unit = pu
 			EssenceSystem.call_unit_died(pu.essences, _essence_ctx, unit)
+	_recompute_stack_offsets()
 	_check_objective()
 
 # Run the stage's objective against current combat state; transition + announce on a result.
@@ -673,6 +671,67 @@ func _try_click_select(world_pos: Vector2) -> void:
 			inspected_unit = null
 			return
 
+# --- M29: stack visual offsets ---------------------------------------------------
+func _recompute_stack_offsets() -> void:
+	if not Features.stacking_enabled:
+		return
+	var groups : Dictionary = {}
+	for u in all_units:
+		if u.hp > 0:
+			if not groups.has(u.vox_position): groups[u.vox_position] = []
+			groups[u.vox_position].append(u)
+	for d in deployables:
+		if d.hp > 0:
+			if not groups.has(d.vox_position): groups[d.vox_position] = []
+			groups[d.vox_position].append(d)
+	for u in all_units:
+		u.stack_visual_offset = Vector2.ZERO; u.z_index = 0
+	for d in deployables:
+		d.stack_visual_offset = Vector2.ZERO; d.z_index = 0
+	for key in groups:
+		var group : Array = groups[key]
+		if group.size() < 2:
+			continue
+		for i in range(group.size()):
+			group[i].stack_visual_offset = Vector2(-2.0 * i, -2.0 * i)
+			group[i].z_index = i
+			group[i].queue_redraw()
+
+func _entities_at_vox(vox: Vector2i) -> Array:
+	var result : Array = []
+	for u in all_units:
+		if u.hp > 0 and u.contains_voxel(vox):
+			result.append(u)
+	for d in deployables:
+		if d.hp > 0 and d.contains_voxel(vox):
+			result.append(d)
+	return result
+
+func _scroll_stack_cycle(delta: int, world_pos: Vector2) -> void:
+	var vox : Vector2i = Const.world_to_voxel(world_pos)
+	var at_vox := _entities_at_vox(vox)
+	if at_vox.size() < 2:
+		return
+	var current = inspected_unit \
+			if inspected_unit != null and is_instance_valid(inspected_unit) \
+			else inspected_deployable
+	var idx : int = at_vox.find(current)
+	if idx == -1: idx = 0
+	else: idx = (idx + delta + at_vox.size()) % at_vox.size()
+	var next = at_vox[idx]
+	if next is Unit:
+		_inspect(next)
+		_inspect_deployable(null)
+	else:
+		if inspected_unit != null and is_instance_valid(inspected_unit):
+			inspected_unit.set_inspected(false)
+		inspected_unit = null
+		_inspect_deployable(next as Deployable)
+	for e in at_vox:
+		e.z_index = 0
+	next.z_index = at_vox.size()
+	_push_hud_state()
+
 # --- Movement (M2 spec §5.2 + unit-collision rule from plan §1.5) -----------------
 func try_move(unit: Unit, direction: int) -> void:
 	if game_state != GameState.PLAYER_TURN or charging:
@@ -690,6 +749,7 @@ func try_move(unit: Unit, direction: int) -> void:
 	if dest == NO_MOVE:
 		return
 	unit.set_vox_position(dest)
+	_recompute_stack_offsets()
 	unit.moved_this_turn = true
 	unit.actions_spent_moving += 1
 	if token != null:
@@ -959,6 +1019,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if game_state == GameState.PLACEMENT:
 		_placement_input(event)
 		return
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP \
+				or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			var delta := -1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1
+			_scroll_stack_cycle(delta, get_global_mouse_position())
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventKey and event.pressed and not event.echo \
 			and event.physical_keycode == KEY_K and event.shift_pressed:
 		for u in enemy_units.duplicate():

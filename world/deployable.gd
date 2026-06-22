@@ -16,6 +16,7 @@ var color : Color = Color.GRAY
 # M28: selection and hover state for visual feedback and inspector panel.
 var hovered  : bool = false
 var selected : bool = false
+var stack_visual_offset : Vector2 = Vector2.ZERO   # M29: 2.5D draw-only depth cue; does not affect vox_position or hitbox
 
 func set_vox_position(p: Vector2i) -> void:
 	vox_position = p
@@ -44,7 +45,7 @@ func _die() -> void:
 func _draw() -> void:
 	var w := width_voxels * Const.VOXEL_SIZE
 	var h := height_voxels * Const.VOXEL_SIZE
-	var body := Rect2(0, 0, w, h)
+	var body := Rect2(stack_visual_offset, Vector2(w, h))
 	draw_rect(body, color)
 	var border_col := Color.WHITE if selected \
 			else (color.lightened(0.4) if hovered else color.darkened(0.4))
