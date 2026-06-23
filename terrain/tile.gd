@@ -1,7 +1,7 @@
 # Per-voxel data object (terrain spec §4.1). VOID voxels are null in the grid — no Tile.
 class_name Tile
 
-enum TileType { SOLID, RUBBLE, LIQUID }            # only SOLID active in M1
+enum TileType { SOLID, RUBBLE, LIQUID, LAVA }      # LAVA: visual-only, no mechanics (M33)
 enum Element  { NONE, FIRE, ELECTRIC, EXPLOSIVE, CORROSIVE }  # schema only in M1
 
 # Flags bitmask (terrain spec §4.2) — none are set on any tile in M1.
@@ -54,6 +54,9 @@ func setup(t: TileType, hp_val: int, var_idx: int) -> Tile:
 	# (CONDUCTIVE) and the indestructible platform (no tags).
 	if t == TileType.SOLID:
 		status_tags = ["FLAMMABLE"]
+	elif t == TileType.LAVA:
+		status_tags = ["LAVA"]
+		flags |= FLAG_PASSABLE   # no physics interaction; purely cosmetic
 	else:
 		status_tags = []
 	return self

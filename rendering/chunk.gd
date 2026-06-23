@@ -15,6 +15,7 @@ const COLOR_REINFORCED := [
 	Color8(130, 138, 148), Color8(104, 112, 122),
 ]
 const COLOR_PLATFORM := Color8(70, 76, 88)
+const COLOR_LAVA     := Color8(220, 80, 20)
 
 var cx : int = 0
 var cy : int = 0
@@ -42,6 +43,11 @@ func _draw() -> void:
 				continue
 			var rect := Rect2(lx * vs, ly * vs, vs, vs)
 			var base : Color
+			if tile.type == Tile.TileType.LAVA:
+				base = COLOR_LAVA
+				draw_rect(rect, base)
+				draw_rect(rect, base.darkened(0.3), false, 1.0)
+				continue
 			if tile.has_flag(Tile.FLAG_INDESTRUCTIBLE):
 				base = COLOR_PLATFORM
 			elif tile.max_hp > 3:
@@ -53,6 +59,7 @@ func _draw() -> void:
 			draw_rect(rect, base.darkened(0.3), false, 1.0)
 			_draw_cracks(rect, tile.damage_state())
 			_draw_status_overlay(rect, tile)
+			_draw_hp_label(rect, tile)
 
 # Placeholder tile-status tints (M3 §16): burning = orange, electrified = blue-white.
 func _draw_status_overlay(rect: Rect2, tile: Tile) -> void:
@@ -62,6 +69,17 @@ func _draw_status_overlay(rect: Rect2, tile: Tile) -> void:
 		draw_rect(rect, Color(1.0, 0.45, 0.1, 0.45))
 	if tile.tile_statuses.has("electrified"):
 		draw_rect(rect, Color(0.55, 0.8, 1.0, 0.5))
+
+func _draw_hp_label(rect: Rect2, tile: Tile) -> void:
+	if tile.has_flag(Tile.FLAG_INDESTRUCTIBLE):
+		return
+	var font  := ThemeDB.fallback_font
+	var fsize : int = 7
+	var text  := str(tile.hp)
+	var tw    := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
+	var center := rect.position + rect.size * 0.5
+	draw_string(font, Vector2(center.x - tw * 0.5, center.y + font.get_ascent(fsize) * 0.5),
+			text, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(1, 1, 1, 0.55))
 
 func _draw_cracks(rect: Rect2, state: int) -> void:
 	if state == 0:

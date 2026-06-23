@@ -258,7 +258,7 @@ func load_map(data: MapData) -> void:
 			t.max_hp      = cell["max_hp"]
 			t.flags       = cell["flags"]
 			t.collapsible = cell["collapsible"]
-			t.status_tags = (cell["status_tags"] as Array).duplicate()
+			t.status_tags.assign(cell["status_tags"] as Array)
 			t.variant     = cell["variant"]
 			_grid[_idx(col, row)] = t
 

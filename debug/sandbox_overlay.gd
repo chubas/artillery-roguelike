@@ -32,11 +32,8 @@ var _stacks_spin   : SpinBox = null
 var _status_defs   : Array[StatusEffectDef] = []
 
 # Terrain controls
-var _seed_field    : LineEdit = null
-
-# Terrain Visualizer (M32)
+var _seed_field        : LineEdit     = null
 var _tv_profile_option : OptionButton = null
-var _tv_seed_field     : LineEdit     = null
 var _tv_minimap        : Control      = null
 var _tv_profiles       : Array        = []
 var _tv_preview_data   : MapData      = null
@@ -234,6 +231,20 @@ func _build_panel() -> void:
 
 	# ── Terrain ──
 	_add_section(col, "TERRAIN")
+	col.add_child(_make_label("Profile:"))
+	_tv_profile_option = OptionButton.new()
+	_tv_profile_option.add_theme_font_size_override("font_size", 10)
+	_tv_profile_option.focus_mode = Control.FOCUS_NONE
+	_tv_profile_option.add_item("(legacy noise)")
+	var profile_dir := "res://data/terrain/profiles/"
+	if DirAccess.dir_exists_absolute(profile_dir):
+		for fname in DirAccess.get_files_at(profile_dir):
+			if fname.ends_with(".tres"):
+				var p := load(profile_dir + fname) as TerrainProfile
+				if p != null:
+					_tv_profiles.append(p)
+					_tv_profile_option.add_item(fname.get_basename())
+	col.add_child(_tv_profile_option)
 	col.add_child(_make_label("Seed:"))
 	_seed_field = LineEdit.new()
 	_seed_field.text = "12345"
@@ -245,6 +256,11 @@ func _build_panel() -> void:
 	var repos_btn := _make_btn("Reposition Units")
 	repos_btn.pressed.connect(_reposition_units)
 	col.add_child(repos_btn)
+	_tv_minimap = _TerrainMinimap.new()
+	_tv_minimap.custom_minimum_size = Vector2(PANEL_W - 10, 80)
+	_tv_minimap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	(_tv_minimap as _TerrainMinimap).overlay = self
+	col.add_child(_tv_minimap)
 
 	# ── Cheats ──
 	_add_section(col, "CHEATS")
@@ -276,63 +292,6 @@ func _build_panel() -> void:
 	_passive_btn.pressed.connect(_toggle_enemy_passive)
 	col.add_child(_passive_btn)
 
-	# ── Terrain Visualizer (M32) ──
-	_build_terrain_visualizer(col)
-
-# ── Terrain Visualizer (M32) ─────────────────────────────────────────────────
-
-func _build_terrain_visualizer(col: VBoxContainer) -> void:
-	_add_section(col, "TERRAIN VIZ")
-
-	# Profile dropdown
-	col.add_child(_make_label("Profile:"))
-	_tv_profile_option = OptionButton.new()
-	_tv_profile_option.add_theme_font_size_override("font_size", 10)
-	_tv_profile_option.focus_mode = Control.FOCUS_NONE
-	col.add_child(_tv_profile_option)
-
-	# Load all profiles from data directory
-	var profile_dir := "res://data/terrain/profiles/"
-	if DirAccess.dir_exists_absolute(profile_dir):
-		for fname in DirAccess.get_files_at(profile_dir):
-			if fname.ends_with(".tres"):
-				var p := load(profile_dir + fname) as TerrainProfile
-				if p != null:
-					_tv_profiles.append(p)
-					_tv_profile_option.add_item(fname.get_basename())
-	if _tv_profiles.is_empty():
-		col.add_child(_make_label("(no profiles baked yet)"))
-
-	# Seed field
-	col.add_child(_make_label("Seed:"))
-	_tv_seed_field = LineEdit.new()
-	_tv_seed_field.text = "42"
-	_tv_seed_field.add_theme_font_size_override("font_size", 11)
-	col.add_child(_tv_seed_field)
-
-	# Preview button
-	var preview_btn := _make_btn("Preview")
-	preview_btn.pressed.connect(_preview_terrain)
-	col.add_child(preview_btn)
-
-	# Minimap control
-	_tv_minimap = _TerrainMinimap.new()
-	_tv_minimap.custom_minimum_size = Vector2(PANEL_W - 10, 80)
-	_tv_minimap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	(_tv_minimap as _TerrainMinimap).overlay = self
-	col.add_child(_tv_minimap)
-
-func _preview_terrain() -> void:
-	if _tv_profiles.is_empty():
-		return
-	var idx  := _tv_profile_option.selected
-	if idx < 0 or idx >= _tv_profiles.size():
-		return
-	var profile : TerrainProfile = _tv_profiles[idx]
-	var seed_val := int(_tv_seed_field.text) if _tv_seed_field.text.is_valid_int() else 42
-	_tv_preview_data = TerrainGenerator.generate(profile, seed_val)
-	if _tv_minimap != null:
-		_tv_minimap.queue_redraw()
 
 class _TerrainMinimap extends Control:
 	var overlay : Object = null   # sandbox_overlay reference
@@ -369,26 +328,37 @@ class _TerrainMinimap extends Control:
 
 func _regenerate_terrain() -> void:
 	var seed_val := int(_seed_field.text) if _seed_field.text.is_valid_int() else 12345
-	_terrain.generate(seed_val)
+	# Index 0 = "(legacy noise)"; indices 1+ map to _tv_profiles[idx - 1]
+	var profile_idx := _tv_profile_option.selected - 1 if _tv_profile_option != null else -1
+	if profile_idx >= 0 and profile_idx < _tv_profiles.size():
+		var profile : TerrainProfile = _tv_profiles[profile_idx]
+		var data := TerrainGenerator.generate(profile, seed_val)
+		_tv_preview_data = data
+		_terrain.load_map(data)
+	else:
+		_terrain.generate(seed_val)
+		_tv_preview_data = null
 	_renderer.mark_all_dirty()
-	# Re-snap all units to the new surface
-	var all := _combat.player_units + _combat.enemy_units
-	for u in all:
-		var unit : Unit = u
-		var new_row := _terrain.get_surface_row(unit.vox_position.x)
-		unit.set_vox_position(Vector2i(unit.vox_position.x, new_row))
+	if _tv_minimap != null:
+		_tv_minimap.queue_redraw()
+	_snap_all_entities()
 
 func _reposition_units() -> void:
-	var all : Array = _combat.player_units + _combat.enemy_units
-	for u in all:
+	_snap_all_entities()
+
+func _snap_all_entities() -> void:
+	var units : Array = _combat.player_units + _combat.enemy_units
+	for u in units:
 		var unit : Unit = u
-		var new_pos := UnitMovement.settle_at(
-			Vector2i(unit.vox_position.x, 0),
-			unit.definition.width_voxels,
-			unit.definition.height_voxels,
-			_terrain
-		)
-		unit.set_vox_position(new_pos)
+		var x := clampi(unit.vox_position.x, 0, _terrain.map_width - unit.definition.width_voxels)
+		unit.set_vox_position(UnitMovement.settle_at(
+			Vector2i(x, 0), unit.definition.width_voxels, unit.definition.height_voxels, _terrain))
+	for d in _combat.deployables:
+		var dep : Node = d
+		var w   : int  = dep.get("width_voxels")
+		var h   : int  = dep.get("height_voxels")
+		var x   := clampi(dep.get("vox_position").x, 0, _terrain.map_width - w)
+		dep.set_vox_position(UnitMovement.settle_at(Vector2i(x, 0), w, h, _terrain))
 
 # ── Status injection ─────────────────────────────────────────────────────────
 
