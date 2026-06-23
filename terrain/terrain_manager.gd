@@ -8,23 +8,33 @@ signal tile_destroyed(col: int, row: int, tile_type: int)
 signal tile_changed(col: int, row: int)
 signal aoe_resolved(center: Vector2i, radius: int, affected: Array)
 
+# --- Dimensions (M32: variable per loaded MapData; default = Const values) ----
+var map_width  : int = Const.MAP_WIDTH
+var map_height : int = Const.MAP_HEIGHT
+
+func chunks_wide() -> int:
+	return int(ceil(float(map_width)  / Const.CHUNK_SIZE))
+
+func chunks_tall() -> int:
+	return int(ceil(float(map_height) / Const.CHUNK_SIZE))
+
 # --- Storage (terrain spec §5.1) ---------------------------------------------
-var _grid : Array = []   # size MAP_WIDTH*MAP_HEIGHT; null = VOID
+var _grid : Array = []   # size map_width*map_height; null = VOID
 
 # Columns that need a collapse pass after tile destruction (batched per blast).
 var _pending_collapse_cols : Dictionary = {}
 
 func _ready() -> void:
-	_grid.resize(Const.MAP_WIDTH * Const.MAP_HEIGHT)
+	_grid.resize(map_width * map_height)
 	_grid.fill(null)
 	# Generation is driven by the scene (combat_scene) with the active stage's terrain_seed (M13),
 	# so the grid is only allocated here — not filled with a fixed-seed map.
 
 func _idx(col: int, row: int) -> int:
-	return row * Const.MAP_WIDTH + col
+	return row * map_width + col
 
 func _in_bounds(col: int, row: int) -> bool:
-	return col >= 0 and col < Const.MAP_WIDTH and row >= 0 and row < Const.MAP_HEIGHT
+	return col >= 0 and col < map_width and row >= 0 and row < map_height
 
 # --- Access (terrain spec §12.1) ---------------------------------------------
 func get_tile(col: int, row: int) -> Tile:
@@ -229,6 +239,28 @@ func get_tiles_in_diamond(cx: int, cy: int, radius: int) -> Array:
 
 func has_los(from: Vector2i, to: Vector2i) -> bool:
 	return LoS.has_los(self, from, to)
+
+# --- M32: Load from MapData ──────────────────────────────────────────────────
+
+func load_map(data: MapData) -> void:
+	map_width  = data.width
+	map_height = data.height
+	_grid.resize(map_width * map_height)
+	_grid.fill(null)
+	for row in range(map_height):
+		for col in range(map_width):
+			var cell = data.get_cell(col, row)
+			if cell == null:
+				continue
+			var t := Tile.new()
+			t.type        = cell["type"]  as Tile.TileType
+			t.hp          = cell["hp"]
+			t.max_hp      = cell["max_hp"]
+			t.flags       = cell["flags"]
+			t.collapsible = cell["collapsible"]
+			t.status_tags = (cell["status_tags"] as Array).duplicate()
+			t.variant     = cell["variant"]
+			_grid[_idx(col, row)] = t
 
 # --- Generation: six passes, seeded, reproducible (terrain spec §6.1) ---------
 # `seed` drives the surface noise + the derived cave/HP/variant RNGs, so each stage descriptor

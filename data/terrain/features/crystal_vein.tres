@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FeatureDefinition" format=3]
+
+[ext_resource type="Script" path="res://terrain/feature_definition.gd" id="1_gxkdm"]
+
+[resource]
+script = ExtResource("1_gxkdm")
+type = 4
+width_min = 0
+width_max = 0
+height_min = 30
+height_max = 65

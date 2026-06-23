@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FeatureDefinition" format=3]
+
+[ext_resource type="Script" path="res://terrain/feature_definition.gd" id="1_nbqct"]
+
+[resource]
+script = ExtResource("1_nbqct")
+type = 2
+width_min = 16
+width_max = 28
+height_min = 30
+height_max = 60

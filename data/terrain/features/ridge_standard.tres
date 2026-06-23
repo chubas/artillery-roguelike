@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FeatureDefinition" format=3]
+
+[ext_resource type="Script" path="res://terrain/feature_definition.gd" id="1_dfknw"]
+
+[resource]
+script = ExtResource("1_dfknw")
+width_min = 20
+width_max = 40
+height_max = 18
+special_params = {
+"slope_edges": true
+}

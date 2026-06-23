@@ -32,3 +32,6 @@ extends Resource
 ## Reserved seams — not consumed yet.
 @export var rewards     : Array[String] = []   # granted on completion (M16)
 @export var threat_tags : Array[String] = []   # surfaced by the map for telegraphing (M14)
+
+## M32: profile-driven terrain generation. null = legacy generate(terrain_seed).
+@export var terrain_profile : TerrainProfile = null

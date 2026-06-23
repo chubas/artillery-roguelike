@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="TerrainProfile" format=3]
+
+[ext_resource type="Script" path="res://terrain/feature_definition.gd" id="1_o0d5t"]
+[ext_resource type="Script" path="res://terrain/terrain_profile.gd" id="2_gud83"]
+
+[sub_resource type="Resource" id="Resource_e6x30"]
+script = ExtResource("1_o0d5t")
+type = 1
+width_min = 14
+width_max = 22
+height_max = 12
+special_params = {
+"aperture_count": 1
+}
+
+[resource]
+script = ExtResource("2_gud83")
+story = "Enemy inside a protected structure"
+map_width_min = 110
+map_width_max = 140
+noise_max_amplitude = 5
+right_slot = SubResource("Resource_e6x30")

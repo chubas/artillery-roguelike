@@ -27,3 +27,4 @@ var essences_enabled        : bool = true   # M22: per-unit essence upgrade hook
 var sandbox_enabled         : bool = true   # M24: debug sandbox overlay in combat scene
 var stacking_enabled        : bool = true   # M29: units/deployables may share the same voxel
 var animations_enabled      : bool = true   # M31: AnimationSequencer batch queue + placeholder FX
+var terrain_profiles_enabled : bool = true  # M32: profile-driven terrain generation + MapData pipeline

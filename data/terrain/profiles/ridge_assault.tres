@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TerrainProfile" format=3]
+
+[ext_resource type="Script" path="res://terrain/feature_definition.gd" id="1_s3oc8"]
+[ext_resource type="Script" path="res://terrain/terrain_profile.gd" id="2_th5l7"]
+
+[sub_resource type="Resource" id="Resource_i45k0"]
+script = ExtResource("1_s3oc8")
+width_min = 20
+width_max = 40
+height_max = 18
+special_params = {
+"slope_edges": true
+}
+
+[resource]
+script = ExtResource("2_th5l7")
+story = "Enemy holds the high ground"
+noise_max_amplitude = 5
+center_slot = SubResource("Resource_i45k0")

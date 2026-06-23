@@ -14,7 +14,8 @@ func _ready() -> void:
 	for d in ["res://data/elements", "res://data/statuses", "res://data/tile_statuses",
 			"res://data/shots/aoe", "res://data/units", "res://data/cards",
 			"res://data/artifacts/resources", "res://data/stages",
-			"res://data/essences/resources"]:
+			"res://data/essences/resources",
+			"res://data/terrain/profiles", "res://data/terrain/features"]:
 		DirAccess.make_dir_recursive_absolute(d)
 
 	# ── Unit statuses (leaf — no refs) ────────────────────────────────────────
@@ -439,6 +440,60 @@ func _ready() -> void:
 	s3.objective = s3_obj
 	s3.threat_tags = ["fire", "electric", "swarm"]
 	_save(s3, "res://data/stages/stage_03.tres")
+
+	# ── M32: Terrain feature definitions ────────────────────────────────────────
+	var fd_ridge := FeatureDefinition.new()
+	fd_ridge.type = FeatureDefinition.FeatureType.RIDGE
+	fd_ridge.width_min = 20; fd_ridge.width_max = 40
+	fd_ridge.height_min = 8; fd_ridge.height_max = 18
+	fd_ridge.special_params = {"slope_edges": true}
+	_save(fd_ridge, "res://data/terrain/features/ridge_standard.tres")
+
+	var fd_bunker := FeatureDefinition.new()
+	fd_bunker.type = FeatureDefinition.FeatureType.BUNKER
+	fd_bunker.width_min = 14; fd_bunker.width_max = 22
+	fd_bunker.height_min = 8; fd_bunker.height_max = 12
+	fd_bunker.special_params = {"aperture_count": 1}
+	_save(fd_bunker, "res://data/terrain/features/bunker_standard.tres")
+
+	var fd_pit := FeatureDefinition.new()
+	fd_pit.type = FeatureDefinition.FeatureType.PIT
+	fd_pit.width_min = 16; fd_pit.width_max = 28
+	fd_pit.height_min = 30; fd_pit.height_max = 60
+	_save(fd_pit, "res://data/terrain/features/pit_standard.tres")
+
+	var fd_crystal := FeatureDefinition.new()
+	fd_crystal.type = FeatureDefinition.FeatureType.CRYSTAL_DEPOSIT
+	fd_crystal.width_min = 0; fd_crystal.width_max = 0   # unused for crystal
+	fd_crystal.height_min = 30; fd_crystal.height_max = 65
+	_save(fd_crystal, "res://data/terrain/features/crystal_vein.tres")
+
+	# ── M32: Terrain profiles ────────────────────────────────────────────────
+	var tp_open := TerrainProfile.new()
+	tp_open.story = "No terrain problem — open field"
+	tp_open.noise_max_amplitude = 8
+	tp_open.background = [fd_crystal]
+	_save(tp_open, "res://data/terrain/profiles/open_field.tres")
+
+	var tp_ridge := TerrainProfile.new()
+	tp_ridge.story = "Enemy holds the high ground"
+	tp_ridge.center_slot = fd_ridge
+	tp_ridge.noise_max_amplitude = 5
+	_save(tp_ridge, "res://data/terrain/profiles/ridge_assault.tres")
+
+	var tp_fortress := TerrainProfile.new()
+	tp_fortress.story = "Enemy inside a protected structure"
+	tp_fortress.right_slot = fd_bunker
+	tp_fortress.noise_max_amplitude = 5
+	tp_fortress.map_width_min = 110; tp_fortress.map_width_max = 140
+	_save(tp_fortress, "res://data/terrain/profiles/fortress_siege.tres")
+
+	var tp_pit := TerrainProfile.new()
+	tp_pit.story = "A gap punishes ground movement"
+	tp_pit.center_slot = fd_pit
+	tp_pit.noise_max_amplitude = 4
+	tp_pit.map_width_min = 120; tp_pit.map_width_max = 150
+	_save(tp_pit, "res://data/terrain/profiles/pit_crossing.tres")
 
 	print("[bake] all M14 resources written")
 	get_tree().quit()

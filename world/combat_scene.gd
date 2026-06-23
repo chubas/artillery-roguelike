@@ -38,8 +38,7 @@ func _ready() -> void:
 	# chunks, plus enemies/reinforcements/wind/deployables/objective inside combat.
 	if stage == null:
 		stage = load("res://data/stages/stage_01.tres")
-	terrain.generate(stage.terrain_seed)
-	renderer.setup(terrain)
+	_setup_terrain()
 	hud = HUD.new()
 	add_child(hud)
 	projectiles.setup(terrain, combat.get_units, combat.get_deployables)
@@ -59,7 +58,7 @@ func _ready() -> void:
 	if Features.sandbox_enabled and OS.get_environment("ARTILLERY_SMOKE") != "1":
 		var overlay : Node = load("res://debug/sandbox_overlay.gd").new()
 		add_child(overlay)
-		overlay.call("setup", combat, terrain, camera, hud)
+		overlay.call("setup", combat, terrain, renderer, camera, hud)
 	if OS.get_environment("ARTILLERY_SMOKE") == "1":
 		combat._drain_placement_queue()   # drop every queued unit + confirm → start round 1
 		_smoke_test()
@@ -226,6 +225,7 @@ func _smoke_test() -> void:
 	_m29_smoke()
 	_m30_smoke()
 	_m31_smoke()
+	_m32_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1294,6 +1294,51 @@ func _m31_smoke() -> void:
 			load("res://data/shots/aoe/diamond_r2.tres"), 99, false, combat.deployables)
 	print("  sequencer idle=%s (expect true)" % AnimationSequencer._active_batch.is_empty())
 	print("  foe took dmg=%s (expect true)" % (foe.hp < hp_before))
+
+func _setup_terrain() -> void:
+	var profile : TerrainProfile = stage.terrain_profile if stage != null else null
+	if profile != null and Features.terrain_profiles_enabled:
+		var data := TerrainGenerator.generate(profile, stage.terrain_seed)
+		terrain.load_map(data)
+	else:
+		terrain.generate(stage.terrain_seed if stage != null else Const.NOISE_SEED)
+	renderer.setup(terrain)
+
+func _m32_smoke() -> void:
+	print("[smoke] -- M32 terrain generation --")
+	var p1 := load("res://data/terrain/profiles/open_field.tres") as TerrainProfile
+	var d1 := TerrainGenerator.generate(p1, 42)
+	print("  map_size=%dx%d (expect 100-130 x 90-110)" % [d1.width, d1.height])
+	var solid := 0
+	for c in d1.cells:
+		if c != null:
+			solid += 1
+	print("  solid_fraction=%.2f (expect 0.3-0.7)" % (float(solid) / float(d1.width * d1.height)))
+
+	var p2 := load("res://data/terrain/profiles/ridge_assault.tres") as TerrainProfile
+	var d2 := TerrainGenerator.generate(p2, 42)
+	var ridge_tiles := 0
+	for c in d2.cells:
+		if c != null and c.get("gen_origin", 0) == MapData.GenOrigin.SLOT_CENTER:
+			ridge_tiles += 1
+	print("  ridge_center_tiles=%d (expect >0)" % ridge_tiles)
+
+	var p3 := load("res://data/terrain/profiles/fortress_siege.tres") as TerrainProfile
+	var d3 := TerrainGenerator.generate(p3, 42)
+	var shell_tiles := 0
+	for c in d3.cells:
+		if c != null and c.get("gen_origin", 0) == MapData.GenOrigin.SLOT_RIGHT \
+				and c.get("hp", 3) >= 8:
+			shell_tiles += 1
+	print("  bunker_shell_tiles=%d (expect >0)" % shell_tiles)
+
+	# Restore live terrain (mirror M13 pattern: call generate directly, not _setup_terrain,
+	# to avoid re-running renderer.setup() which would error on already-connected signal)
+	var live_profile : TerrainProfile = stage.terrain_profile if stage != null else null
+	if live_profile != null and Features.terrain_profiles_enabled:
+		terrain.load_map(TerrainGenerator.generate(live_profile, stage.terrain_seed))
+	else:
+		terrain.generate(stage.terrain_seed if stage != null else Const.NOISE_SEED)
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

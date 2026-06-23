@@ -26,7 +26,7 @@ static func resolve_move(unit: Unit, direction: int,
 	# Climb candidate: 1 voxel up (climb_max; 2+ is blocked).
 	if unit.definition.climb_max >= 1 \
 			and bbox_terrain_clear(terrain, Vector2i(new_x, foot - h), w, h):
-		return Vector2i(new_x, foot - 1)
+		return Vector2i(new_x, foot - h)
 	return NO_MOVE
 
 # Vertical-only fall: where the unit lands if terrain under it gives way. Returns the

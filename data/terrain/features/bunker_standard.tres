@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FeatureDefinition" format=3]
+
+[ext_resource type="Script" path="res://terrain/feature_definition.gd" id="1_ay72i"]
+
+[resource]
+script = ExtResource("1_ay72i")
+type = 1
+width_min = 14
+width_max = 22
+height_max = 12
+special_params = {
+"aperture_count": 1
+}

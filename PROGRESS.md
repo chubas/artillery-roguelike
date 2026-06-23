@@ -55,6 +55,24 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
 
 ---
 
+## 2026-06-22 — Milestone 32: Profile-Driven Terrain Generation
+
+Introduced a decoupled terrain pipeline: `TerrainGenerator` (static class) takes a `TerrainProfile` + seed and produces a serializable `MapData` resource; `TerrainManager.load_map()` hydrates it into live `Tile` objects. Existing stages use the legacy `generate()` path unchanged. Full design in [docs/planning/milestone-32-plan.md](docs/planning/milestone-32-plan.md).
+
+- **`MapData` resource** (`terrain/map_data.gd`) — flat cell array of `null|Dictionary`, owns `width` + `height`, `GenOrigin` enum per cell for the visualizer. Serializable, saveable, hand-authorable.
+- **`TerrainGenerator` static class** (`terrain/terrain_generator.gd`) — `generate(profile, seed) -> MapData`. 4 passes: Pass 1 places skeletal features (ridge, pit, pillar, bunker, crystal deposit); Pass 2 fills unclaimed columns with noise (amplitude capped by profile); Pass 3 assigns 10% reinforced HP; Pass 4 assigns visual variants. No autoload needed.
+- **`TerrainProfile` + `FeatureDefinition` resources** — profile specifies map dimension ranges, noise amplitude cap, slot assignments (left/center/right), background features, and enemy zone bounds. `FeatureDefinition` carries type, dimension ranges, and a `special_params` dict (slope_edges, aperture_count, gap_from_terrain).
+- **`TerrainManager` changes** — added `map_width`/`map_height` instance vars (default to Const), `chunks_wide()`/`chunks_tall()` helpers, and `load_map(MapData)`. `generate()` kept as legacy path.
+- **`TerrainRenderer` change** — `_build_chunks()` and `_on_tile_changed()` now call `_terrain.chunks_wide()`/`chunks_tall()` instead of `Const.chunks_*()`; renderer must be set up after `load_map()`.
+- **`StageDescriptor`** — added `terrain_profile: TerrainProfile = null`; null selects legacy path; existing stage .tres files unchanged.
+- **`_setup_terrain()` in `combat_scene.gd`** — routes to generator or legacy based on profile/feature flag.
+- **4 starter profiles baked** — `open_field`, `ridge_assault` (center ridge), `fortress_siege` (right bunker), `pit_crossing` (center pit).
+- **Sandbox Terrain Visualizer** — new section in sandbox overlay (backtick). Profile dropdown, seed field, "Preview" button, minimap colored by `GenOrigin`: grey=noise, cyan=spawn platform, orange/yellow/green=left/center/right slot, cyan=crystal.
+- **`Features.terrain_profiles_enabled`** kill switch.
+- **Smoke:** `_m32_smoke()` — `map_size=122x106`, `solid_fraction=0.55`, `ridge_center_tiles=390`, `bunker_shell_tiles=97` (all correct).
+
+---
+
 ## 2026-06-22 — Milestone 31: Animation Sequencer
 
 Introduced the central `AnimationSequencer` autoload to decouple logic resolution from visual playback. All placeholder animations (color flashes, fades, world bursts) are now queued through a batch-parallel system. Full design in [docs/planning/milestone-31-plan.md](docs/planning/milestone-31-plan.md).
