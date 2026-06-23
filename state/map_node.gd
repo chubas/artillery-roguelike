@@ -12,6 +12,9 @@ var stage_path : String = ""   # res:// to a StageDescriptor
 var next_nodes : Array[int] = []
 ## UI layout row (0 = top of diamond). Gameplay ignores this — graph edges are authoritative.
 var layer : int = 0
+## M33: run-assigned terrain profile (empty = legacy generator) and per-stage RNG seed.
+var terrain_profile_path : String = ""
+var stage_seed           : int    = 0
 
 func stage() -> StageDescriptor:
 	return load(stage_path)
@@ -26,6 +29,8 @@ func to_dict() -> Dictionary:
 		"stage_path": stage_path,
 		"next_nodes": next_nodes.duplicate(),
 		"layer": layer,
+		"terrain_profile_path": terrain_profile_path,
+		"stage_seed": stage_seed,
 	}
 
 static func from_dict(d: Dictionary) -> MapNode:
@@ -34,6 +39,8 @@ static func from_dict(d: Dictionary) -> MapNode:
 	n.stage_path = d.get("stage_path", "")
 	n.next_nodes.assign(d.get("next_nodes", []))
 	n.layer = d.get("layer", 0)
+	n.terrain_profile_path = d.get("terrain_profile_path", "")
+	n.stage_seed           = d.get("stage_seed", 0)
 	return n
 
 static func make_combat(stage_path: String) -> MapNode:

@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-22)
+## Current state (2026-06-23)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -42,7 +42,9 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M28 (Aura visualization + deployable selection),
   M29 (Unit stacking: remove overlap constraint, 2.5D depth offset, scroll-wheel inspector cycle),
   M30 (Elemental prime cards: fire/electric prime cards replace always-on shot selector; shot selector removed),
-  **M31 (Animation Sequencer: central autoload batch-parallel queue, placeholder animations, EventBus wiring)**.
+  M31 (Animation Sequencer: central autoload batch-parallel queue, placeholder animations, EventBus wiring),
+  M32 (Profile-driven terrain generation: TerrainGenerator static class, MapData resource, 4 starter profiles),
+  **M33 (RNG architecture + stage profile variation: RunRng, StageRng, CombatRng autoloads; random terrain profile per stage; first stage always legacy)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
@@ -52,6 +54,20 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-23 — Milestone 33: RNG Architecture + Stage Profile Variation
+
+Three explicit RNG layers separate deterministic run sequencing from per-stage reproducibility from real-time combat non-determinism. Full design in [docs/planning/milestone-33-plan.md](docs/planning/milestone-33-plan.md).
+
+- **`StageRng` autoload** (`autoloads/stage_rng.gd`) — seeded per combat from node's `stage_seed`. Provides `init(seed)` and `shuffle(arr)` (Fisher-Yates). Used for deck shuffle in `CombatManager._build_deck()` and `_reshuffle_discard()`.
+- **`CombatRng` autoload** (`autoloads/combat_rng.gd`) — seeded with `stage_seed ^ Time.get_ticks_msec()` for intentional non-determinism. Used for wind variance (`combat_manager.gd`) and enemy fire error (`enemy_system.gd`).
+- **`Run.run_rng`** — `RandomNumberGenerator` on the `Run` autoload, seeded from `run_meta["seed"]` (already existed; was always `randi()`). Used in `RunController._sample()` for deterministic reward sampling. `_assign_terrain_variations()` draws `stage_seed` and `terrain_profile_path` per node from `run_rng`.
+- **`MapNode`** — two new fields: `terrain_profile_path: String` and `stage_seed: int`. Both serialized in `to_dict()/from_dict()`. Node 0 always gets `terrain_profile_path = ""` (legacy generator); all others get a random profile from `_TERRAIN_PROFILES`.
+- **`CombatScene`** — `terrain_profile_path` and `active_stage_seed` fields; `RunController._enter_combat()` sets these from the `MapNode` before entering. `_setup_terrain()` reads them (falls back to `stage.terrain_seed`/`stage.terrain_profile` for standalone runs).
+- **`Features.stage_rng_enabled`** kill switch — when false, decks use built-in `.shuffle()`, wind/fire use global `randf_range()`, RNG autoloads stay unseeded.
+- **Smoke:** `_m33_smoke()` — `StageRng.rng.seed=12345`, `CombatRng.rng.seed≠0`, determinism check passes (same `run_seed` → same `node[1].stage_seed`), `node[0].terrain_profile_path=''`, `node[1].terrain_profile_path='res://data/terrain/profiles/open_field.tres'` (all correct).
 
 ---
 

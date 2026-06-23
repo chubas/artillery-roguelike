@@ -406,7 +406,7 @@ func _update_wind_for_round(round_n: int) -> void:
 		return
 	var elapsed := round_n - _stage.wind_start_round
 	var range_frac := minf((elapsed + 1) * _stage.wind_ramp_per_round, _stage.wind_max_strength)
-	wind_strength = randf_range(-range_frac, range_frac)
+	wind_strength = CombatRng.rng.randf_range(-range_frac, range_frac) if Features.stage_rng_enabled else randf_range(-range_frac, range_frac)
 	_projectiles.current_wind_force = wind_strength * Const.MAX_WIND_FORCE
 	EventBus.wind_changed.emit(wind_strength)
 
@@ -885,7 +885,10 @@ func _build_deck() -> void:
 	_discard.clear()
 	for path in _deck_source:
 		_deck.append(load(path))
-	_deck.shuffle()
+	if Features.stage_rng_enabled:
+		StageRng.shuffle(_deck)
+	else:
+		_deck.shuffle()
 
 # Discard the unplayed hand, then draw HAND_SIZE fresh. If the draw pile empties mid-draw,
 # the discard is reshuffled into a new draw pile and drawing continues (user-specified rule).
@@ -902,7 +905,10 @@ func _draw_hand() -> void:
 func _reshuffle_discard() -> void:
 	_deck = _discard.duplicate()
 	_discard.clear()
-	_deck.shuffle()
+	if Features.stage_rng_enabled:
+		StageRng.shuffle(_deck)
+	else:
+		_deck.shuffle()
 
 # --- Cards (M5, reworked M11): action-costed effects played from the hand. Distinct from
 # firing — playing a card does not require an active unit and does not end any unit's turn.

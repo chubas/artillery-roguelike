@@ -60,6 +60,8 @@ func _enter_combat(node: MapNode) -> void:
 	var cs : Node = (load(_COMBAT_SCENE) as PackedScene).instantiate()
 	if node != null:
 		cs.stage = node.stage()
+		cs.terrain_profile_path = node.terrain_profile_path
+		cs.active_stage_seed    = node.stage_seed
 	cs.combat_exited.connect(_on_combat_exited)
 	_swap(cs)
 
@@ -153,7 +155,7 @@ func _sample(pool: Array[String], count: int, allow_repeat: bool) -> Array[Strin
 	var out : Array[String] = []
 	var limit := count if allow_repeat else mini(count, src.size())
 	for _i in range(limit):
-		var idx := randi() % src.size()
+		var idx := Run.run_rng.randi() % src.size()
 		out.append(src[idx])
 		if not allow_repeat:
 			src.remove_at(idx)

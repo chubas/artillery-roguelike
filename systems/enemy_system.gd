@@ -63,7 +63,7 @@ static func fire_enemy(enemy: Unit, players: Array, projectiles: ProjectileManag
 		return false
 	var speed : float = sol["speed"]
 	if with_error:
-		speed *= 1.0 + randf_range(-Const.ENEMY_ERROR_PCT, Const.ENEMY_ERROR_PCT)
+		speed *= 1.0 + (CombatRng.rng.randf_range(-Const.ENEMY_ERROR_PCT, Const.ENEMY_ERROR_PCT) if Features.stage_rng_enabled else randf_range(-Const.ENEMY_ERROR_PCT, Const.ENEMY_ERROR_PCT))
 	speed = clampf(speed, Const.ENEMY_SPEED_MIN, Const.ENEMY_SPEED_MAX)
 	projectiles.fire(enemy.barrel_origin_world(), sol["direction"], speed,
 			enemy.definition.default_shot, true, enemy)

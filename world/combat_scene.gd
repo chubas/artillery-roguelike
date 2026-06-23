@@ -25,6 +25,9 @@ var hud : HUD
 # The stage this combat runs (M13). Defaults to stage_01 if unset; M14's run controller will set
 # it from the active map node before the scene loads.
 var stage : StageDescriptor = null
+# M33: run-controller sets these from MapNode before entering combat.
+var terrain_profile_path : String = ""
+var active_stage_seed    : int    = -1
 
 # Camera focus target (the selected ally). _focusing is a one-shot pan: it eases the camera
 # to the unit, then releases so WASD can free-pan without the camera snapping back.
@@ -38,6 +41,10 @@ func _ready() -> void:
 	# chunks, plus enemies/reinforcements/wind/deployables/objective inside combat.
 	if stage == null:
 		stage = load("res://data/stages/stage_01.tres")
+	if Features.stage_rng_enabled:
+		var _seed := active_stage_seed if active_stage_seed >= 0 else stage.terrain_seed
+		StageRng.init(_seed)
+		CombatRng.init(_seed)
 	_setup_terrain()
 	hud = HUD.new()
 	add_child(hud)
@@ -226,6 +233,7 @@ func _smoke_test() -> void:
 	_m30_smoke()
 	_m31_smoke()
 	_m32_smoke()
+	_m33_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1296,12 +1304,17 @@ func _m31_smoke() -> void:
 	print("  foe took dmg=%s (expect true)" % (foe.hp < hp_before))
 
 func _setup_terrain() -> void:
-	var profile : TerrainProfile = stage.terrain_profile if stage != null else null
+	var seed_val := active_stage_seed if active_stage_seed >= 0 else (stage.terrain_seed if stage != null else Const.NOISE_SEED)
+	var profile : TerrainProfile = null
+	if terrain_profile_path != "":
+		profile = load(terrain_profile_path) as TerrainProfile
+	elif stage != null:
+		profile = stage.terrain_profile
 	if profile != null and Features.terrain_profiles_enabled:
-		var data := TerrainGenerator.generate(profile, stage.terrain_seed)
+		var data := TerrainGenerator.generate(profile, seed_val)
 		terrain.load_map(data)
 	else:
-		terrain.generate(stage.terrain_seed if stage != null else Const.NOISE_SEED)
+		terrain.generate(seed_val)
 	renderer.setup(terrain)
 
 func _m32_smoke() -> void:
@@ -1334,11 +1347,35 @@ func _m32_smoke() -> void:
 
 	# Restore live terrain (mirror M13 pattern: call generate directly, not _setup_terrain,
 	# to avoid re-running renderer.setup() which would error on already-connected signal)
-	var live_profile : TerrainProfile = stage.terrain_profile if stage != null else null
+	var live_seed := active_stage_seed if active_stage_seed >= 0 else (stage.terrain_seed if stage != null else Const.NOISE_SEED)
+	var live_profile : TerrainProfile = null
+	if terrain_profile_path != "":
+		live_profile = load(terrain_profile_path) as TerrainProfile
+	elif stage != null:
+		live_profile = stage.terrain_profile
 	if live_profile != null and Features.terrain_profiles_enabled:
-		terrain.load_map(TerrainGenerator.generate(live_profile, stage.terrain_seed))
+		terrain.load_map(TerrainGenerator.generate(live_profile, live_seed))
 	else:
-		terrain.generate(stage.terrain_seed if stage != null else Const.NOISE_SEED)
+		terrain.generate(live_seed)
+
+func _m33_smoke() -> void:
+	print("[smoke] -- M33 RNG architecture --")
+	print("  StageRng.rng.seed=%d (expect nonzero)" % StageRng.rng.seed)
+	print("  CombatRng.rng.seed=%d (expect nonzero)" % CombatRng.rng.seed)
+	# Determinism: same run_seed → same node stage_seeds
+	Run.start_default_run()
+	var n1 : MapNode = Run.active.map.nodes[1]
+	var s1 : int    = n1.stage_seed
+	var p1 : String = n1.terrain_profile_path
+	var saved_seed : int = Run.active.run_meta["seed"]
+	Run.run_rng.seed = saved_seed
+	Run._assign_terrain_variations(Run.active)
+	var n1b : MapNode = Run.active.map.nodes[1]
+	var s2 : int = n1b.stage_seed
+	print("  determinism: s1=%d s2=%d match=%s (expect true)" % [s1, s2, str(s1 == s2)])
+	var n0 : MapNode = Run.active.map.nodes[0]
+	print("  node[0] profile='%s' (expect empty)" % n0.terrain_profile_path)
+	print("  node[1] profile='%s' (expect nonempty)" % p1)
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

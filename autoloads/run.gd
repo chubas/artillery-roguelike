@@ -4,7 +4,8 @@
 # a run that reproduces the historical hardcoded content so the live game is unchanged.
 extends Node
 
-var active : RunState = null
+var active  : RunState             = null
+var run_rng : RandomNumberGenerator = RandomNumberGenerator.new()
 
 # Default starting content (M16: run starts small; rewards grow the squad/loadout).
 const _DEFAULT_MAP : Array = [
@@ -62,10 +63,29 @@ func start_default_run() -> void:
 		"res://data/cards/electric_prime.tres",
 	]
 	rs.map = MapState.build_diamond(_DEFAULT_MAP)
-	rs.run_meta = { "seed": randi(), "act": 1, "stage_index": 0, "faction": Faction.ARMY }
+	var _run_seed : int = Features.run_seed if Features.run_seed != 0 else randi()
+	rs.run_meta = { "seed": _run_seed, "act": 1, "stage_index": 0, "faction": Faction.ARMY }
 	rs.resources["shards"] = 10
 	# M22: pre-equip one essence per starting unit for testing. Essences are not unit-specific
 	# by design; this wiring will move to the reward/event system in a later milestone.
 	rs.squad[0].equipped_essences = ["res://data/essences/resources/armor_primer.tres"]
 	rs.squad[1].equipped_essences = ["res://data/essences/resources/double_shot.tres"]
+	run_rng.seed = _run_seed
+	_assign_terrain_variations(rs)
 	active = rs
+
+const _TERRAIN_PROFILES : Array[String] = [
+	"res://data/terrain/profiles/open_field.tres",
+	"res://data/terrain/profiles/ridge_assault.tres",
+	"res://data/terrain/profiles/fortress_siege.tres",
+	"res://data/terrain/profiles/pit_crossing.tres",
+]
+
+func _assign_terrain_variations(rs: RunState) -> void:
+	for i in range(rs.map.nodes.size()):
+		var node : MapNode = rs.map.nodes[i]
+		node.stage_seed = run_rng.randi()
+		if i == 0:
+			node.terrain_profile_path = ""
+		else:
+			node.terrain_profile_path = _TERRAIN_PROFILES[run_rng.randi() % _TERRAIN_PROFILES.size()]

@@ -28,3 +28,5 @@ var sandbox_enabled         : bool = true   # M24: debug sandbox overlay in comb
 var stacking_enabled        : bool = true   # M29: units/deployables may share the same voxel
 var animations_enabled      : bool = true   # M31: AnimationSequencer batch queue + placeholder FX
 var terrain_profiles_enabled : bool = true  # M32: profile-driven terrain generation + MapData pipeline
+var stage_rng_enabled        : bool = true  # M33: seeded RNG per stage and combat
+var run_seed                 : int  = 42    # M33: 0 = random each run; nonzero = fixed seed (repeatable)
