@@ -104,6 +104,56 @@ static func build_diamond(stage_paths: Array) -> MapState:
 	m.nodes[5].stage_path = ""
 	return m
 
+## Extended run map: 15 nodes, layers (1,2,3,3,3,2,1), with fixed type assignments.
+## event_paths[0] = triage (node 3, L2), event_paths[1] = blood_price (node 10, L4).
+## Shops at L3 (node 7) and L5 (node 12) — guaranteed different layers.
+## stage_paths cycles for all COMBAT nodes; EVENT and SHOP nodes leave stage_path empty.
+static func build_run_map(stage_paths: Array, event_paths: Array) -> MapState:
+	var m := MapState.new()
+	if stage_paths.is_empty():
+		return m
+	var layers := [[0], [1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13], [14]]
+	var edges := {
+		0:  [1, 2],
+		1:  [3, 4],
+		2:  [4, 5],
+		3:  [6, 7],
+		4:  [6, 7, 8],
+		5:  [7, 8],
+		6:  [9, 10],
+		7:  [9, 10, 11],
+		8:  [10, 11],
+		9:  [12],
+		10: [12, 13],
+		11: [13],
+		12: [14],
+		13: [14],
+		14: [],
+	}
+	while m.nodes.size() < 15:
+		m.nodes.append(MapNode.make_combat(""))
+	for layer_i in range(layers.size()):
+		for idx in layers[layer_i]:
+			var n := MapNode.make_combat(stage_paths[idx % stage_paths.size()])
+			n.layer = layer_i
+			n.next_nodes.assign(edges.get(idx, []))
+			m.nodes[idx] = n
+	# EVENT nodes
+	m.nodes[3].type = MapNode.Type.EVENT
+	m.nodes[3].stage_path = ""
+	if event_paths.size() > 0:
+		m.nodes[3].event_path = event_paths[0]
+	m.nodes[10].type = MapNode.Type.EVENT
+	m.nodes[10].stage_path = ""
+	if event_paths.size() > 1:
+		m.nodes[10].event_path = event_paths[1]
+	# SHOP nodes (different layers: L3 and L5)
+	m.nodes[7].type = MapNode.Type.SHOP
+	m.nodes[7].stage_path = ""
+	m.nodes[12].type = MapNode.Type.SHOP
+	m.nodes[12].stage_path = ""
+	return m
+
 # --- Legacy aliases (linear-only callers) --------------------------------------
 
 func is_last() -> bool:

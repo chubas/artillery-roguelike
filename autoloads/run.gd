@@ -13,6 +13,10 @@ const _DEFAULT_MAP : Array = [
 	"res://data/stages/stage_02.tres",
 	"res://data/stages/stage_03.tres",
 ]
+const _EVENT_PATHS : Array = [
+	"res://data/events/resources/event_triage.tres",
+	"res://data/events/resources/event_blood_price.tres",
+]
 const _DEFAULT_DECK : Array = [   # [path, copies]
 	["res://data/cards/direct_strike.tres", 3],
 	["res://data/cards/shield_buff.tres",   3],
@@ -62,7 +66,7 @@ func start_default_run() -> void:
 		"res://data/cards/fire_prime.tres",
 		"res://data/cards/electric_prime.tres",
 	]
-	rs.map = MapState.build_diamond(_DEFAULT_MAP)
+	rs.map = MapState.build_run_map(_DEFAULT_MAP, _EVENT_PATHS)
 	var _run_seed : int = Features.run_seed if Features.run_seed != 0 else randi()
 	rs.run_meta = { "seed": _run_seed, "act": 1, "stage_index": 0, "faction": Faction.ARMY }
 	rs.resources["shards"] = 25

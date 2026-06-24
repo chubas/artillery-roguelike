@@ -403,6 +403,7 @@ func _ready() -> void:
 	s1.spawn_min_col = 0; s1.spawn_max_col = W / 2 - 1   # left half
 	s1.objective = s1_obj
 	s1.threat_tags = ["fire", "electric"]
+	s1.act_tags = ["act_1"]
 	_save(s1, "res://data/stages/stage_01.tres")
 
 	# stage_02: a survive-N stage on different terrain — exercises the new objective path.
@@ -424,6 +425,7 @@ func _ready() -> void:
 	s2.spawn_min_col = 0; s2.spawn_max_col = W / 2 - 1
 	s2.objective = s2_obj
 	s2.threat_tags = ["electric", "survive"]
+	s2.act_tags = ["act_1"]
 	_save(s2, "res://data/stages/stage_02.tres")
 
 	# stage_03 (M14): the run's final node — a heavier defeat-all on its own terrain.
@@ -445,7 +447,23 @@ func _ready() -> void:
 	s3.spawn_min_col = 0; s3.spawn_max_col = W / 2 - 1
 	s3.objective = s3_obj
 	s3.threat_tags = ["fire", "electric", "swarm"]
+	s3.act_tags = ["act_1"]
 	_save(s3, "res://data/stages/stage_03.tres")
+
+	# ── M35: event resources ─────────────────────────────────────────────────────
+	var ev_triage := EventTriage.new()
+	ev_triage.event_id    = "field_triage"
+	ev_triage.title       = "Field Triage"
+	ev_triage.description = "Your medic scavenges supplies. Choose how to use them."
+	ev_triage.act_tags    = ["act_1"]
+	_save(ev_triage, "res://data/events/resources/event_triage.tres")
+
+	var ev_blood := EventBloodPrice.new()
+	ev_blood.event_id    = "blood_price"
+	ev_blood.title       = "Blood Price"
+	ev_blood.description = "A black market contact offers a deal. The price is steep."
+	ev_blood.act_tags    = ["act_1"]
+	_save(ev_blood, "res://data/events/resources/event_blood_price.tres")
 
 	# ── M32: Terrain feature definitions ────────────────────────────────────────
 	var fd_ridge := FeatureDefinition.new()

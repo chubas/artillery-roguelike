@@ -170,6 +170,9 @@ func _refresh() -> void:
 		var pnode : MapNode = _map.nodes[preview_idx]
 		if pnode.type == MapNode.Type.SHOP:
 			_detail.text = "SHOP — buy cards, artifacts, or units"
+		elif pnode.type == MapNode.Type.EVENT:
+			var ev := pnode.event()
+			_detail.text = "EVENT — %s" % (ev.title if ev != null else "unknown")
 		else:
 			var s := pnode.stage()
 			if s != null:
@@ -260,7 +263,8 @@ class MapGraphView:
 		var c : Vector2 = _positions[index]
 		var font := ThemeDB.fallback_font
 		var node : MapNode = map.nodes[index]
-		var is_shop : bool = node.type == MapNode.Type.SHOP
+		var is_shop  : bool = node.type == MapNode.Type.SHOP
+		var is_event : bool = node.type == MapNode.Type.EVENT
 		var fill : Color
 		if map.visited.has(index):
 			fill = Color(0.28, 0.78, 0.42)
@@ -268,6 +272,10 @@ class MapGraphView:
 			fill = Color(0.55, 0.2, 0.8)
 		elif is_shop:
 			fill = Color(0.32, 0.12, 0.45, 0.65)
+		elif is_event and map.can_select(index):
+			fill = Color(0.15, 0.65, 0.75)
+		elif is_event:
+			fill = Color(0.08, 0.35, 0.42, 0.65)
 		elif map.can_select(index):
 			fill = Color(0.55, 0.58, 0.72)
 		else:
@@ -283,6 +291,10 @@ class MapGraphView:
 			var lw := font.get_string_size("SHOP", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
 			draw_string(font, Vector2(c.x - lw * 0.5, c.y + NODE_R + 14.0), "SHOP",
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.85, 0.55, 1.0, 0.85))
+		elif is_event:
+			var lw := font.get_string_size("EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+			draw_string(font, Vector2(c.x - lw * 0.5, c.y + NODE_R + 14.0), "EVENT",
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.45, 0.95, 1.0, 0.85))
 		else:
 			var tags : Array = node.threat_tags()
 			if not tags.is_empty():

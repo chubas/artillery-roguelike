@@ -1171,3 +1171,11 @@ func debug_advance_round() -> void:
 	TileStatusSystem.tick_all(_terrain, all_units)
 	for u in player_units + enemy_units:
 		UnitStatusSystem.tick_all(u)
+
+func debug_force_clear() -> void:
+	if _is_terminal():
+		return
+	game_state = GameState.STAGE_CLEAR
+	_hud.set_turn_text("STAGE CLEAR")
+	_set_selection(null)
+	combat_finished.emit("cleared")

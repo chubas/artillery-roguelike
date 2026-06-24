@@ -45,16 +45,37 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M31 (Animation Sequencer: central autoload batch-parallel queue, placeholder animations, EventBus wiring),
   M32 (Profile-driven terrain generation: TerrainGenerator static class, MapData resource, 4 starter profiles),
   M33 (RNG architecture + stage profile variation: RunRng, StageRng, CombatRng autoloads; random terrain profile per stage; first stage always legacy),
-  **M34 (Shop node: SHOP type on diamond nodes 3 & 5, ShopScreen CanvasLayer with 5 cards/3 artifacts/1 unit offers, artifact seen-set cycling shared with rewards, re-roll at escalating cost, starting shards 25, +20 shards per combat clear, sandbox Give Shards control; AP rebalance 10→5, all card costs to 1 AP, Halve Wind 0 AP, Direct Strike damage 2; Rarity metadata on all content types with BASIC/COMMON/RARE/EPIC/LEGENDARY/BOSS/EVENT tiers)**.
+  **M34 (Shop node: SHOP type on diamond nodes 3 & 5, ShopScreen CanvasLayer with 5 cards/3 artifacts/1 unit offers, artifact seen-set cycling shared with rewards, re-roll at escalating cost, starting shards 25, +20 shards per combat clear, sandbox Give Shards control; AP rebalance 10→5, all card costs to 1 AP, Halve Wind 0 AP, Direct Strike damage 2; Rarity metadata on all content types with BASIC/COMMON/RARE/EPIC/LEGENDARY/BOSS/EVENT tiers)**,
+  **M35 (Special event nodes + extended map: 15-node (1,2,3,3,3,2,1) run map via `build_run_map()`; two event types — Field Triage and Blood Price — with `EventDef` base class, text-based `EventScreen` CanvasLayer, choices resolved directly against `RunState`; EVENT nodes rendered as teal on map; two shops guaranteed at different layers; `act_tags` metadata on stages and events; `Features.events_enabled` kill switch)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
-  9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.
+  15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.
 - **Verify:** `ARTILLERY_SMOKE=1 godot --headless --path . res://world/combat_scene.tscn` runs M3–M27 checklists headless (all pass). Use the `.tscn` form — `-s combat_scene.gd` skips autoload registration at parse time and fails to compile. After adding new `class_name` scripts, run `godot --headless --import` once (and commit the generated `.uid` files). M24/M25 have no smoke test — they're dev tools verified manually.
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless --path . res://scripts/bake_runner.tscn` → `godot --headless --import`.
   Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
 - **Known orphan:** `world/world.tscn` references a deleted `world/world.gd` and logs a harmless
   load error on import. Left in place intentionally.
+
+---
+
+## 2026-06-24 — Milestone 35: Special Event Nodes + Extended Map
+
+Extends the run map from a 9-node diamond to a 15-node (1,2,3,3,3,2,1) structure with dedicated event and shop placement. Two text-based events resolve immediately against `RunState` via a new `EventDef` base class. Full design in [docs/planning/milestone-35-plan.md](docs/planning/milestone-35-plan.md).
+
+- **`EventDef` base class** (`data/event_def.gd`) — `Resource` with `event_id`, `title`, `description`, `act_tags: Array[String]`; virtual `choices(rs: RunState) -> Array[Dictionary]` and `resolve(choice_index, rs)`.
+- **`EventTriage`** (`data/events/scripts/event_triage.gd`) — "Field Triage": choice A restores the most-hurt or dead unit to full HP (revives); choice B restores 2 HP to all units.
+- **`EventBloodPrice`** (`data/events/scripts/event_blood_price.gd`) — "Blood Price": choice A grants 10 free shards; choice B sacrifices 3 HP from the highest-HP unit for 20 shards (disabled if that unit has ≤3 HP).
+- **`EventScreen`** (`ui/event_screen.gd`) — CanvasLayer showing title, description, and choice buttons. Disabled buttons for unavailable choices. Calls `ev.resolve(idx, Run.active)` on selection, emits `event_completed`.
+- **`MapState.build_run_map(stage_paths, event_paths)`** — 15-node map with fixed type assignments: L2 node 3=EVENT(triage), L3 node 7=SHOP, L4 node 10=EVENT(blood_price), L5 node 12=SHOP. Edges follow a fully connected branching pattern. `build_diamond()` and `build_linear()` preserved unchanged.
+- **`MapNode`** — added `event_path: String = ""` field and `event() -> EventDef` method. Serialized in `to_dict()/from_dict()`.
+- **`StageDescriptor`** — added `@export var act_tags: Array[String] = ["act_1"]` (metadata only; all stages baked with `["act_1"]`).
+- **`Run.start_default_run()`** — switches from `build_diamond(_DEFAULT_MAP)` to `build_run_map(_DEFAULT_MAP, _EVENT_PATHS)`.
+- **`RunController`** — `_on_node_selected()` dispatches EVENT nodes to `_enter_event()`; fallback to combat if event resource is null.
+- **`MapScreen`** — EVENT nodes render as teal; detail text shows event title via `ev.title`.
+- **`Features.events_enabled`** kill switch.
+- **Baked resources:** `data/events/resources/event_triage.tres`, `data/events/resources/event_blood_price.tres`.
+- **Smoke:** `_m35_smoke()` — node_count=15, shop_count=2, event_count=2, shops_different_layers=true, events_have_paths=true, events_loadable=true, stage_act_tags=["act_1"], triage/blood_price choice_count=2 (all correct).
 
 ---
 

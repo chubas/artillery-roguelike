@@ -35,3 +35,6 @@ extends Resource
 
 ## M32: profile-driven terrain generation. null = legacy generate(terrain_seed).
 @export var terrain_profile : TerrainProfile = null
+
+## M35: act metadata — which acts this stage is eligible to appear in (tag-based, no gameplay effect yet).
+@export var act_tags : Array[String] = ["act_1"]

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="EventBloodPrice" format=3]
+
+[ext_resource type="Script" path="res://data/events/scripts/event_blood_price.gd" id="1_054uj"]
+
+[resource]
+script = ExtResource("1_054uj")
+event_id = "blood_price"
+title = "Blood Price"
+description = "A black market contact offers a deal. The price is steep."

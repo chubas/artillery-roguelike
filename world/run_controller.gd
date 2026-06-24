@@ -58,6 +58,8 @@ func _show_map_end(text: String) -> void:
 func _on_node_selected(node: MapNode) -> void:
 	if node.type == MapNode.Type.SHOP and Features.shop_enabled:
 		_enter_shop(node)
+	elif node.type == MapNode.Type.EVENT and Features.events_enabled:
+		_enter_event(node)
 	else:
 		_enter_combat(node)
 
@@ -70,6 +72,25 @@ func _enter_shop(_node: MapNode) -> void:
 	ss.setup()
 
 func _on_shop_closed() -> void:
+	Run.active.map.mark_visited()
+	if Run.active.map.is_complete():
+		_show_map_end("RUN COMPLETE")
+	else:
+		_show_map()
+
+# --- Event -----------------------------------------------------------------------
+
+func _enter_event(node: MapNode) -> void:
+	var ev := node.event()
+	if ev == null:
+		_enter_combat(node)   # fallback: no event resource on this node
+		return
+	var es := EventScreen.new()
+	es.event_completed.connect(_on_event_completed)
+	_swap(es)
+	es.setup(ev)
+
+func _on_event_completed() -> void:
 	Run.active.map.mark_visited()
 	if Run.active.map.is_complete():
 		_show_map_end("RUN COMPLETE")

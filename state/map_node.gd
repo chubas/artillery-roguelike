@@ -15,11 +15,18 @@ var layer : int = 0
 ## M33: run-assigned terrain profile (empty = legacy generator) and per-stage RNG seed.
 var terrain_profile_path : String = ""
 var stage_seed           : int    = 0
+## M35: resource path to an EventDef .tres (empty on non-EVENT nodes).
+var event_path : String = ""
 
 func stage() -> StageDescriptor:
 	if stage_path.is_empty():
 		return null
 	return load(stage_path)
+
+func event() -> EventDef:
+	if event_path.is_empty():
+		return null
+	return load(event_path)
 
 func threat_tags() -> Array:
 	var s := stage()
@@ -33,6 +40,7 @@ func to_dict() -> Dictionary:
 		"layer": layer,
 		"terrain_profile_path": terrain_profile_path,
 		"stage_seed": stage_seed,
+		"event_path": event_path,
 	}
 
 static func from_dict(d: Dictionary) -> MapNode:
@@ -43,6 +51,7 @@ static func from_dict(d: Dictionary) -> MapNode:
 	n.layer = d.get("layer", 0)
 	n.terrain_profile_path = d.get("terrain_profile_path", "")
 	n.stage_seed           = d.get("stage_seed", 0)
+	n.event_path           = d.get("event_path", "")
 	return n
 
 static func make_combat(stage_path: String) -> MapNode:

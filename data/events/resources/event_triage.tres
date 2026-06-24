@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="EventTriage" format=3]
+
+[ext_resource type="Script" path="res://data/events/scripts/event_triage.gd" id="1_4ebo3"]
+
+[resource]
+script = ExtResource("1_4ebo3")
+event_id = "field_triage"
+title = "Field Triage"
+description = "Your medic scavenges supplies. Choose how to use them."

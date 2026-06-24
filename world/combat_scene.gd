@@ -235,6 +235,7 @@ func _smoke_test() -> void:
 	_m32_smoke()
 	_m33_smoke()
 	_m34_smoke()
+	_m35_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1400,6 +1401,57 @@ func _m34_smoke() -> void:
 	# Verify starting shards
 	Run.start_default_run()
 	print("  start_shards=%d (expect 25)" % Run.active.resources.get("shards", 0))
+
+func _m35_smoke() -> void:
+	print("[smoke] -- M35 event nodes + extended map --")
+	Run.start_default_run()
+	var m : MapState = Run.active.map
+	print("  node_count=%d (expect 15)" % m.nodes.size())
+	var shop_count := 0
+	var event_count := 0
+	var shop_layers : Array[int] = []
+	for i in range(m.nodes.size()):
+		var node : MapNode = m.nodes[i]
+		if node.type == MapNode.Type.SHOP:
+			shop_count += 1
+			shop_layers.append(node.layer)
+		elif node.type == MapNode.Type.EVENT:
+			event_count += 1
+	print("  shop_count=%d (expect 2)" % shop_count)
+	print("  event_count=%d (expect 2)" % event_count)
+	var diff_layers : bool = shop_layers.size() == 2 and shop_layers[0] != shop_layers[1]
+	print("  shops_different_layers=%s (expect true)" % str(diff_layers))
+	# Verify event nodes have paths and can load their EventDef
+	var events_have_paths := true
+	var events_loadable := true
+	for i in range(m.nodes.size()):
+		var node : MapNode = m.nodes[i]
+		if node.type == MapNode.Type.EVENT:
+			if node.event_path.is_empty():
+				events_have_paths = false
+			elif node.event() == null:
+				events_loadable = false
+	print("  events_have_paths=%s (expect true)" % str(events_have_paths))
+	print("  events_loadable=%s (expect true)" % str(events_loadable))
+	# Verify stage act_tags (first combat node's stage)
+	var first_combat_stage : StageDescriptor = m.nodes[0].stage()
+	if first_combat_stage != null:
+		print("  stage_act_tags=%s (expect [act_1])" % str(first_combat_stage.act_tags))
+	# Verify triage event choices
+	Run.active.squad[0].current_hp = 1   # wound first unit
+	var ev_node : MapNode = m.nodes[3]
+	if ev_node.type == MapNode.Type.EVENT and not ev_node.event_path.is_empty():
+		var ev := ev_node.event()
+		if ev != null:
+			var ch := ev.choices(Run.active)
+			print("  triage_choice_count=%d (expect 2)" % ch.size())
+	# Verify blood_price event choices
+	var ev_node2 : MapNode = m.nodes[10]
+	if ev_node2.type == MapNode.Type.EVENT and not ev_node2.event_path.is_empty():
+		var ev2 := ev_node2.event()
+		if ev2 != null:
+			var ch2 := ev2.choices(Run.active)
+			print("  blood_price_choice_count=%d (expect 2)" % ch2.size())
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:
