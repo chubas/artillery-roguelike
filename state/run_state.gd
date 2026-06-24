@@ -14,10 +14,11 @@ var resources : Dictionary = { "gold": 0, "scrap": 0, "intel": 0, "shards": 0 }
 var map       : Variant = null          # MapState — placeholder until M14
 var run_meta  : Dictionary = { "seed": 0, "act": 1, "stage_index": 0 }
 # Reward pools (M16): options offered at reward screens. Units/cards repeat OK; artifacts don't.
-var unit_pool     : Array[String] = []
-var card_pool     : Array[String] = []
-var artifact_pool  : Array[String] = []   # shrinks as artifacts are claimed (no repeats)
-var card_upgrades  : Dictionary   = {}    # card.id → upgrade tier (int); seam for card-shop upgrades
+var unit_pool          : Array[String] = []
+var card_pool          : Array[String] = []
+var artifact_pool      : Array[String] = []   # shrinks as artifacts are claimed (no repeats)
+var artifact_seen_set  : Array[String] = []   # M34: offered this cycle (rewards + shop); resets when pool exhausted
+var card_upgrades      : Dictionary   = {}    # card.id → upgrade tier (int); seam for card-shop upgrades
 
 func to_dict() -> Dictionary:
 	var squad_d : Array = []
@@ -30,9 +31,10 @@ func to_dict() -> Dictionary:
 		"resources": resources.duplicate(),
 		"run_meta": run_meta.duplicate(),
 		"map": (map as MapState).to_dict() if map is MapState else null,
-		"unit_pool":     unit_pool.duplicate(),
-		"card_pool":     card_pool.duplicate(),
-		"artifact_pool": artifact_pool.duplicate(),
+		"unit_pool":         unit_pool.duplicate(),
+		"card_pool":         card_pool.duplicate(),
+		"artifact_pool":     artifact_pool.duplicate(),
+		"artifact_seen_set": artifact_seen_set.duplicate(),
 	}
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -49,4 +51,5 @@ static func from_dict(d: Dictionary) -> RunState:
 	rs.unit_pool.assign(d.get("unit_pool", []))
 	rs.card_pool.assign(d.get("card_pool", []))
 	rs.artifact_pool.assign(d.get("artifact_pool", []))
+	rs.artifact_seen_set.assign(d.get("artifact_seen_set", []))
 	return rs

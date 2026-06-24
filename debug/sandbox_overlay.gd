@@ -282,6 +282,19 @@ func _build_panel() -> void:
 		for _i in int(_rounds_spin.value):
 			_combat.debug_advance_round())
 	rounds_row.add_child(advance_btn)
+	var shards_row := HBoxContainer.new()
+	col.add_child(shards_row)
+	var shards_field := LineEdit.new()
+	shards_field.text = "50"
+	shards_field.custom_minimum_size.x = 52
+	shards_field.focus_mode = Control.FOCUS_CLICK
+	shards_row.add_child(shards_field)
+	var give_btn := _make_btn("Give Shards")
+	give_btn.pressed.connect(func() -> void:
+		var amt := int(shards_field.text) if shards_field.text.is_valid_int() else 0
+		if amt > 0 and Run.active != null:
+			Run.active.resources["shards"] += amt)
+	shards_row.add_child(give_btn)
 
 	# ── Isolation ──
 	_add_section(col, "ISOLATION")

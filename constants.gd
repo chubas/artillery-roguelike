@@ -51,9 +51,9 @@ const CHARGE_TIME : float = 1.4        # seconds from min to max power
 const PLAYER_POWER_MULT : float = 2.5
 
 # --- M2 combat (M2 spec §4, §7) -----------------------------------------------
-# M4: budget raised 5 → 10 so elemental modifiers (fire = 2 AP, electric = 3 AP) cost
-# meaningfully against moves/shots without starving a turn. See milestone-4-plan.md §7.
-const MAX_ACTIONS : int = 10           # shared action bar per player turn
+# M34: budget reduced 10 → 5. Cards retuned to 1 AP, Halve Wind 0 AP. 5 AP creates
+# real tension: 2 moves + 1 card + 1 shot = full turn. See milestone-34-plan.md.
+const MAX_ACTIONS : int = 5            # shared action bar per player turn
 const ENEMY_FIRE_DELAY : float = 0.8   # seconds between enemy shots
 # Settle beat at the END of a shot's resolution routine (after AoE/FX, before the next unit
 # is focused or the next enemy fires). Lets consequences read; future resolve actions

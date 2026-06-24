@@ -8,5 +8,4 @@ id = "armor_buff"
 display_name = "Armor Up"
 effect_type = 1
 magnitude = 5
-action_cost = 2
 color = Color(0.95, 0.82, 0.25, 1)

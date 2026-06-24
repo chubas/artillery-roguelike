@@ -97,6 +97,11 @@ static func build_diamond(stage_paths: Array) -> MapState:
 			while m.nodes.size() <= idx:
 				m.nodes.append(MapNode.make_combat(""))
 			m.nodes[idx] = n
+	# Nodes 3 and 5 (outer paths at layer 2) become shops; center path (4) stays combat.
+	m.nodes[3].type = MapNode.Type.SHOP
+	m.nodes[3].stage_path = ""
+	m.nodes[5].type = MapNode.Type.SHOP
+	m.nodes[5].stage_path = ""
 	return m
 
 # --- Legacy aliases (linear-only callers) --------------------------------------

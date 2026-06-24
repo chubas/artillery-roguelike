@@ -167,12 +167,16 @@ func _refresh() -> void:
 		return
 	var preview_idx := choices[0] if choices.size() == 1 else _map.current
 	if preview_idx >= 0 and preview_idx < _map.nodes.size():
-		var s := _map.nodes[preview_idx].stage()
-		if s != null:
-			var obj := "Defeat all" if s.objective.type == ObjectiveDescriptor.Type.DEFEAT_ALL \
-					else "Survive %d rounds" % s.objective.survive_rounds
-			_detail.text = "%s   ·   Objective: %s   ·   Threats: %s" % [
-					s.id, obj, ", ".join(s.threat_tags)]
+		var pnode : MapNode = _map.nodes[preview_idx]
+		if pnode.type == MapNode.Type.SHOP:
+			_detail.text = "SHOP — buy cards, artifacts, or units"
+		else:
+			var s := pnode.stage()
+			if s != null:
+				var obj := "Defeat all" if s.objective.type == ObjectiveDescriptor.Type.DEFEAT_ALL \
+						else "Survive %d rounds" % s.objective.survive_rounds
+				_detail.text = "%s   ·   Objective: %s   ·   Threats: %s" % [
+						s.id, obj, ", ".join(s.threat_tags)]
 	if choices.size() == 1:
 		_hint.text = "Click a highlighted stage to continue."
 	else:
@@ -255,9 +259,15 @@ class MapGraphView:
 			return
 		var c : Vector2 = _positions[index]
 		var font := ThemeDB.fallback_font
+		var node : MapNode = map.nodes[index]
+		var is_shop : bool = node.type == MapNode.Type.SHOP
 		var fill : Color
 		if map.visited.has(index):
 			fill = Color(0.28, 0.78, 0.42)
+		elif is_shop and map.can_select(index):
+			fill = Color(0.55, 0.2, 0.8)
+		elif is_shop:
+			fill = Color(0.32, 0.12, 0.45, 0.65)
 		elif map.can_select(index):
 			fill = Color(0.55, 0.58, 0.72)
 		else:
@@ -269,11 +279,16 @@ class MapGraphView:
 			draw_arc(c, NODE_R + 1.0, 0.0, TAU, 32, Color(0.95, 0.95, 1.0, 0.9), 2.0)
 		draw_string(font, Vector2(c.x - 4.0, c.y + 5.0), str(index + 1),
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.05, 0.05, 0.08))
-		var tags : Array = map.nodes[index].threat_tags()
-		if not tags.is_empty():
-			var tw := font.get_string_size(", ".join(tags), HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
-			draw_string(font, Vector2(c.x - tw * 0.5, c.y + NODE_R + 14.0), ", ".join(tags),
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1, 1, 1, 0.55))
+		if is_shop:
+			var lw := font.get_string_size("SHOP", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+			draw_string(font, Vector2(c.x - lw * 0.5, c.y + NODE_R + 14.0), "SHOP",
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.85, 0.55, 1.0, 0.85))
+		else:
+			var tags : Array = node.threat_tags()
+			if not tags.is_empty():
+				var tw := font.get_string_size(", ".join(tags), HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+				draw_string(font, Vector2(c.x - tw * 0.5, c.y + NODE_R + 14.0), ", ".join(tags),
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1, 1, 1, 0.55))
 
 	func _gui_input(event: InputEvent) -> void:
 		if map == null or map.nodes.is_empty():

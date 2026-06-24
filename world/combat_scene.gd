@@ -234,6 +234,7 @@ func _smoke_test() -> void:
 	_m31_smoke()
 	_m32_smoke()
 	_m33_smoke()
+	_m34_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -260,7 +261,7 @@ func _m4_smoke() -> void:
 	var ce : ShotDefinition = load("res://data/shots/cluster_electric.tres")
 	print("  costs: basic=%d fire=%d electric=%d (expect 0, 2, 3)" %
 			[cluster.action_cost, cf.action_cost, ce.action_cost])
-	print("  MAX_ACTIONS=%d (expect 10)" % Const.MAX_ACTIONS)
+	print("  MAX_ACTIONS=%d (expect 5)" % Const.MAX_ACTIONS)
 
 	print("[smoke] -- M4 salvo spawn counts --")
 	projectiles.fire(Vector2(100, 100), Vector2.RIGHT, 1.0, cluster, false)
@@ -974,7 +975,7 @@ func _m20_smoke() -> void:
 	var armor_card : CardDefinition = load("res://data/cards/armor_buff.tres")
 	_reset(ally); ally.armor = 0
 	combat._apply_card(armor_card, ally, Vector2i.ZERO)
-	print("  armor buff: armor=%d cost=%d (expect 5, 2)" % [ally.armor, armor_card.action_cost])
+	print("  armor buff: armor=%d cost=%d (expect 5, 1)" % [ally.armor, armor_card.action_cost])
 
 # M15 checklist (drop-queue redesign): spawn zone is the left half, dropping a unit places it
 # visibly in-zone, right-half column is clamped, queue must be empty before confirming.
@@ -1214,39 +1215,39 @@ func _m27_smoke() -> void:
 	print("[smoke] -- M27 map squad bar + repair/retire --")
 	Run.start_default_run()
 	var rs := Run.active
-	print("  shards start=%d (expect 10)" % rs.resources.get("shards", -1))
+	print("  shards start=%d (expect 25)" % rs.resources.get("shards", -1))
 	rs.squad[0].is_disabled = true
 	rs.squad[0].current_hp = 0
 	print("  used_capacity disabled=%d (expect 4)" % SquadOps.used_capacity(rs))
 	print("  repair ok=%s (expect true)" % SquadOps.repair_unit(rs, 0))
-	print("  shards after repair=%d (expect 5)" % rs.resources.get("shards", -1))
+	print("  shards after repair=%d (expect 20)" % rs.resources.get("shards", -1))
 	print("  repaired hp=%d disabled=%s (expect full/false)" %
 			[rs.squad[0].current_hp, rs.squad[0].is_disabled])
 	rs.squad[0].is_disabled = true
 	rs.squad[0].current_hp = 0
-	print("  retire disabled ok=%s squad=%d shards=%d cap=%d (expect true/1/7/2)" %
+	print("  retire disabled ok=%s squad=%d shards=%d cap=%d (expect true/1/22/2)" %
 			[SquadOps.retire_unit(rs, 0), rs.squad.size(),
 			rs.resources.get("shards", -1), SquadOps.used_capacity(rs)])
 	Run.start_default_run()
 	rs = Run.active
-	print("  retire healthy ok=%s squad=%d shards=%d cap=%d (expect true/1/12/2)" %
+	print("  retire healthy ok=%s squad=%d shards=%d cap=%d (expect true/1/27/2)" %
 			[SquadOps.retire_unit(rs, 0), rs.squad.size(),
 			rs.resources.get("shards", -1), SquadOps.used_capacity(rs)])
 	rs.squad[0].is_disabled = true
 	rs.squad[0].current_hp = 0
 	var rs2 := RunState.from_dict(rs.to_dict())
-	print("  rt shards=%d disabled=%s (expect 12/true)" %
+	print("  rt shards=%d disabled=%s (expect 27/true)" %
 			[rs2.resources.get("shards", -1), rs2.squad[0].is_disabled])
 
 func _m21_smoke() -> void:
 	print("[smoke] -- M21 shards + upgrade slots --")
 	Run.start_default_run()
 	var rs := Run.active
-	print("  shards start=%d (expect 10)" % rs.resources.get("shards", -1))
+	print("  shards start=%d (expect 25)" % rs.resources.get("shards", -1))
 	for u in rs.squad:
 		print("  upgrade_slots %s=%d (expect 2)" % [u.display_name, u.upgrade_slots])
 	var rs2 := RunState.from_dict(rs.to_dict())
-	print("  rt shards=%d (expect 10)" % rs2.resources.get("shards", -1))
+	print("  rt shards=%d (expect 25)" % rs2.resources.get("shards", -1))
 	print("  rt upgrade_slots=%d (expect 2)" % rs2.squad[0].upgrade_slots)
 
 func _m29_smoke() -> void:
@@ -1376,6 +1377,29 @@ func _m33_smoke() -> void:
 	var n0 : MapNode = Run.active.map.nodes[0]
 	print("  node[0] profile='%s' (expect empty)" % n0.terrain_profile_path)
 	print("  node[1] profile='%s' (expect nonempty)" % p1)
+
+func _m34_smoke() -> void:
+	print("[smoke] -- M34 shop node --")
+	Run.start_default_run()
+	var shop_count := 0
+	for node in Run.active.map.nodes:
+		var mn : MapNode = node
+		if mn.type == MapNode.Type.SHOP:
+			shop_count += 1
+	print("  shop_nodes=%d (expect 2)" % shop_count)
+	# Verify artifact cycling marks the seen set
+	Run.active.artifact_seen_set.clear()
+	var offered := Run.pick_artifacts_for_offer(3)
+	print("  offered=%d seen_set=%d (expect 3, 3)" % [offered.size(), Run.active.artifact_seen_set.size()])
+	# Drain remaining pool then verify cycle resets
+	var pool_size := Run.active.artifact_pool.size()
+	Run.pick_artifacts_for_offer(pool_size - 3)
+	var post_drain := Run.active.artifact_seen_set.size()
+	Run.pick_artifacts_for_offer(3)
+	print("  after drain: seen_set_reset=%s (expect true)" % str(Run.active.artifact_seen_set.size() < post_drain))
+	# Verify starting shards
+	Run.start_default_run()
+	print("  start_shards=%d (expect 25)" % Run.active.resources.get("shards", 0))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

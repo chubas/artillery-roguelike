@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-23)
+## Current state (2026-06-24)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -44,7 +44,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M30 (Elemental prime cards: fire/electric prime cards replace always-on shot selector; shot selector removed),
   M31 (Animation Sequencer: central autoload batch-parallel queue, placeholder animations, EventBus wiring),
   M32 (Profile-driven terrain generation: TerrainGenerator static class, MapData resource, 4 starter profiles),
-  **M33 (RNG architecture + stage profile variation: RunRng, StageRng, CombatRng autoloads; random terrain profile per stage; first stage always legacy)**.
+  M33 (RNG architecture + stage profile variation: RunRng, StageRng, CombatRng autoloads; random terrain profile per stage; first stage always legacy),
+  **M34 (Shop node: SHOP type on diamond nodes 3 & 5, ShopScreen CanvasLayer with 5 cards/3 artifacts/1 unit offers, artifact seen-set cycling shared with rewards, re-roll at escalating cost, starting shards 25, +20 shards per combat clear, sandbox Give Shards control; AP rebalance 10→5, all card costs to 1 AP, Halve Wind 0 AP, Direct Strike damage 2; Rarity metadata on all content types with BASIC/COMMON/RARE/EPIC/LEGENDARY/BOSS/EVENT tiers)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   9-node diamond (`MapState.build_diamond`); `build_linear` kept for smoke/regression.

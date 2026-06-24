@@ -17,6 +17,8 @@ var terrain_profile_path : String = ""
 var stage_seed           : int    = 0
 
 func stage() -> StageDescriptor:
+	if stage_path.is_empty():
+		return null
 	return load(stage_path)
 
 func threat_tags() -> Array:

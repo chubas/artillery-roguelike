@@ -30,3 +30,4 @@ var animations_enabled      : bool = true   # M31: AnimationSequencer batch queu
 var terrain_profiles_enabled : bool = true  # M32: profile-driven terrain generation + MapData pipeline
 var stage_rng_enabled        : bool = true  # M33: seeded RNG per stage and combat
 var run_seed                 : int  = 42    # M33: 0 = random each run; nonzero = fixed seed (repeatable)
+var shop_enabled             : bool = true  # M34: shop node type + purchase screen

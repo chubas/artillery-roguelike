@@ -22,6 +22,7 @@ enum EffectType { SHIELD_BUFF, ARMOR_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MI
 @export var action_cost : int = 1
 
 @export var color : Color = Color(0.6, 0.6, 0.9)   # HUD chip tint
+@export var rarity : String = Rarity.COMMON
 
 ## Effective magnitude given the card's upgrade tier from Run.active.card_upgrades.
 func effective_magnitude(level: int = 0) -> int:

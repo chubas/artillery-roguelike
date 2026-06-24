@@ -65,7 +65,7 @@ func start_default_run() -> void:
 	rs.map = MapState.build_diamond(_DEFAULT_MAP)
 	var _run_seed : int = Features.run_seed if Features.run_seed != 0 else randi()
 	rs.run_meta = { "seed": _run_seed, "act": 1, "stage_index": 0, "faction": Faction.ARMY }
-	rs.resources["shards"] = 10
+	rs.resources["shards"] = 25
 	# M22: pre-equip one essence per starting unit for testing. Essences are not unit-specific
 	# by design; this wiring will move to the reward/event system in a later milestone.
 	rs.squad[0].equipped_essences = ["res://data/essences/resources/armor_primer.tres"]
@@ -84,8 +84,29 @@ const _TERRAIN_PROFILES : Array[String] = [
 func _assign_terrain_variations(rs: RunState) -> void:
 	for i in range(rs.map.nodes.size()):
 		var node : MapNode = rs.map.nodes[i]
+		if node.type != MapNode.Type.COMBAT:
+			continue
 		node.stage_seed = run_rng.randi()
 		if i == 0:
 			node.terrain_profile_path = ""
 		else:
 			node.terrain_profile_path = _TERRAIN_PROFILES[run_rng.randi() % _TERRAIN_PROFILES.size()]
+
+## Sample n artifacts for a reward or shop offer, respecting the seen-set cycle.
+## Artifacts already offered (but not bought) won't appear again until all have been offered.
+func pick_artifacts_for_offer(n: int) -> Array[String]:
+	var available : Array[String] = []
+	for a in active.artifact_pool:
+		if not active.artifact_seen_set.has(a):
+			available.append(a)
+	if available.size() < n and not active.artifact_pool.is_empty():
+		active.artifact_seen_set.clear()
+		available = active.artifact_pool.duplicate()
+	var out : Array[String] = []
+	var src := available.duplicate()
+	for _i in range(mini(n, src.size())):
+		var idx := run_rng.randi() % src.size()
+		out.append(src[idx])
+		src.remove_at(idx)
+	active.artifact_seen_set.append_array(out)
+	return out

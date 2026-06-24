@@ -54,3 +54,4 @@ extends Resource
 @export var color : Color = Color(0.5, 0.5, 0.5)
 
 @export var capacity_cost : int = 2
+@export var rarity : String = Rarity.COMMON

@@ -305,7 +305,7 @@ class ActionPips:
 	var maximum := 5
 
 	func _draw() -> void:
-		# 20px stride keeps a 10-AP bar (M4) compact; pips shrink to 16px wide.
+		# 20px stride; 16px pip width. Scales with MAX_ACTIONS — currently 5 pips.
 		for i in range(maximum):
 			var rect := Rect2(i * 20, 0, 16, 18)
 			if i < current:

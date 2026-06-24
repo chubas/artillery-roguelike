@@ -9,6 +9,7 @@ func resolve_description() -> String:
 
 ## Faction tag (M18): neutral artifacts are cross-faction; tagged ones bias reward pools later.
 @export var faction : String = Faction.NEUTRAL
+@export var rarity  : String = Rarity.COMMON
 
 func on_combat_start(ctx: ArtifactContext) -> void: pass
 func on_round_start(ctx: ArtifactContext) -> void: pass

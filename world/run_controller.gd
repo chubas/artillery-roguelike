@@ -41,7 +41,7 @@ func _swap(node: Node) -> void:
 
 func _show_map() -> void:
 	var map_screen := MapScreen.new()
-	map_screen.stage_selected.connect(_enter_combat)
+	map_screen.stage_selected.connect(_on_node_selected)
 	map_screen.new_run_requested.connect(_restart_run)
 	_swap(map_screen)
 	map_screen.setup(Run.active.map)
@@ -52,6 +52,29 @@ func _show_map_end(text: String) -> void:
 	_swap(map_screen)
 	map_screen.setup(Run.active.map)
 	map_screen.show_end(text)
+
+# --- Node selection --------------------------------------------------------------
+
+func _on_node_selected(node: MapNode) -> void:
+	if node.type == MapNode.Type.SHOP and Features.shop_enabled:
+		_enter_shop(node)
+	else:
+		_enter_combat(node)
+
+# --- Shop ------------------------------------------------------------------------
+
+func _enter_shop(_node: MapNode) -> void:
+	var ss := ShopScreen.new()
+	ss.shop_closed.connect(_on_shop_closed)
+	_swap(ss)
+	ss.setup()
+
+func _on_shop_closed() -> void:
+	Run.active.map.mark_visited()
+	if Run.active.map.is_complete():
+		_show_map_end("RUN COMPLETE")
+	else:
+		_show_map()
 
 # --- Combat ----------------------------------------------------------------------
 
@@ -68,6 +91,7 @@ func _enter_combat(node: MapNode) -> void:
 func _on_combat_exited(outcome: String) -> void:
 	var any_alive := Run.active.squad.any(func(u): return not u.is_disabled)
 	if outcome == "cleared" and any_alive:
+		Run.active.resources["shards"] += 20
 		_start_reward_sequence(true)   # rewards before advancing the map
 	else:
 		_show_map_end("RUN OVER")
@@ -130,23 +154,17 @@ func _used_capacity() -> int:
 	return SquadOps.used_capacity(Run.active)
 
 func _pick_reward_options(cat: int) -> Array[String]:
-	var pool : Array[String]
-	var allow_repeat : bool
 	match cat:
 		RewardScreen.Category.UNIT:
 			if _used_capacity() >= RunState.MAX_SQUAD_CAPACITY:
 				return []
-			pool = Run.active.unit_pool
-			allow_repeat = true
+			return _sample(Run.active.unit_pool, 3, true)
 		RewardScreen.Category.ARTIFACT:
-			pool = Run.active.artifact_pool
-			allow_repeat = false
+			return Run.pick_artifacts_for_offer(3)
 		RewardScreen.Category.CARD:
-			pool = Run.active.card_pool
-			allow_repeat = true
+			return _sample(Run.active.card_pool, 3, true)
 		_:
 			return []
-	return _sample(pool, 3, allow_repeat)
 
 func _sample(pool: Array[String], count: int, allow_repeat: bool) -> Array[String]:
 	if pool.is_empty():

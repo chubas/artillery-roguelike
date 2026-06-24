@@ -149,6 +149,7 @@ func _ready() -> void:
 	heavy.default_shot = basic_ref; heavy.available_shots = [basic_ref]
 	heavy.tags = []; heavy.element_affinities = {}
 	heavy.faction = Faction.ARMY
+	heavy.rarity = Rarity.COMMON
 	heavy.color = Color(0.25, 0.45, 0.9)
 	_save(heavy, "res://data/units/player_heavy.tres")
 
@@ -159,6 +160,7 @@ func _ready() -> void:
 	light.default_shot = basic_ref; light.available_shots = [basic_ref]
 	light.tags = []; light.element_affinities = {}
 	light.faction = Faction.ARMY
+	light.rarity = Rarity.COMMON
 	light.color = Color(0.35, 0.75, 0.95)
 	_save(light, "res://data/units/player_light.tres")
 
@@ -172,6 +174,7 @@ func _ready() -> void:
 	organic.tags = ["ORGANIC"]
 	organic.element_affinities = { "fire": 1.5, "electric": 0.75 }
 	organic.faction = Faction.ARMY
+	organic.rarity = Rarity.COMMON
 	organic.color = Color(0.55, 0.75, 0.3)
 	_save(organic, "res://data/units/enemy_organic.tres")
 
@@ -185,6 +188,7 @@ func _ready() -> void:
 	mechanical.tags = ["MECHANICAL"]
 	mechanical.element_affinities = { "fire": 0.75, "electric": 1.5 }
 	mechanical.faction = Faction.ARMY
+	mechanical.rarity = Rarity.COMMON
 	mechanical.color = Color(0.7, 0.55, 0.85)
 	_save(mechanical, "res://data/units/enemy_mechanical.tres")
 
@@ -261,8 +265,8 @@ func _ready() -> void:
 	shield_card.id = "shield_buff"; shield_card.display_name = "Shield Up"
 	shield_card.target_type = CardDefinition.TargetType.ALLY
 	shield_card.effect_type = CardDefinition.EffectType.SHIELD_BUFF
-	shield_card.magnitude = 4; shield_card.action_cost = 2
-	shield_card.faction = Faction.NEUTRAL
+	shield_card.magnitude = 4; shield_card.action_cost = 1
+	shield_card.faction = Faction.NEUTRAL; shield_card.rarity = Rarity.BASIC
 	shield_card.color = Color(0.35, 0.65, 0.95)
 	_save(shield_card, "res://data/cards/shield_buff.tres")
 
@@ -270,8 +274,8 @@ func _ready() -> void:
 	armor_card.id = "armor_buff"; armor_card.display_name = "Armor Up"
 	armor_card.target_type = CardDefinition.TargetType.ALLY
 	armor_card.effect_type = CardDefinition.EffectType.ARMOR_BUFF
-	armor_card.magnitude = 5; armor_card.action_cost = 2
-	armor_card.faction = Faction.NEUTRAL
+	armor_card.magnitude = 5; armor_card.action_cost = 1
+	armor_card.faction = Faction.NEUTRAL; armor_card.rarity = Rarity.COMMON
 	armor_card.color = Color(0.95, 0.82, 0.25)
 	_save(armor_card, "res://data/cards/armor_buff.tres")
 
@@ -279,8 +283,8 @@ func _ready() -> void:
 	strike_card.id = "direct_strike"; strike_card.display_name = "Direct Strike"
 	strike_card.target_type = CardDefinition.TargetType.ENEMY
 	strike_card.effect_type = CardDefinition.EffectType.DIRECT_DAMAGE
-	strike_card.magnitude = 3; strike_card.action_cost = 3
-	strike_card.faction = Faction.NEUTRAL
+	strike_card.magnitude = 2; strike_card.action_cost = 1
+	strike_card.faction = Faction.NEUTRAL; strike_card.rarity = Rarity.BASIC
 	strike_card.color = Color(0.9, 0.3, 0.25)
 	_save(strike_card, "res://data/cards/direct_strike.tres")
 
@@ -289,8 +293,8 @@ func _ready() -> void:
 	boosted_card.id = "boosted_card"; boosted_card.display_name = "Overdrive"
 	boosted_card.target_type = CardDefinition.TargetType.ALLY
 	boosted_card.effect_type = CardDefinition.EffectType.ADD_BOOSTED
-	boosted_card.magnitude = 2; boosted_card.action_cost = 2
-	boosted_card.faction = Faction.NEUTRAL
+	boosted_card.magnitude = 2; boosted_card.action_cost = 1
+	boosted_card.faction = Faction.NEUTRAL; boosted_card.rarity = Rarity.COMMON
 	boosted_card.color = Color(0.3, 0.8, 0.4)
 	_save(boosted_card, "res://data/cards/boosted_card.tres")
 
@@ -298,8 +302,8 @@ func _ready() -> void:
 	mine_card.id = "mine_card"; mine_card.display_name = "Drop Mine"
 	mine_card.target_type = CardDefinition.TargetType.TILE
 	mine_card.effect_type = CardDefinition.EffectType.DEPLOY_MINE
-	mine_card.magnitude = 0; mine_card.action_cost = 2
-	mine_card.faction = Faction.ARMY
+	mine_card.magnitude = 0; mine_card.action_cost = 1
+	mine_card.faction = Faction.ARMY; mine_card.rarity = Rarity.COMMON
 	mine_card.color = Color(0.9, 0.55, 0.2)
 	_save(mine_card, "res://data/cards/mine_card.tres")
 
@@ -307,8 +311,8 @@ func _ready() -> void:
 	wind_card.id = "halve_wind"; wind_card.display_name = "Calm Winds"
 	wind_card.target_type = CardDefinition.TargetType.NONE
 	wind_card.effect_type = CardDefinition.EffectType.HALVE_WIND
-	wind_card.magnitude = 0; wind_card.action_cost = 1
-	wind_card.faction = Faction.ARMY
+	wind_card.magnitude = 0; wind_card.action_cost = 0
+	wind_card.faction = Faction.ARMY; wind_card.rarity = Rarity.COMMON
 	wind_card.color = Color(0.4, 0.8, 0.95)
 	_save(wind_card, "res://data/cards/halve_wind.tres")
 
@@ -318,7 +322,8 @@ func _ready() -> void:
 	fire_prime.description_template = "Target ally's next shot burns on impact."
 	fire_prime.target_type = CardDefinition.TargetType.ALLY
 	fire_prime.effect_type = CardDefinition.EffectType.PRIME_FIRE
-	fire_prime.action_cost = 2; fire_prime.faction = Faction.ARMY
+	fire_prime.action_cost = 1; fire_prime.faction = Faction.ARMY
+	fire_prime.rarity = Rarity.COMMON
 	fire_prime.color = Color(0.9, 0.35, 0.15)
 	_save(fire_prime, "res://data/cards/fire_prime.tres")
 
@@ -327,7 +332,8 @@ func _ready() -> void:
 	elec_prime.description_template = "Target ally's next shot shocks on impact."
 	elec_prime.target_type = CardDefinition.TargetType.ALLY
 	elec_prime.effect_type = CardDefinition.EffectType.PRIME_ELECTRIC
-	elec_prime.action_cost = 2; elec_prime.faction = Faction.ARMY
+	elec_prime.action_cost = 1; elec_prime.faction = Faction.ARMY
+	elec_prime.rarity = Rarity.COMMON
 	elec_prime.color = Color(0.25, 0.65, 0.95)
 	_save(elec_prime, "res://data/cards/electric_prime.tres")
 
@@ -619,14 +625,16 @@ func _save_player_unit(id: String, dname: String,
 	u.tags = []
 	u.element_affinities = {}
 	u.faction = Faction.ARMY
+	u.rarity = Rarity.COMMON
 	u.color = color
 	_save(u, "res://data/units/%s.tres" % id)
 
 func _bake_artifact(a: ArtifactDef, name: String, desc: String, path: String,
-		faction: String = Faction.NEUTRAL) -> void:
+		faction: String = Faction.NEUTRAL, rarity: String = Rarity.COMMON) -> void:
 	a.artifact_name = name
 	a.description_template = desc
 	a.faction = faction
+	a.rarity = rarity
 	_save(a, path)
 
 func _bake_essence(e: EssenceDef, name: String, desc: String, slot_cost: int,
