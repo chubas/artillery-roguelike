@@ -72,7 +72,7 @@ func _ready() -> void:
 		hp = run_state.current_hp
 		kills = run_state.kills
 		attack = _derive_attack()
-		dig = definition.dig
+		dig = definition.dig + run_state.bonus_dig
 		armor = definition.base_armor if Features.armor_enabled else 0
 	else:
 		hp = definition.max_hp
@@ -83,10 +83,8 @@ func _ready() -> void:
 	if display_name == "":
 		display_name = definition.display_name
 
-# Combat attack value derived from the unit's run state (M12). For now just the definition's
-# base attack — permanent upgrades/equipment will fold in here once those systems exist.
 func _derive_attack() -> int:
-	return definition.attack
+	return definition.attack + (run_state.bonus_attack if run_state != null else 0)
 
 # --- State ---------------------------------------------------------------------
 func take_damage(dmg: int, element: ElementDef = null) -> void:

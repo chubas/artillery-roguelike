@@ -299,6 +299,70 @@ func _build_panel() -> void:
 			Run.active.resources["shards"] += amt)
 	shards_row.add_child(give_btn)
 
+	# ── Repair (M36) ──
+	_add_section(col, "REPAIR (M36)")
+	var distribute_btn := _make_btn("Distribute Heal (4)")
+	distribute_btn.pressed.connect(func() -> void:
+		if Run.active == null: return
+		var pool := 4
+		for rus in Run.active.squad:
+			var u : RunUnitState = rus
+			if not u.is_disabled and u.current_hp < u.max_hp:
+				u.current_hp = mini(u.current_hp + 1, u.max_hp)
+				pool -= 1
+				if pool <= 0: break)
+	col.add_child(distribute_btn)
+	var heal_first_btn := _make_btn("Heal First Unit (6)")
+	heal_first_btn.pressed.connect(func() -> void:
+		if Run.active == null or Run.active.squad.is_empty(): return
+		var u : RunUnitState = Run.active.squad[0]
+		u.current_hp = mini(u.current_hp + 6, u.max_hp))
+	col.add_child(heal_first_btn)
+	var add_vial_btn := _make_btn("Add Heal Vial to Deck")
+	add_vial_btn.pressed.connect(func() -> void:
+		if Run.active != null:
+			Run.active.deck.append("res://data/cards/heal_vial.tres"))
+	col.add_child(add_vial_btn)
+
+	# ── Upgrade (M36) ──
+	_add_section(col, "UPGRADE (M36)")
+	col.add_child(_make_label("Unit index (0-based):"))
+	var upg_spin := _make_spinbox(0.0, 9.0, 0.0)
+	col.add_child(upg_spin)
+	var atk_btn := _make_btn("+2 ATK")
+	atk_btn.pressed.connect(func() -> void:
+		if Run.active == null: return
+		var idx := int(upg_spin.value)
+		if idx < Run.active.squad.size():
+			(Run.active.squad[idx] as RunUnitState).bonus_attack += 2)
+	col.add_child(atk_btn)
+	var boost_btn := _make_btn("+3 Boosted")
+	boost_btn.pressed.connect(func() -> void:
+		if Run.active == null: return
+		var idx := int(upg_spin.value)
+		if idx < Run.active.squad.size():
+			(Run.active.squad[idx] as RunUnitState).permanent_boosted += 3)
+	col.add_child(boost_btn)
+	var fp_btn := _make_btn("+Fire Prime")
+	fp_btn.pressed.connect(func() -> void:
+		if Run.active == null: return
+		var idx := int(upg_spin.value)
+		if idx < Run.active.squad.size():
+			(Run.active.squad[idx] as RunUnitState).permanent_fire_prime += 1)
+	col.add_child(fp_btn)
+	var dig_btn := _make_btn("+1 Dig")
+	dig_btn.pressed.connect(func() -> void:
+		if Run.active == null: return
+		var idx := int(upg_spin.value)
+		if idx < Run.active.squad.size():
+			(Run.active.squad[idx] as RunUnitState).bonus_dig += 1)
+	col.add_child(dig_btn)
+	var fuse_btn := _make_btn("Fuse 0 → 1")
+	fuse_btn.pressed.connect(func() -> void:
+		if Run.active != null and Run.active.squad.size() >= 2:
+			SquadOps.fuse_units(Run.active, 0, 1))
+	col.add_child(fuse_btn)
+
 	# ── Isolation ──
 	_add_section(col, "ISOLATION")
 	_invuln_btn = _make_btn("Player Invulnerable: OFF")

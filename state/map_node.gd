@@ -4,7 +4,7 @@
 class_name MapNode
 extends RefCounted
 
-enum Type { COMBAT, EVENT, SHOP, BOSS }
+enum Type { COMBAT, EVENT, SHOP, BOSS, REPAIR, UPGRADE }
 
 var type : Type = Type.COMBAT
 var stage_path : String = ""   # res:// to a StageDescriptor

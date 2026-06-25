@@ -12,7 +12,8 @@ extends Resource
 # TILE = pick a ground space (mine); NONE = instant, no target (applied on select). (M11)
 enum TargetType { ALLY, ENEMY, TILE, NONE }
 enum EffectType { SHIELD_BUFF, ARMOR_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MINE, HALVE_WIND,
-				  PRIME_FIRE, PRIME_ELECTRIC }   # M30: elemental prime cards
+				  PRIME_FIRE, PRIME_ELECTRIC,   # M30: elemental prime cards
+				  HEAL }                         # M36: restore HP to an ally unit
 
 @export var target_type : TargetType = TargetType.ALLY
 @export var effect_type : EffectType = EffectType.SHIELD_BUFF
@@ -23,6 +24,7 @@ enum EffectType { SHIELD_BUFF, ARMOR_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MI
 
 @export var color : Color = Color(0.6, 0.6, 0.9)   # HUD chip tint
 @export var rarity : String = Rarity.COMMON
+@export var is_consumable : bool = false   # M36: removed from deck after one use
 
 ## Effective magnitude given the card's upgrade tier from Run.active.card_upgrades.
 func effective_magnitude(level: int = 0) -> int:

@@ -15,6 +15,11 @@ var upgrade_slots     : int = 2             # shared pool for upgrades + fused e
 var equipped_essences : Array[String] = []  # EssenceDef resource paths equipped on this unit (M22)
 var upgrades          : Array[String] = []  # empty in M12 — seam for permanent upgrades
 var equipment         : Array[String] = []  # empty in M12 — seam for equipment loadout
+# M36: permanent stat upgrades applied at combat start via CombatBridge.
+var bonus_attack         : int = 0
+var permanent_boosted    : int = 0
+var permanent_fire_prime : int = 0
+var bonus_dig            : int = 0
 
 # Build a fresh, full-HP run-unit from a UnitDefinition path.
 static func from_definition(def_path: String, dname: String = "") -> RunUnitState:
@@ -39,6 +44,10 @@ func to_dict() -> Dictionary:
 		"equipped_essences": equipped_essences.duplicate(),
 		"upgrades": upgrades.duplicate(),
 		"equipment": equipment.duplicate(),
+		"bonus_attack": bonus_attack,
+		"permanent_boosted": permanent_boosted,
+		"permanent_fire_prime": permanent_fire_prime,
+		"bonus_dig": bonus_dig,
 	}
 
 static func from_dict(d: Dictionary) -> RunUnitState:
@@ -54,4 +63,8 @@ static func from_dict(d: Dictionary) -> RunUnitState:
 	rus.equipped_essences.assign(d.get("equipped_essences", []))
 	rus.upgrades.assign(d.get("upgrades", []))
 	rus.equipment.assign(d.get("equipment", []))
+	rus.bonus_attack         = d.get("bonus_attack", 0)
+	rus.permanent_boosted    = d.get("permanent_boosted", 0)
+	rus.permanent_fire_prime = d.get("permanent_fire_prime", 0)
+	rus.bonus_dig            = d.get("bonus_dig", 0)
 	return rus

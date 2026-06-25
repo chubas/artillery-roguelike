@@ -60,6 +60,10 @@ func _on_node_selected(node: MapNode) -> void:
 		_enter_shop(node)
 	elif node.type == MapNode.Type.EVENT and Features.events_enabled:
 		_enter_event(node)
+	elif node.type == MapNode.Type.REPAIR and Features.repair_enabled:
+		_enter_repair(node)
+	elif node.type == MapNode.Type.UPGRADE and Features.upgrade_enabled:
+		_enter_upgrade(node)
 	else:
 		_enter_combat(node)
 
@@ -72,11 +76,7 @@ func _enter_shop(_node: MapNode) -> void:
 	ss.setup()
 
 func _on_shop_closed() -> void:
-	Run.active.map.mark_visited()
-	if Run.active.map.is_complete():
-		_show_map_end("RUN COMPLETE")
-	else:
-		_show_map()
+	_on_node_screen_completed()
 
 # --- Event -----------------------------------------------------------------------
 
@@ -91,6 +91,25 @@ func _enter_event(node: MapNode) -> void:
 	es.setup(ev)
 
 func _on_event_completed() -> void:
+	_on_node_screen_completed()
+
+# --- Repair ----------------------------------------------------------------------
+
+func _enter_repair(_node: MapNode) -> void:
+	var rs := RepairScreen.new()
+	rs.repair_completed.connect(_on_node_screen_completed)
+	_swap(rs)
+	rs.setup()
+
+# --- Upgrade ---------------------------------------------------------------------
+
+func _enter_upgrade(_node: MapNode) -> void:
+	var us := UpgradeScreen.new()
+	us.upgrade_completed.connect(_on_node_screen_completed)
+	_swap(us)
+	us.setup()
+
+func _on_node_screen_completed() -> void:
 	Run.active.map.mark_visited()
 	if Run.active.map.is_complete():
 		_show_map_end("RUN COMPLETE")

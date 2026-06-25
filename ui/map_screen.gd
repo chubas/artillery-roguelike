@@ -72,19 +72,30 @@ func _build() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
+	# Graph + detail side-by-side so the detail panel never overlaps nodes.
+	var map_row := HBoxContainer.new()
+	map_row.add_theme_constant_override("separation", 20)
+	box.add_child(map_row)
+
 	_graph = MapGraphView.new()
-	_graph.custom_minimum_size = Vector2(640, 320)
+	_graph.custom_minimum_size = Vector2(640, 480)
 	_graph.node_clicked.connect(_on_node_clicked)
-	box.add_child(_graph)
+	map_row.add_child(_graph)
+
+	var side := VBoxContainer.new()
+	side.custom_minimum_size = Vector2(220, 0)
+	side.add_theme_constant_override("separation", 12)
+	side.alignment = BoxContainer.ALIGNMENT_CENTER
+	map_row.add_child(side)
 
 	_detail = _label("", 14)
-	_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(_detail)
+	_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(_detail)
 
 	_hint = _label("Click a highlighted stage to continue.", 13)
-	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint.add_theme_color_override("font_color", Color(0.75, 0.78, 0.85))
-	box.add_child(_hint)
+	side.add_child(_hint)
 
 	_end_box = VBoxContainer.new()
 	_end_box.add_theme_constant_override("separation", 10)
@@ -98,7 +109,7 @@ func _build() -> void:
 	newrun.focus_mode = Control.FOCUS_NONE
 	newrun.pressed.connect(func() -> void: new_run_requested.emit())
 	_end_box.add_child(newrun)
-	box.add_child(_end_box)
+	side.add_child(_end_box)
 
 	_build_action_menu()
 
@@ -173,6 +184,10 @@ func _refresh() -> void:
 		elif pnode.type == MapNode.Type.EVENT:
 			var ev := pnode.event()
 			_detail.text = "EVENT — %s" % (ev.title if ev != null else "unknown")
+		elif pnode.type == MapNode.Type.REPAIR:
+			_detail.text = "REPAIR — heal units or add a Heal Vial card"
+		elif pnode.type == MapNode.Type.UPGRADE:
+			_detail.text = "UPGRADE — upgrade a unit, fuse two, or remove cards"
 		else:
 			var s := pnode.stage()
 			if s != null:
@@ -263,8 +278,10 @@ class MapGraphView:
 		var c : Vector2 = _positions[index]
 		var font := ThemeDB.fallback_font
 		var node : MapNode = map.nodes[index]
-		var is_shop  : bool = node.type == MapNode.Type.SHOP
-		var is_event : bool = node.type == MapNode.Type.EVENT
+		var is_shop   : bool = node.type == MapNode.Type.SHOP
+		var is_event  : bool = node.type == MapNode.Type.EVENT
+		var is_repair : bool = node.type == MapNode.Type.REPAIR
+		var is_upg    : bool = node.type == MapNode.Type.UPGRADE
 		var fill : Color
 		if map.visited.has(index):
 			fill = Color(0.28, 0.78, 0.42)
@@ -276,6 +293,14 @@ class MapGraphView:
 			fill = Color(0.15, 0.65, 0.75)
 		elif is_event:
 			fill = Color(0.08, 0.35, 0.42, 0.65)
+		elif is_repair and map.can_select(index):
+			fill = Color(0.85, 0.55, 0.15)
+		elif is_repair:
+			fill = Color(0.45, 0.28, 0.08, 0.65)
+		elif is_upg and map.can_select(index):
+			fill = Color(0.35, 0.65, 0.95)
+		elif is_upg:
+			fill = Color(0.18, 0.32, 0.48, 0.65)
 		elif map.can_select(index):
 			fill = Color(0.55, 0.58, 0.72)
 		else:
@@ -295,6 +320,14 @@ class MapGraphView:
 			var lw := font.get_string_size("EVENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
 			draw_string(font, Vector2(c.x - lw * 0.5, c.y + NODE_R + 14.0), "EVENT",
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.45, 0.95, 1.0, 0.85))
+		elif is_repair:
+			var lw := font.get_string_size("REPAIR", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+			draw_string(font, Vector2(c.x - lw * 0.5, c.y + NODE_R + 14.0), "REPAIR",
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1.0, 0.75, 0.35, 0.85))
+		elif is_upg:
+			var lw := font.get_string_size("UPGRADE", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+			draw_string(font, Vector2(c.x - lw * 0.5, c.y + NODE_R + 14.0), "UPGRADE",
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.55, 0.85, 1.0, 0.85))
 		else:
 			var tags : Array = node.threat_tags()
 			if not tags.is_empty():

@@ -19,6 +19,13 @@ static func build_squad(rs: RunState) -> Array:
 		u.is_player = true
 		u.display_name = rus.display_name
 		u.aim_angle_deg = 45.0       # face the enemy side; CombatManager places it
+		# M36: apply permanent upgrades from run state before the unit enters combat.
+		if rus.permanent_boosted > 0:
+			UnitStatusSystem.apply(u, load("res://data/statuses/boosted.tres"), rus.permanent_boosted)
+		if rus.permanent_fire_prime > 0:
+			var fire_el := load("res://data/elements/fire.tres")
+			for _i in range(rus.permanent_fire_prime):
+				u.primed_elements.append(fire_el)
 		squad.append(u)
 	return squad
 

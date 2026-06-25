@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-24)
+## Current state (2026-06-24 M36)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -46,7 +46,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   M32 (Profile-driven terrain generation: TerrainGenerator static class, MapData resource, 4 starter profiles),
   M33 (RNG architecture + stage profile variation: RunRng, StageRng, CombatRng autoloads; random terrain profile per stage; first stage always legacy),
   **M34 (Shop node: SHOP type on diamond nodes 3 & 5, ShopScreen CanvasLayer with 5 cards/3 artifacts/1 unit offers, artifact seen-set cycling shared with rewards, re-roll at escalating cost, starting shards 25, +20 shards per combat clear, sandbox Give Shards control; AP rebalance 10→5, all card costs to 1 AP, Halve Wind 0 AP, Direct Strike damage 2; Rarity metadata on all content types with BASIC/COMMON/RARE/EPIC/LEGENDARY/BOSS/EVENT tiers)**,
-  **M35 (Special event nodes + extended map: 15-node (1,2,3,3,3,2,1) run map via `build_run_map()`; two event types — Field Triage and Blood Price — with `EventDef` base class, text-based `EventScreen` CanvasLayer, choices resolved directly against `RunState`; EVENT nodes rendered as teal on map; two shops guaranteed at different layers; `act_tags` metadata on stages and events; `Features.events_enabled` kill switch)**.
+  **M35 (Special event nodes + extended map: 15-node (1,2,3,3,3,2,1) run map via `build_run_map()`; two event types — Field Triage and Blood Price — with `EventDef` base class, text-based `EventScreen` CanvasLayer, choices resolved directly against `RunState`; EVENT nodes rendered as teal on map; two shops guaranteed at different layers; `act_tags` metadata on stages and events; `Features.events_enabled` kill switch)**,
+  **M36 (Repair shop + upgrade shop + CONSUMABLE keyword: REPAIR node (L2) and UPGRADE node (L3) added to map; `RepairScreen` with three options — distribute 4 HP / heal one unit 6 HP / add Heal Vial card; `UpgradeScreen` with three options — upgrade unit stat (+ATK/+Boosted/+FirePrime/+Dig) / fuse two units (transfer essences, 5◆ refund, `FUSION_REFUND` const) / remove up to 2 deck cards; `HEAL` EffectType and `is_consumable` on `CardDefinition` — consumable cards purged from run deck after one use; four permanent upgrade fields on `RunUnitState` applied at combat start via `CombatBridge`; `SquadOps.fuse_units()`; sandbox REPAIR and UPGRADE debug sections; `Features.repair_enabled` and `Features.upgrade_enabled` kill switches)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.

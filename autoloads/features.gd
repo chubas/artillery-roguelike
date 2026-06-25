@@ -32,3 +32,5 @@ var stage_rng_enabled        : bool = true  # M33: seeded RNG per stage and comb
 var run_seed                 : int  = 42    # M33: 0 = random each run; nonzero = fixed seed (repeatable)
 var shop_enabled             : bool = true  # M34: shop node type + purchase screen
 var events_enabled           : bool = true  # M35: event node type + event screen
+var repair_enabled           : bool = true  # M36: repair node type + repair screen
+var upgrade_enabled          : bool = true  # M36: upgrade node type + upgrade screen

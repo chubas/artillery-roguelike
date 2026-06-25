@@ -979,8 +979,15 @@ func _apply_card(card: CardDefinition, target: Unit, vox: Vector2i) -> void:
 		CardDefinition.EffectType.PRIME_ELECTRIC:
 			target.primed_elements.append(load("res://data/elements/electric.tres"))
 			target.queue_redraw()
+		CardDefinition.EffectType.HEAL:
+			target.hp = mini(target.hp + mag, target.definition.max_hp)
+			target.queue_redraw()
 	_hand.erase(card)
 	_discard.append(card)
+	# M36: consumable cards purge themselves from the run deck after a single use.
+	if card.is_consumable and Run.active != null:
+		_discard.erase(card)
+		Run.active.deck.erase(card.resource_path)
 	_pending_card = null
 	_pending_index = -1
 	_save_checkpoint()   # AP spend is undoable (deck state is not — card play re-checkpoints)

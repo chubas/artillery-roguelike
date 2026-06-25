@@ -465,6 +465,20 @@ func _ready() -> void:
 	ev_blood.act_tags    = ["act_1"]
 	_save(ev_blood, "res://data/events/resources/event_blood_price.tres")
 
+	# ── M36: consumable card ──────────────────────────────────────────────────────
+	var heal_vial := CardDefinition.new()
+	heal_vial.id           = "heal_vial"
+	heal_vial.display_name = "Heal Vial"
+	heal_vial.faction      = Faction.NEUTRAL
+	heal_vial.target_type  = CardDefinition.TargetType.ALLY
+	heal_vial.effect_type  = CardDefinition.EffectType.HEAL
+	heal_vial.magnitude    = 10
+	heal_vial.is_consumable = true
+	heal_vial.action_cost  = 1
+	heal_vial.rarity       = Rarity.COMMON
+	heal_vial.color        = Color(0.2, 0.8, 0.4, 1.0)
+	_save(heal_vial, "res://data/cards/heal_vial.tres")
+
 	# ── M32: Terrain feature definitions ────────────────────────────────────────
 	var fd_ridge := FeatureDefinition.new()
 	fd_ridge.type = FeatureDefinition.FeatureType.RIDGE

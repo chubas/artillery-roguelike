@@ -152,6 +152,11 @@ static func build_run_map(stage_paths: Array, event_paths: Array) -> MapState:
 	m.nodes[7].stage_path = ""
 	m.nodes[12].type = MapNode.Type.SHOP
 	m.nodes[12].stage_path = ""
+	# REPAIR node (L2) and UPGRADE node (L3)
+	m.nodes[5].type = MapNode.Type.REPAIR
+	m.nodes[5].stage_path = ""
+	m.nodes[6].type = MapNode.Type.UPGRADE
+	m.nodes[6].stage_path = ""
 	return m
 
 # --- Legacy aliases (linear-only callers) --------------------------------------

@@ -236,6 +236,7 @@ func _smoke_test() -> void:
 	_m33_smoke()
 	_m34_smoke()
 	_m35_smoke()
+	_m36_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1452,6 +1453,53 @@ func _m35_smoke() -> void:
 		if ev2 != null:
 			var ch2 := ev2.choices(Run.active)
 			print("  blood_price_choice_count=%d (expect 2)" % ch2.size())
+
+func _m36_smoke() -> void:
+	print("[smoke] -- M36 repair/upgrade nodes + consumable card --")
+	Run.start_default_run()
+	var m : MapState = Run.active.map
+	# Node type counts
+	var repair_count := 0
+	var upgrade_count := 0
+	for i in range(m.nodes.size()):
+		var node : MapNode = m.nodes[i]
+		if node.type == MapNode.Type.REPAIR:  repair_count  += 1
+		elif node.type == MapNode.Type.UPGRADE: upgrade_count += 1
+	print("  repair_count=%d (expect 1)" % repair_count)
+	print("  upgrade_count=%d (expect 1)" % upgrade_count)
+	print("  first_node_type=COMBAT? %s (expect true)" % str(m.nodes[0].type == MapNode.Type.COMBAT))
+	print("  last_node_type=COMBAT? %s (expect true)"  % str(m.nodes[14].type == MapNode.Type.COMBAT))
+	# Heal Vial card checks
+	var hvial : CardDefinition = load("res://data/cards/heal_vial.tres")
+	if hvial != null:
+		print("  heal_vial_consumable=%s (expect true)" % str(hvial.is_consumable))
+		print("  heal_vial_effect=HEAL? %s (expect true)" % str(hvial.effect_type == CardDefinition.EffectType.HEAL))
+		print("  heal_vial_magnitude=%d (expect 10)" % hvial.magnitude)
+	else:
+		print("  heal_vial=MISSING (bake not run?)")
+	# RunUnitState round-trip for upgrade fields
+	var rus := RunUnitState.new()
+	rus.bonus_attack = 3
+	rus.permanent_boosted = 5
+	rus.permanent_fire_prime = 2
+	rus.bonus_dig = 1
+	var d := rus.to_dict()
+	var rus2 := RunUnitState.from_dict(d)
+	print("  upgrade_round_trip bonus_attack=%d (expect 3)" % rus2.bonus_attack)
+	print("  upgrade_round_trip permanent_boosted=%d (expect 5)" % rus2.permanent_boosted)
+	print("  upgrade_round_trip permanent_fire_prime=%d (expect 2)" % rus2.permanent_fire_prime)
+	print("  upgrade_round_trip bonus_dig=%d (expect 1)" % rus2.bonus_dig)
+	# Fuse units check
+	if Run.active.squad.size() >= 2:
+		var src : RunUnitState = Run.active.squad[0]
+		src.equipped_essences = ["res://data/essences/resources/armor_primer.tres"]
+		var pre_shards : int = Run.active.resources.get("shards", 0)
+		var ok := SquadOps.fuse_units(Run.active, 0, 1)
+		print("  fuse_ok=%s (expect true)" % str(ok))
+		print("  fuse_essence_transferred=%s (expect true)" % str(
+			Run.active.squad[0].equipped_essences.has("res://data/essences/resources/armor_primer.tres")))
+		print("  fuse_shards_granted=%d (expect %d)" % [
+			Run.active.resources.get("shards", 0) - pre_shards, SquadOps.FUSION_REFUND])
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:
