@@ -1080,6 +1080,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_try_click_select(get_global_mouse_position())
 
 func _process(delta: float) -> void:
+	if _hud == null or _targeting == null:
+		return  # setup() not yet called
 	if game_state == GameState.PLAYER_TURN and active_unit != null \
 			and active_unit.hp > 0 and not active_unit.is_done:
 		# Angle adjust (held = continuous).

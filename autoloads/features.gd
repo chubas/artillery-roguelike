@@ -34,3 +34,5 @@ var shop_enabled             : bool = true  # M34: shop node type + purchase scr
 var events_enabled           : bool = true  # M35: event node type + event screen
 var repair_enabled           : bool = true  # M36: repair node type + repair screen
 var upgrade_enabled          : bool = true  # M36: upgrade node type + upgrade screen
+var deck_viewer_enabled      : bool = true  # M37: deck viewer modal (world + combat)
+var squad_viewer_enabled     : bool = true  # M37: squad viewer modal (world + combat)

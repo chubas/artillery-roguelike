@@ -19,7 +19,7 @@ var _undo_btn : Button
 var _card_box : HBoxContainer
 var _card_chips : Array = []
 var _card_sig : String = ""   # cache: rebuild chips only when the card list changes
-var _deck_label : Label       # M11: draw-pile / discard counts
+var _deck_btn : Button        # M11/M37: draw-pile/discard counts; clickable → DeckViewer
 var _inspector     : UnitInspector
 var _dep_inspector : DeployableInspector   # M28
 var _wind_indicator : WindIndicator
@@ -53,9 +53,12 @@ func _build_top_left() -> void:
 	_card_box = HBoxContainer.new()
 	_card_box.add_theme_constant_override("separation", 4)
 	box.add_child(_card_box)
-	_deck_label = _make_label(12)
-	_deck_label.modulate = Color(1, 1, 1, 0.8)
-	box.add_child(_deck_label)
+	_deck_btn = Button.new()
+	_deck_btn.focus_mode = Control.FOCUS_NONE
+	_deck_btn.add_theme_font_size_override("font_size", 12)
+	_deck_btn.modulate = Color(1, 1, 1, 0.8)
+	_deck_btn.pressed.connect(_on_deck_viewer_pressed)
+	box.add_child(_deck_btn)
 	var hint := _make_label(11)
 	hint.text = "↑/↓ angle · ←/→ move · Space charge/fire · Q/E card · Esc cancel · Tab select · WASD pan"
 	hint.modulate = Color(1, 1, 1, 0.55)
@@ -107,6 +110,13 @@ func _build_top_right() -> void:
 	_undo_btn.focus_mode = Control.FOCUS_NONE
 	_undo_btn.pressed.connect(func(): undo_pressed.emit())
 	box.add_child(_undo_btn)
+	# M37: Squad viewer button
+	var squad_btn := Button.new()
+	squad_btn.text = "Squad"
+	squad_btn.focus_mode = Control.FOCUS_NONE
+	squad_btn.add_theme_font_size_override("font_size", 13)
+	squad_btn.pressed.connect(_on_squad_viewer_pressed)
+	box.add_child(squad_btn)
 	# Wind indicator lives in the same column, below the buttons.
 	_wind_indicator = WindIndicator.new()
 	_wind_indicator.custom_minimum_size = Vector2(0, 34)
@@ -248,7 +258,7 @@ func set_cards(cards: Array, pending_index: int, actions_left: int,
 		var c : CardDefinition = cards[i]
 		var chip : CardChip = _card_chips[i]
 		chip.set_state(actions_left >= c.action_cost, i == pending_index)
-	_deck_label.text = "Deck %d  ·  Discard %d" % [deck_count, discard_count]
+	_deck_btn.text = "Deck %d  ·  Discard %d" % [deck_count, discard_count]
 
 func set_artifacts(artifacts: Array) -> void:
 	for c in _artifact_bar.get_children():
@@ -270,6 +280,22 @@ func set_end_turn_alert(alert: bool) -> void:
 func set_undo_enabled(enabled: bool) -> void:
 	if _undo_btn.disabled == enabled:
 		_undo_btn.disabled = not enabled
+
+func _on_deck_viewer_pressed() -> void:
+	if not Features.deck_viewer_enabled:
+		return
+	var v := DeckViewer.new()
+	add_child(v)
+	v.setup()
+	v.closed.connect(func() -> void: v.queue_free())
+
+func _on_squad_viewer_pressed() -> void:
+	if not Features.squad_viewer_enabled:
+		return
+	var v := SquadViewer.new()
+	add_child(v)
+	v.setup(false)  # combat — no retire
+	v.closed.connect(func() -> void: v.queue_free())
 
 func _set_text(label: Label, text: String) -> void:
 	if label.text != text:

@@ -10,6 +10,8 @@ var _map : MapState
 var _graph : MapGraphView
 var _shards_label : Label
 var _capacity_label : Label
+var _deck_btn : Button    # M37: shows deck count, opens DeckViewer
+var _squad_btn : Button   # M37: opens SquadViewer
 var _squad_bar : HBoxContainer
 var _detail : Label
 var _hint : Label
@@ -44,6 +46,14 @@ func _build() -> void:
 	root.add_child(outer)
 
 	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 8)
+	# M37: Deck viewer button (top-left)
+	_deck_btn = Button.new()
+	_deck_btn.text = "Deck [0]"
+	_deck_btn.focus_mode = Control.FOCUS_NONE
+	_deck_btn.add_theme_font_size_override("font_size", 13)
+	_deck_btn.pressed.connect(_on_deck_viewer_pressed)
+	top_row.add_child(_deck_btn)
 	_shards_label = _label("", 14)
 	_shards_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.35))
 	top_row.add_child(_shards_label)
@@ -53,6 +63,13 @@ func _build() -> void:
 	_capacity_label = _label("", 14)
 	_capacity_label.add_theme_color_override("font_color", Color(0.75, 0.6, 1.0))
 	top_row.add_child(_capacity_label)
+	# M37: Squad viewer button (top-right)
+	_squad_btn = Button.new()
+	_squad_btn.text = "Squad"
+	_squad_btn.focus_mode = Control.FOCUS_NONE
+	_squad_btn.add_theme_font_size_override("font_size", 13)
+	_squad_btn.pressed.connect(_on_squad_viewer_pressed)
+	top_row.add_child(_squad_btn)
 	outer.add_child(top_row)
 
 	_squad_bar = HBoxContainer.new()
@@ -164,10 +181,29 @@ func _on_retire_pressed() -> void:
 	_selected_index = -1
 	_refresh()
 
+func _on_deck_viewer_pressed() -> void:
+	if not Features.deck_viewer_enabled:
+		return
+	var v := DeckViewer.new()
+	add_child(v)
+	v.setup()
+	v.closed.connect(func() -> void: v.queue_free())
+
+func _on_squad_viewer_pressed() -> void:
+	if not Features.squad_viewer_enabled:
+		return
+	var v := SquadViewer.new()
+	add_child(v)
+	v.setup(true)
+	v.closed.connect(func() -> void: v.queue_free())
+	v.retired.connect(func() -> void: v.queue_free(); _refresh())
+
 func _refresh() -> void:
 	_shards_label.text = "◆ Shards: %d" % Run.active.resources.get("shards", 0)
 	_capacity_label.text = "Squad Capacity: %d / %d" % [
 			SquadOps.used_capacity(Run.active), RunState.MAX_SQUAD_CAPACITY]
+	if _deck_btn != null:
+		_deck_btn.text = "Deck [%d]" % Run.active.deck.size()
 	_rebuild_squad_bar()
 	_graph.map = _map
 	_graph.queue_redraw()

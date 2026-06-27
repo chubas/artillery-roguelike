@@ -138,6 +138,10 @@ func _process(delta: float) -> void:
 # --- Headless integration smoke test (ARTILLERY_SMOKE=1) --------------------------
 # Validates the M3 §10 checklist: affinity, unit/tile statuses, chain, feature flag.
 func _smoke_test() -> void:
+	# Safety: force-quit after 60s in case any smoke function hangs or errors loop forever.
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		print("[smoke] TIMEOUT — forced quit after 60s")
+		get_tree().quit(1))
 	await get_tree().create_timer(0.3).timeout
 	var ea : Unit = combat.enemy_units[0]   # organic (weak fire)
 	var eb : Unit = combat.enemy_units[1]   # mechanical (weak electric)
@@ -237,6 +241,7 @@ func _smoke_test() -> void:
 	_m34_smoke()
 	_m35_smoke()
 	_m36_smoke()
+	_m37_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1500,6 +1505,35 @@ func _m36_smoke() -> void:
 			Run.active.squad[0].equipped_essences.has("res://data/essences/resources/armor_primer.tres")))
 		print("  fuse_shards_granted=%d (expect %d)" % [
 			Run.active.resources.get("shards", 0) - pre_shards, SquadOps.FUSION_REFUND])
+
+func _m37_smoke() -> void:
+	print("[smoke] -- M37 deck viewer + squad viewer --")
+	Run.start_default_run()
+
+	# DeckViewer: instantiate, setup, verify in tree
+	var dv := DeckViewer.new()
+	add_child(dv)
+	dv.setup()
+	print("  deck_viewer_in_tree=%s (expect true)" % str(dv.is_inside_tree()))
+	dv.queue_free()
+
+	# SquadViewer world mode
+	var sv_w := SquadViewer.new()
+	add_child(sv_w)
+	sv_w.setup(true)
+	print("  squad_viewer_world_in_tree=%s (expect true)" % str(sv_w.is_inside_tree()))
+	sv_w.queue_free()
+
+	# SquadViewer combat mode
+	var sv_c := SquadViewer.new()
+	add_child(sv_c)
+	sv_c.setup(false)
+	print("  squad_viewer_combat_in_tree=%s (expect true)" % str(sv_c.is_inside_tree()))
+	sv_c.queue_free()
+
+	# Feature flags
+	print("  deck_viewer_enabled=%s (expect true)" % str(Features.deck_viewer_enabled))
+	print("  squad_viewer_enabled=%s (expect true)" % str(Features.squad_viewer_enabled))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:
