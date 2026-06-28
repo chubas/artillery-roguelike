@@ -7,6 +7,20 @@ class_name UnitMovement
 
 const NO_MOVE := Vector2i(-9999, -9999)
 
+# M38: free climb voxels (1 AP) per weight class.
+static func free_climb_for_weight(weight: int) -> int:
+	if weight <= 0: return 99
+	if weight == 1: return 2   # light: 1–2 voxels free, 3rd costs extra AP
+	if weight >= 3: return 0   # heavy: no climbing
+	return 1                   # medium default
+
+# M38: max climb voxels (2 AP) per weight class.
+static func max_climb_for_weight(weight: int) -> int:
+	if weight <= 0: return 99
+	if weight == 1: return 3   # light: up to 3 voxels with 2 AP
+	if weight >= 3: return 0   # heavy: no climbing
+	return 2                   # medium: up to 2 voxels with 2 AP
+
 # One horizontal step in `direction` (±1) with climb/fall + unit-collision rules.
 # Returns the resulting top-left voxel, or NO_MOVE if the step is illegal.
 static func resolve_move(unit: Unit, direction: int,
@@ -23,10 +37,15 @@ static func resolve_move(unit: Unit, direction: int,
 		while f < Const.MAP_HEIGHT - 1 and not grounded(terrain, new_x, f, w):
 			f += 1
 		return Vector2i(new_x, f - h + 1)
-	# Climb candidate: 1 voxel up (climb_max; 2+ is blocked).
-	if unit.definition.climb_max >= 1 \
-			and bbox_terrain_clear(terrain, Vector2i(new_x, foot - h), w, h):
-		return Vector2i(new_x, foot - h)
+	# Climb candidates: try ascending 1..max_climb voxels, lowest accessible wins.
+	var max_climb := max_climb_for_weight(unit.definition.weight)
+	for k in range(1, max_climb + 1):
+		var climb_top_left := Vector2i(new_x, foot - h - k + 1)
+		if climb_top_left.y < 0:
+			break
+		if bbox_terrain_clear(terrain, climb_top_left, w, h) \
+				and grounded(terrain, new_x, foot - k, w):
+			return climb_top_left
 	return NO_MOVE
 
 # Vertical-only fall: where the unit lands if terrain under it gives way. Returns the

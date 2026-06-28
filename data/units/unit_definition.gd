@@ -18,7 +18,7 @@ extends Resource
 ## Starting armor points each combat (M20). Combat-runtime pool; restored from this on spawn.
 @export var base_armor : int = 0
 @export var move_range : int = 99  # max moves per activation (use 99 = unlimited for now)
-@export var climb_max : int = 1    # max voxel height climbed free
+@export var weight : int = 2       # 0=weightless, 1=light, 2=medium, 3=heavy
 
 ## Base attack value (M10): the source of projectile strength. Final salvo strength =
 ## attack * shot.strength_mult * power + attack_modifier (clamped ≥ 0), then scaled per AoE

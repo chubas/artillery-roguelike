@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-26 M37)
+## Current state (2026-06-28 M38)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -48,7 +48,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   **M34 (Shop node: SHOP type on diamond nodes 3 & 5, ShopScreen CanvasLayer with 5 cards/3 artifacts/1 unit offers, artifact seen-set cycling shared with rewards, re-roll at escalating cost, starting shards 25, +20 shards per combat clear, sandbox Give Shards control; AP rebalance 10→5, all card costs to 1 AP, Halve Wind 0 AP, Direct Strike damage 2; Rarity metadata on all content types with BASIC/COMMON/RARE/EPIC/LEGENDARY/BOSS/EVENT tiers)**,
   **M35 (Special event nodes + extended map: 15-node (1,2,3,3,3,2,1) run map via `build_run_map()`; two event types — Field Triage and Blood Price — with `EventDef` base class, text-based `EventScreen` CanvasLayer, choices resolved directly against `RunState`; EVENT nodes rendered as teal on map; two shops guaranteed at different layers; `act_tags` metadata on stages and events; `Features.events_enabled` kill switch)**,
   **M36 (Repair shop + upgrade shop + CONSUMABLE keyword: REPAIR node (L2) and UPGRADE node (L3) added to map; `RepairScreen` with three options — distribute 4 HP / heal one unit 6 HP / add Heal Vial card; `UpgradeScreen` with three options — upgrade unit stat (+ATK/+Boosted/+FirePrime/+Dig) / fuse two units (transfer essences, 5◆ refund, `FUSION_REFUND` const) / remove up to 2 deck cards; `HEAL` EffectType and `is_consumable` on `CardDefinition` — consumable cards purged from run deck after one use; four permanent upgrade fields on `RunUnitState` applied at combat start via `CombatBridge`; `SquadOps.fuse_units()`; sandbox REPAIR and UPGRADE debug sections; `Features.repair_enabled` and `Features.upgrade_enabled` kill switches)**,
-  **M37 (Card Viewer + Squad Viewer: `DeckViewer` and `SquadViewer` modals — `Control` nodes with `set_as_top_level(true)`, open from both world map and combat HUD; "Deck [N]" button top-left and "Squad" button top-right on `MapScreen`; HUD deck label replaced with clickable button, Squad button added in HUD top-right column; `DeckViewer` two-column layout: scrollable card list with cost+name, hover updates detail panel showing effect/target/magnitude/CONSUMABLE; `SquadViewer` shows units with HP, Retire button visible only in world mode (`world_mode=true`), retire calls `SquadOps.retire_unit()`; `Features.deck_viewer_enabled` and `Features.squad_viewer_enabled` kill switches; `CombatManager._process()` null-guard for `_hud`/`_targeting` before `setup()` runs; 60s safety quit timer in `_smoke_test()` to prevent infinite-loop hangs)**.
+  **M37 (Card Viewer + Squad Viewer: `DeckViewer` and `SquadViewer` modals — `Control` nodes with `set_as_top_level(true)`, open from both world map and combat HUD; "Deck [N]" button top-left and "Squad" button top-right on `MapScreen`; HUD deck label replaced with clickable button, Squad button added in HUD top-right column; `DeckViewer` two-column layout: scrollable card list with cost+name, hover updates detail panel showing effect/target/magnitude/CONSUMABLE; `SquadViewer` shows units with HP, Retire button visible only in world mode (`world_mode=true`), retire calls `SquadOps.retire_unit()`; `Features.deck_viewer_enabled` and `Features.squad_viewer_enabled` kill switches; `CombatManager._process()` null-guard for `_hud`/`_targeting` before `setup()` runs; 60s safety quit timer in `_smoke_test()` to prevent infinite-loop hangs)**,
+  **M38 (Unit Weight Classes: `UnitDefinition.weight` integer field replaces `climb_max` — 0=weightless, 1=light, 2=medium, 3=heavy; `UnitMovement.free_climb_for_weight()` and `max_climb_for_weight()` static helpers; `resolve_move()` extended to loop through 1..max_climb voxels finding lowest accessible ledge; `CombatManager._move_ap_cost()` helper computes 1 or 2 AP based on climb height vs free-climb threshold; `try_move()` refactored to separate AP calculation from token handling — token covers 1 AP, extended climbs still deduct remainder from action pool; all current units baked at weight=2 (medium) with light/heavy candidate comments; `Features.weight_mobility_enabled` kill switch)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.
@@ -60,6 +61,10 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-06-28 — Milestone 38: Unit Weight Classes
+
+Weight-based climb mobility: `UnitDefinition.weight` replaces `climb_max`. Light units (weight=1) climb up to 3 voxels (1–2 free, 3rd costs 2 AP); medium (weight=2) up to 2 voxels (1 free, 2nd costs 2 AP); heavy (weight=3) are ground-locked. Boosted move token still covers 1 AP — extended climbs deduct the remainder from the action pool. All baked units set to weight=2. Full design in [docs/planning/milestone-38-plan.md](docs/planning/milestone-38-plan.md).
 
 ## 2026-06-26 — Milestone 37: Card Viewer + Squad Viewer
 

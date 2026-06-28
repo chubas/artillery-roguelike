@@ -36,3 +36,4 @@ var repair_enabled           : bool = true  # M36: repair node type + repair scr
 var upgrade_enabled          : bool = true  # M36: upgrade node type + upgrade screen
 var deck_viewer_enabled      : bool = true  # M37: deck viewer modal (world + combat)
 var squad_viewer_enabled     : bool = true  # M37: squad viewer modal (world + combat)
+var weight_mobility_enabled  : bool = true  # M38: weight-based climb limits + AP costs

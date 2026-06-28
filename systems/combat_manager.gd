@@ -741,26 +741,36 @@ func try_move(unit: Unit, direction: int) -> void:
 		return
 	if unit == null or unit.is_done or unit.hp <= 0:
 		return
-	# Boosted (M10): a move token makes this move free, bypassing the AP requirement.
-	var token := _unit_move_token(unit)
-	if token == null and actions_left < 1:
-		return
 	if unit.actions_spent_moving >= unit.definition.move_range:
 		return
 	# Movement geometry lives in UnitMovement (shared with effect-driven shoves, M4).
 	var dest := UnitMovement.resolve_move(unit, direction, _terrain, all_units)
 	if dest == NO_MOVE:
 		return
+	# Boosted (M10): token covers 1 AP; extended climbs (M38) may still cost extra from pool.
+	var ap_cost := _move_ap_cost(unit, dest)
+	var token := _unit_move_token(unit)
+	var ap_from_pool := ap_cost - (1 if token != null else 0)
+	if actions_left < ap_from_pool:
+		return
 	unit.set_vox_position(dest)
 	_recompute_stack_offsets()
 	unit.moved_this_turn = true
 	unit.actions_spent_moving += 1
 	if token != null:
-		_spend_move_token(unit, token)   # Boosted absorbs the cost instead of the AP pool
-	else:
-		actions_left -= 1
+		_spend_move_token(unit, token)
+	actions_left -= ap_from_pool
 	_dirty_since_checkpoint = true
 	action_bar_changed.emit(actions_left, _turn_max_actions)
+
+func _move_ap_cost(unit: Unit, dest: Vector2i) -> int:
+	var climb_h := unit.vox_position.y - dest.y   # positive = climbing up
+	if climb_h <= 0:
+		return 1   # flat move or fall
+	if not Features.weight_mobility_enabled:
+		return 1
+	var free_climb := UnitMovement.free_climb_for_weight(unit.definition.weight)
+	return 2 if climb_h > free_climb else 1
 
 # Boosted (M10): the first consumed_by_move effect on `unit` with stacks left, or null.
 func _unit_move_token(unit: Unit) -> StatusInstance:

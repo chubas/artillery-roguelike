@@ -145,7 +145,7 @@ func _ready() -> void:
 	var heavy := UnitDefinition.new()
 	heavy.id = "player_heavy"; heavy.display_name = "Unit1"
 	heavy.width_voxels = 2; heavy.height_voxels = 3; heavy.max_hp = 9
-	heavy.move_range = 99; heavy.climb_max = 1
+	heavy.move_range = 99; heavy.weight = 2  # candidate: weight=3 (heavy bruiser)
 	heavy.default_shot = basic_ref; heavy.available_shots = [basic_ref]
 	heavy.tags = []; heavy.element_affinities = {}
 	heavy.faction = Faction.ARMY
@@ -156,7 +156,7 @@ func _ready() -> void:
 	var light := UnitDefinition.new()
 	light.id = "player_light"; light.display_name = "Unit2"
 	light.width_voxels = 1; light.height_voxels = 3; light.max_hp = 4
-	light.move_range = 99; light.climb_max = 1
+	light.move_range = 99; light.weight = 2  # candidate: weight=1 (light scout)
 	light.default_shot = basic_ref; light.available_shots = [basic_ref]
 	light.tags = []; light.element_affinities = {}
 	light.faction = Faction.ARMY
@@ -169,7 +169,7 @@ func _ready() -> void:
 	organic.width_voxels = 2; organic.height_voxels = 3; organic.max_hp = 8
 	organic.attack = 3
 	organic.dig = 1
-	organic.move_range = 0; organic.climb_max = 1
+	organic.move_range = 0; organic.weight = 2
 	organic.default_shot = basic_ref
 	organic.tags = ["ORGANIC"]
 	organic.element_affinities = { "fire": 1.5, "electric": 0.75 }
@@ -183,7 +183,7 @@ func _ready() -> void:
 	mechanical.width_voxels = 2; mechanical.height_voxels = 3; mechanical.max_hp = 6
 	mechanical.attack = 3
 	mechanical.dig = 1
-	mechanical.move_range = 0; mechanical.climb_max = 1
+	mechanical.move_range = 0; mechanical.weight = 2
 	mechanical.default_shot = basic_ref
 	mechanical.tags = ["MECHANICAL"]
 	mechanical.element_affinities = { "fire": 0.75, "electric": 1.5 }
@@ -195,14 +195,15 @@ func _ready() -> void:
 	# ── M4 player squad: one unit per shot family ─────────────────────────────
 	# M10: attack value is the source of projectile strength (× shot.strength_mult × power).
 	# Values mirror the old per-shot strengths so balance is unchanged: drill is the heavy hitter.
+	# M38 weight: all at 2 (medium) — candidates noted per unit.
 	_save_player_unit("player_cluster", "Cluster", cluster_loadout,
-			Color(0.85, 0.7, 0.2), 3, 1, 4)   # goldenrod, armored
+			Color(0.85, 0.7, 0.2), 3, 1, 4)   # goldenrod, armored; candidate: weight=3 (heavy)
 	_save_player_unit("player_bypass", "Drill", bypass_loadout,
-			Color(0.2, 0.7, 0.65), 10)      # teal — heavy unit-hit blast
+			Color(0.2, 0.7, 0.65), 10)         # teal; candidate: weight=1 (light fast driller)
 	_save_player_unit("player_pull", "Magnet", pull_loadout,
-			Color(0.9, 0.45, 0.4), 3)       # coral
+			Color(0.9, 0.45, 0.4), 3)          # coral
 	_save_player_unit("player_spiral", "Spiral", spiral_loadout,
-			Color(0.6, 0.4, 0.85), 3)       # purple
+			Color(0.6, 0.4, 0.85), 3)          # purple
 
 	# ── M5: five behaviour shots (basic only — no elemental loadout variants) ─
 	var blast_242 : AoEPattern = load("res://data/shots/aoe/diamond_r4.tres")
@@ -250,13 +251,13 @@ func _ready() -> void:
 	var bigball_ref : ShotDefinition = load("res://data/shots/bigball_basic.tres")
 
 	_save_player_unit("player_split", "Splitter", [split_ref],
-			Color(0.95, 0.75, 0.25), 3)
+			Color(0.95, 0.75, 0.25), 3)   # candidate: weight=1 (light aerial splitter)
 	_save_player_unit("player_walker", "Crawler", [walker_ref],
-			Color(0.55, 0.85, 0.35), 3)
+			Color(0.55, 0.85, 0.35), 3)   # candidate: weight=3 (heavy ground crawler)
 	_save_player_unit("player_barrier", "Builder", [barrier_ref],
-			Color(0.45, 0.55, 0.95), 3)
+			Color(0.45, 0.55, 0.95), 3)   # candidate: weight=3 (heavy defensive builder)
 	_save_player_unit("player_teleport", "Blink", [teleport_ref],
-			Color(0.85, 0.4, 0.95), 3)
+			Color(0.85, 0.4, 0.95), 3)    # candidate: weight=0 (weightless teleporter)
 	_save_player_unit("player_bigball", "Big Ball", [bigball_ref],
 			Color(0.9, 0.55, 0.2), 3)
 
@@ -651,7 +652,7 @@ func _save_player_unit(id: String, dname: String,
 	u.attack = attack
 	u.dig = dig
 	u.move_range = 99
-	u.climb_max = 1
+	u.weight = 2
 	u.default_shot = loadout[0]
 	u.available_shots = loadout
 	u.tags = []

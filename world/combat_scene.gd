@@ -242,6 +242,7 @@ func _smoke_test() -> void:
 	_m35_smoke()
 	_m36_smoke()
 	_m37_smoke()
+	_m38_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1534,6 +1535,62 @@ func _m37_smoke() -> void:
 	# Feature flags
 	print("  deck_viewer_enabled=%s (expect true)" % str(Features.deck_viewer_enabled))
 	print("  squad_viewer_enabled=%s (expect true)" % str(Features.squad_viewer_enabled))
+
+func _m38_smoke() -> void:
+	print("[smoke] -- M38 weight classes --")
+
+	# Helper static functions
+	print("  free_climb_for_weight(0)=%d (expect 99)" % UnitMovement.free_climb_for_weight(0))
+	print("  free_climb_for_weight(1)=%d (expect 2)"  % UnitMovement.free_climb_for_weight(1))
+	print("  free_climb_for_weight(2)=%d (expect 1)"  % UnitMovement.free_climb_for_weight(2))
+	print("  free_climb_for_weight(3)=%d (expect 0)"  % UnitMovement.free_climb_for_weight(3))
+	print("  max_climb_for_weight(0)=%d (expect 99)"  % UnitMovement.max_climb_for_weight(0))
+	print("  max_climb_for_weight(1)=%d (expect 3)"   % UnitMovement.max_climb_for_weight(1))
+	print("  max_climb_for_weight(2)=%d (expect 2)"   % UnitMovement.max_climb_for_weight(2))
+	print("  max_climb_for_weight(3)=%d (expect 0)"   % UnitMovement.max_climb_for_weight(3))
+
+	# Verify all baked player units have weight=2
+	var unit_ids := ["player_cluster", "player_bypass", "player_pull", "player_spiral",
+			"player_split", "player_walker", "player_barrier", "player_teleport", "player_bigball"]
+	var all_medium := true
+	for uid in unit_ids:
+		var def : UnitDefinition = load("res://data/units/%s.tres" % uid)
+		if def.weight != 2:
+			print("  FAIL: %s weight=%d (expect 2)" % [uid, def.weight])
+			all_medium = false
+	print("  all_player_units_weight_2=%s (expect true)" % str(all_medium))
+
+	# resolve_move geometry: medium unit cannot climb 3 voxels
+	var p : Unit = combat.player_units[0]
+	var orig_def := p.definition
+	var medium_def := UnitDefinition.new()
+	medium_def.width_voxels = 1; medium_def.height_voxels = 1; medium_def.weight = 2
+	var heavy_def := UnitDefinition.new()
+	heavy_def.width_voxels = 1; heavy_def.height_voxels = 1; heavy_def.weight = 3
+
+	# Build a 3-tall wall protruding above the natural surface at col.
+	# Unit stands at (col-1, surface-1) with foot=surface-1, grounded on the natural surface.
+	# Wall tiles at col: surface-1, surface-2, surface-3 (3 rows above ground).
+	# k=1 blocked by surface-2, k=2 blocked by surface-3, k=3 out of medium's max_climb=2.
+	var col := 50
+	var surface := terrain.get_surface_row(col)
+	terrain.set_tile(col, surface - 1, _floor_tile())
+	terrain.set_tile(col, surface - 2, _floor_tile())
+	terrain.set_tile(col, surface - 3, _floor_tile())
+	p.definition = medium_def
+	p.vox_position = Vector2i(col - 1, surface - 1)
+	var dest_medium := UnitMovement.resolve_move(p, 1, terrain, combat.all_units)
+	print("  medium_3vox_cliff_result=%s (expect NO_MOVE)" % str(dest_medium == UnitMovement.NO_MOVE))
+
+	p.definition = heavy_def
+	p.vox_position = Vector2i(col - 1, surface - 1)
+	var dest_heavy := UnitMovement.resolve_move(p, 1, terrain, combat.all_units)
+	print("  heavy_1vox_blocked=%s (expect NO_MOVE)" % str(dest_heavy == UnitMovement.NO_MOVE))
+
+	p.definition = orig_def
+
+	# Feature flag
+	print("  weight_mobility_enabled=%s (expect true)" % str(Features.weight_mobility_enabled))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:
