@@ -160,7 +160,7 @@ func _smoke_test() -> void:
 	print("  basic on organic: -%d (expect -3, x1.0)" % (ea.definition.max_hp - ea.hp))
 	_reset(ea)
 	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), fire_pat, 3, false)
-	print("  fire on organic:  -%d (expect -4, x1.5) burn_stacks=%d (expect 1)" %
+	print("  fire on organic:  -%d (expect -6, x1.5 affinity × x1.5 vs_hp_mult) burn_stacks=%d (expect 1)" %
 			[ea.definition.max_hp - ea.hp, _stacks(ea, "burn")])
 
 	print("[smoke] -- burn tick --")
@@ -171,7 +171,7 @@ func _smoke_test() -> void:
 	print("[smoke] -- electric affinity --")
 	_reset(eb)
 	AoEResolver.resolve(terrain, combat.all_units, eb.center_voxel(), elec_pat, 3, false)
-	print("  electric on mechanical: -%d (expect -4, x1.5) shock_stacks=%d (expect 1)" %
+	print("  electric on mechanical: -%d (expect -2, x1.5 affinity × x0.5 vs_hp_mult) shock_stacks=%d (expect 1)" %
 			[eb.definition.max_hp - eb.hp, _stacks(eb, "shock")])
 
 	print("[smoke] -- shock AP reduction --")
@@ -243,6 +243,7 @@ func _smoke_test() -> void:
 	_m36_smoke()
 	_m37_smoke()
 	_m38_smoke()
+	_m39_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -504,16 +505,16 @@ func _m7_smoke() -> void:
 	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), phys_pat, 5, false)
 	print("  strength=5 on core voxel: -%d (expect -5)" % (ea.definition.max_hp - ea.hp))
 
-	print("[smoke] -- M7/M10 attack × strength_mult × power scales strength --")
+	print("[smoke] -- M7/M10 attack × combat_mult scales DamageResolver output --")
 	var p : Unit = combat.player_units[0]
-	var base_pow := p.power
+	var base_cm := p.combat_mult
 	var base_atk := p.attack
 	p.attack = 3
-	p.power = 2.0
-	# M10 fire formula: round(attack * strength_mult(1.0) * power) + attack_modifier(0).
-	var scaled_strength := roundi(p.attack * 1.0 * p.power)
-	print("  attack=3 * mult=1.0 * power=2.0 -> salvo strength=%d (expect 6)" % scaled_strength)
-	p.power = base_pow
+	p.combat_mult = 2.0
+	# M39 formula: (attack + combat_flat) * permanent_mult * combat_mult — no shot multiplier.
+	var scaled_strength := DamageResolver.compute_base(p, null, null)
+	print("  attack=3 * combat_mult=2.0 -> DamageResolver.compute_base=%s (expect 6.0)" % scaled_strength)
+	p.combat_mult = base_cm
 	p.attack = base_atk
 
 	print("[smoke] -- M7 mine strength independent of unit power --")
@@ -646,11 +647,11 @@ func _m9_smoke() -> void:
 	# --- Artifact #3: enemy debuff stacks ---
 	var a3 := ArtifactEnemyDebuff.new()
 	var enemy : Unit = combat.enemy_units[0]
-	enemy.attack_modifier = 0
+	enemy.combat_flat = 0
 	a3.on_player_turn_end(ctx)
 	a3.on_player_turn_end(ctx)
-	print("  enemy debuff after 2 turns: modifier=%d (expect -6)" % enemy.attack_modifier)
-	enemy.attack_modifier = 0
+	print("  enemy debuff after 2 turns: combat_flat=%d (expect -6)" % enemy.combat_flat)
+	enemy.combat_flat = 0
 
 	# --- Artifact #1: squad regen ---
 	var a1 := ArtifactSquadRegen.new()
@@ -678,10 +679,10 @@ func _m10_smoke() -> void:
 	if drill != null and cluster != null:
 		print("  drill attack=%d (expect 10), cluster attack=%d (expect 3)" %
 				[drill.attack, cluster.attack])
-	# Fire formula: max(0, round(attack * strength_mult * power) + attack_modifier).
+	# M39 formula: floor((attack + combat_flat) * permanent_mult * combat_mult).
 	var s_norm := maxi(0, roundi(3 * 1.0 * 1.0) + 0)
 	var s_clamped := maxi(0, roundi(3 * 1.0 * 1.0) + (-5))
-	print("  atk3*mult1*pow1+0=%d (expect 3); +(-5) clamped=%d (expect 0)" % [s_norm, s_clamped])
+	print("  atk3+flat0*mult1.0=%d (expect 3); flat=-5 clamped=%d (expect 0)" % [s_norm, s_clamped])
 
 	print("[smoke] -- M10 Boosted persists across tick --")
 	var boosted_def : StatusEffectDef = load("res://data/statuses/boosted.tres")
@@ -1591,6 +1592,62 @@ func _m38_smoke() -> void:
 
 	# Feature flag
 	print("  weight_mobility_enabled=%s (expect true)" % str(Features.weight_mobility_enabled))
+
+func _m39_smoke() -> void:
+	print("[smoke] -- M39 unified damage formula --")
+
+	# DamageResolver.compute_base: base case (attack=3, flat=0, perm=1, mult=1)
+	var u : Unit = combat.player_units[0]
+	var orig_atk := u.attack
+	var orig_flat := u.combat_flat
+	var orig_cm := u.combat_mult
+	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
+	var base := DamageResolver.compute_base(u, null, null)
+	print("  compute_base(atk=3,flat=0,mult=1.0)=%s (expect 3.0)" % base)
+
+	# permanent_mult scales output
+	u.combat_mult = 2.0
+	var scaled := DamageResolver.compute_base(u, null, null)
+	print("  compute_base(atk=3,mult=2.0)=%s (expect 6.0)" % scaled)
+
+	# combat_flat shifts base before mult
+	u.attack = 3; u.combat_flat = 2; u.combat_mult = 2.0
+	var with_flat := DamageResolver.compute_base(u, null, null)
+	print("  compute_base(atk=3,flat=2,mult=2.0)=%s (expect 10.0)" % with_flat)
+
+	# floor() rounding: edge zone (x0.5) — 3 * 0.5 = 1.5 → floor = 1
+	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
+	var base3 := DamageResolver.compute_base(u, null, null)
+	var edge_dmg := int(floor(base3 * 0.5))
+	print("  edge zone floor(3*0.5)=%d (expect 1)" % edge_dmg)
+
+	# floor() rounding: low-power edge — 1 * 0.5 = 0.5 → floor = 0 (no min-1)
+	u.attack = 1
+	var base1 := DamageResolver.compute_base(u, null, null)
+	var low_edge := int(floor(base1 * 0.5))
+	print("  low edge floor(1*0.5)=%d (expect 0, no min-1)" % low_edge)
+
+	# conditional_bonus returns 0 for empty dict (scaffolding check)
+	var ctx39 := ShotContext.new()
+	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
+	var shot39 : ShotDefinition = load("res://data/shots/basic_shell.tres")
+	var with_ctx := DamageResolver.compute_base(u, shot39, ctx39)
+	print("  compute_base with empty conditional_bonus=%s (expect 3.0)" % with_ctx)
+
+	# feature flag off: perm_mult and conditional_bonus skipped
+	Features.power_formula_enabled = false
+	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
+	var flag_off := DamageResolver.compute_base(u, shot39, ctx39)
+	Features.power_formula_enabled = true
+	print("  flag_off compute_base=%s (expect 3.0, perm_mult still 1.0)" % flag_off)
+
+	# player_split baked at attack=1
+	var split_def : UnitDefinition = load("res://data/units/player_split.tres")
+	print("  player_split.attack=%d (expect 1)" % split_def.attack)
+
+	# Restore
+	u.attack = orig_atk; u.combat_flat = orig_flat; u.combat_mult = orig_cm
+	print("  power_formula_enabled=%s (expect true)" % str(Features.power_formula_enabled))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

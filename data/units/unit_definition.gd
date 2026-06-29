@@ -29,10 +29,6 @@ extends Resource
 ## with power; decoupled from attack so late-game damage does not dissolve the battlefield.
 @export var dig : int = 1
 
-## Multiplies every shot's strength when this unit fires (M7). 1.0 = no change;
-## future upgrades scale Unit.power at runtime without touching any AoE pattern.
-@export var base_power : float = 1.0
-
 ## Firing
 @export var default_shot : ShotDefinition = null
 ## All shots this unit may select before firing (M3 §8). default_shot is the always-free

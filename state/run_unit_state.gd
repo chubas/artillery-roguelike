@@ -20,6 +20,8 @@ var bonus_attack         : int = 0
 var permanent_boosted    : int = 0
 var permanent_fire_prime : int = 0
 var bonus_dig            : int = 0
+# M39: persistent damage multiplier. 1.0 = no bonus; applied to Unit.combat_mult at spawn.
+var permanent_mult       : float = 1.0
 
 # Build a fresh, full-HP run-unit from a UnitDefinition path.
 static func from_definition(def_path: String, dname: String = "") -> RunUnitState:
@@ -48,6 +50,7 @@ func to_dict() -> Dictionary:
 		"permanent_boosted": permanent_boosted,
 		"permanent_fire_prime": permanent_fire_prime,
 		"bonus_dig": bonus_dig,
+		"permanent_mult": permanent_mult,
 	}
 
 static func from_dict(d: Dictionary) -> RunUnitState:
@@ -67,4 +70,5 @@ static func from_dict(d: Dictionary) -> RunUnitState:
 	rus.permanent_boosted    = d.get("permanent_boosted", 0)
 	rus.permanent_fire_prime = d.get("permanent_fire_prime", 0)
 	rus.bonus_dig            = d.get("bonus_dig", 0)
+	rus.permanent_mult       = d.get("permanent_mult", 1.0)
 	return rus

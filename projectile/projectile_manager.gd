@@ -23,7 +23,7 @@ class Salvo extends RefCounted:
 	var is_enemy : bool = false
 	var shot : ShotDefinition = null
 	var pattern : AoEPattern = null
-	var strength : int = 0   # unit.attack * shot.strength_mult * power + modifier, at fire time (M10)
+	var strength : float = 0.0   # DamageResolver.compute_base() result at fire time (M39)
 	var dig_strength : int = 0   # unit.dig * shot.dig_mult + dig_modifier; 0 = skip dig pass (M16)
 	var firing_unit : Unit = null   # M9: for on_unit_killed killer reference
 	var element_overrides : Array[ElementDef] = []   # M30: captured from firing_unit.primed_elements
@@ -56,12 +56,18 @@ func fire(origin: Vector2, direction: Vector2, speed: float,
 		salvo.element_overrides = firing_unit.primed_elements.duplicate()
 		firing_unit.primed_elements.clear()
 		firing_unit.queue_redraw()
-	# M10: strength derives from the firing unit's attack value, scaled by the shot's relative
-	# multiplier and the unit's power, plus any flat attack_modifier (M9 debuffs). Clamped ≥ 0.
-	var atk : int = firing_unit.attack if firing_unit != null else 3
-	var pow : float = firing_unit.power if firing_unit != null else 1.0
-	var modifier : int = firing_unit.attack_modifier if firing_unit != null else 0
-	salvo.strength = maxi(0, roundi(atk * shot.strength_mult * pow) + modifier)
+	# M39: strength computed by DamageResolver — unit is the sole power source, no shot multiplier.
+	var ctx := ShotContext.new()
+	ctx.firing_unit   = firing_unit
+	ctx.launch_angle  = rad_to_deg(direction.angle_to(Vector2.LEFT.rotated(PI)))
+	ctx.is_first_shot = firing_unit != null and not firing_unit.moved_this_turn
+	if _combat != null:
+		var cm := _combat as CombatManager
+		ctx.launch_round = cm.current_round if cm != null else 0
+	if firing_unit != null:
+		salvo.strength = DamageResolver.compute_base(firing_unit, shot, ctx)
+	else:
+		salvo.strength = 3.0   # fallback for non-unit callers (smoke tests, mines)
 	# M16: flat dig strength for terrain only; bypass drills opt out entirely.
 	if shot.bypass_terrain:
 		salvo.dig_strength = 0
@@ -271,7 +277,7 @@ func _resolve_blast(salvo: Salvo, world_pos: Vector2, voxel: Vector2i,
 	var element_id := eff_element.id if eff_element != null else "physical"
 	EventBus.projectile_impact.emit(world_pos, voxel, element_id)
 	# 1. Area damage to terrain + units (and element statuses).
-	var final_strength : int = salvo.strength
+	var final_strength : float = salvo.strength
 	if _combat != null:
 		var cm := _combat as CombatManager
 		if cm != null and cm._artifact_ctx != null:

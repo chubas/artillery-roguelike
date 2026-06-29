@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="AoEPattern" format=3 uid="uid://dqwi5fqpsnmrj"]
+[gd_resource type="Resource" script_class="AoEPattern" format=3]
 
-[ext_resource type="Script" uid="uid://bccfjj2k5k4rw" path="res://data/shots/aoe_group.gd" id="1_lvdyr"]
-[ext_resource type="Script" uid="uid://bc76odawunfv6" path="res://data/shots/aoe_pattern.gd" id="2_nfed0"]
+[ext_resource type="Script" path="res://data/shots/aoe_group.gd" id="1_lvdyr"]
+[ext_resource type="Script" path="res://data/shots/aoe_pattern.gd" id="2_nfed0"]
 
 [sub_resource type="Resource" id="Resource_r5nxl"]
 script = ExtResource("1_lvdyr")

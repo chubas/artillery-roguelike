@@ -14,20 +14,16 @@ extends Resource
 
 ## Payload
 @export var aoe_pattern : AoEPattern = null
-## Baseline magnitude before zone multipliers (M7). DORMANT since M10 — the fire path now
-## derives strength from the firing unit's attack value (see strength_mult below). Kept so
-## existing .tres load cleanly and for any non-unit callers.
-@export var strength : int = 3
-## Per-shot relative multiplier on the firing unit's attack (M10). Final salvo strength =
-## unit.attack * strength_mult * unit.power + attack_modifier (clamped ≥ 0). 1.0 = the shot
-## deals the unit's flat attack; >1 = a heavier shell, <1 = a lighter one.
-@export var strength_mult : float = 1.0
 ## Per-shot relative multiplier on the firing unit's dig (M16). Final dig strength =
 ## unit.dig * dig_mult + dig_modifier (clamped ≥ 0). Ignored when bypass_terrain.
 @export var dig_mult : float = 1.0
 ## Terrain-only blast footprint. null → every offset in aoe_pattern (flat dig strength).
 ## Ignored when bypass_terrain (drill uses centre-voxel trail, not dig AoE).
 @export var dig_pattern : AoEPattern = null
+## Per-shot conditional flat damage bonuses (M39). Key = condition id (String),
+## value = flat damage added when the condition is met (evaluated against ShotContext).
+## Example: { "angle_above_70": 2 }. Empty = no conditions (all current shots).
+@export var conditional_bonus : Dictionary = {}
 
 ## Action economy
 @export var action_cost : int = 0          # 0 = free basic shot
@@ -96,13 +92,14 @@ func is_salvo() -> bool:
 	return projectile_count > 1 or spiral_arms > 0 or behavior == ShotBehavior.SPLIT
 
 ## Returns the substitution dict for description_template given a live unit (may be null).
-## Uses the same formula as ProjectileManager so tooltip and gameplay always agree.
+## Uses the same formula as DamageResolver so tooltip and gameplay always agree.
 func resolve_params(unit: Unit = null) -> Dictionary:
-	var atk := unit.attack if unit != null else 3
-	var dg  := unit.dig    if unit != null else 1
+	var atk   := unit.attack      if unit != null else 3
+	var flat  := unit.combat_flat if unit != null else 0
+	var dg    := unit.dig         if unit != null else 1
 	return {
-		"damage": maxi(0, roundi(atk * strength_mult)),
-		"dig":    maxi(0, roundi(dg  * dig_mult)),
+		"damage": maxi(0, atk + flat),
+		"dig":    maxi(0, roundi(dg * dig_mult)),
 		"count":  projectile_count,
 		"cost":   action_cost,
 		"uses":   (str(uses_per_stage) if uses_per_stage >= 0 else "∞"),

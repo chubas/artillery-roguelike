@@ -15,9 +15,11 @@ var hp : int = 0
 # Multiplies every shot this unit fires (M7 zone model): final strength =
 # shot.strength * power. Mutable so future upgrades can scale it without re-baking
 # any AoE pattern.
-var power : float = 1.0
-# Base attack value (M10): source of projectile strength (see ProjectileManager.fire()).
-# Mirrors definition.attack at spawn; mutable so buffs/upgrades can scale it at runtime.
+# In-combat damage multiplier (M39). Initialized from run_state.permanent_mult at spawn.
+# In-combat effects (Focused Fire, etc.) write here; resets to permanent_mult each combat.
+var combat_mult : float = 1.0
+# Base attack value (M10): source of projectile strength (see DamageResolver).
+# Mirrors definition.attack + run_state.bonus_attack at spawn; mutable for combat buffs.
 var attack : int = 3
 # Base dig value (M16): terrain-only impact strength; mirrors definition.dig at spawn.
 var dig : int = 1
@@ -38,7 +40,7 @@ var aim_angle_deg : float = 45.0        # positive-up convention; preserved per 
 # draws a marker on the charge bar at this position so the player can re-dial the same power.
 var last_power_frac : float = 0.5
 var is_done : bool = false              # true after firing this turn
-var attack_modifier : int = 0           # M9: cumulative buff/debuff to firing strength
+var combat_flat : int = 0               # M9/M39: in-combat additive to attack (was attack_modifier)
 var primed_elements : Array[ElementDef] = []   # M30: accumulated by prime cards; consumed on next fire
 var dig_modifier : int = 0              # M16: flat dig adjustment at fire time (unused in M16 content)
 var moved_this_turn : bool = false      # M9: set true by CombatManager.try_move(), reset each round
@@ -66,7 +68,7 @@ func available_shots() -> Array:
 	return definition.available_shots
 
 func _ready() -> void:
-	power = definition.base_power
+	combat_mult = run_state.permanent_mult if run_state != null else 1.0
 	if run_state != null:
 		# Spawn from persistent run state: current HP (may be damaged), carried kills.
 		hp = run_state.current_hp

@@ -421,6 +421,14 @@ class UnitInspector:
 		draw_string(font, Vector2(10, y), "HP: %d / %d" % [unit.hp, unit.definition.max_hp],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
 		y += 16
+		var atk_txt : String
+		if unit.combat_flat != 0:
+			atk_txt = "★ %d (%+d)" % [unit.attack, unit.combat_flat]
+		else:
+			atk_txt = "★ %d" % unit.attack
+		draw_string(font, Vector2(10, y), atk_txt,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.65, 0.25))
+		y += 16
 		var shield_txt := "Shield: %d" % unit.shield if unit.shield > 0 else "Shield: —"
 		draw_string(font, Vector2(10, y), shield_txt,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.6, 0.85, 1.0))

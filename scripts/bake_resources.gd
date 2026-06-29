@@ -106,7 +106,6 @@ func _ready() -> void:
 	basic.base_speed = 600.0; basic.gravity_scale = 1.0; basic.action_cost = 0
 	basic.aoe_pattern = load("res://data/shots/aoe/diamond_r2.tres")
 	basic.trajectory = ShotDefinition.TrajectoryType.ARC
-	basic.strength = 3
 	_save(basic, "res://data/shots/basic_shell.tres")
 
 	var fire_shell := ShotDefinition.new()
@@ -115,7 +114,6 @@ func _ready() -> void:
 	fire_shell.base_speed = 580.0; fire_shell.gravity_scale = 1.0; fire_shell.action_cost = 1
 	fire_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_fire.tres")
 	fire_shell.trajectory = ShotDefinition.TrajectoryType.ARC
-	fire_shell.strength = 3
 	_save(fire_shell, "res://data/shots/fire_shell.tres")
 
 	var electric_shell := ShotDefinition.new()
@@ -125,7 +123,6 @@ func _ready() -> void:
 	electric_shell.action_cost = 1
 	electric_shell.aoe_pattern = load("res://data/shots/aoe/diamond_r2_electric.tres")
 	electric_shell.trajectory = ShotDefinition.TrajectoryType.ARC
-	electric_shell.strength = 3
 	_save(electric_shell, "res://data/shots/electric_shell.tres")
 
 	var basic_ref : ShotDefinition = load("res://data/shots/basic_shell.tres")
@@ -251,7 +248,7 @@ func _ready() -> void:
 	var bigball_ref : ShotDefinition = load("res://data/shots/bigball_basic.tres")
 
 	_save_player_unit("player_split", "Splitter", [split_ref],
-			Color(0.95, 0.75, 0.25), 3)   # candidate: weight=1 (light aerial splitter)
+			Color(0.95, 0.75, 0.25), 1)   # M39: attack=1 (multishot — lower per-hit power); weight=1 (light aerial splitter)
 	_save_player_unit("player_walker", "Crawler", [walker_ref],
 			Color(0.55, 0.85, 0.35), 3)   # candidate: weight=3 (heavy ground crawler)
 	_save_player_unit("player_barrier", "Builder", [barrier_ref],
@@ -563,7 +560,6 @@ func _make_family(type_id: String, label: String, base_cost_unused: int) -> Arra
 		s.action_cost = variant[2]
 		s.aoe_pattern = load("res://data/shots/aoe/%s%s.tres" %
 				[_family_pattern(type_id), variant[1]])
-		s.strength = _family_strength(type_id)
 		s.dig_mult = 1.0
 		if type_id != "bypass":
 			s.dig_pattern = s.aoe_pattern
@@ -629,8 +625,6 @@ func _make_behavior_shot(id: String, label: String, desc: String,
 	s.base_speed = 600.0
 	s.gravity_scale = 1.0
 	s.action_cost = 0
-	s.strength = 3
-	s.strength_mult = 1.0
 	s.dig_mult = 1.0
 	s.aoe_pattern = aoe
 	if dig != null:

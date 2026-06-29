@@ -16,13 +16,13 @@
 class_name AoEResolver
 
 static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
-		pattern: AoEPattern, strength: int, is_enemy: bool, deployables: Array = [],
+		pattern: AoEPattern, strength: float, is_enemy: bool, deployables: Array = [],
 		dig_strength: int = 0, dig_pattern: AoEPattern = null,
 		element_override: ElementDef = null) -> Array:
 	var aoe_map := pattern.to_map() if pattern != null else {}
 	var affected : Array = []
-	var unit_hit : Dictionary = {}         # Unit -> { "dmg": int, "element": ElementDef }
-	var deployable_hit : Dictionary = {}   # Deployable -> dmg (M6: no element/affinity — inert)
+	var unit_hit : Dictionary = {}         # Unit -> { "dmg": float, "element": ElementDef }
+	var deployable_hit : Dictionary = {}   # Deployable -> float dmg (M6: no element/affinity)
 	var max_dist := 0
 	for offset in aoe_map:
 		var target : Vector2i = origin + offset
@@ -30,7 +30,7 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 		var element : ElementDef = \
 				(element_override if element_override != null else group.element) \
 				if Features.elements_enabled else null
-		var zone_dmg := _zone_damage(strength, group.multiplier)
+		var zone_dmg : float = _zone_damage(strength, group.multiplier)
 		max_dist = maxi(max_dist, absi(offset.x) + absi(offset.y))
 		affected.append(target)
 		# Tile status from the element (e.g. fire → Burning) on surviving tiles.
@@ -62,17 +62,18 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 			max_dist = maxi(max_dist, absi(offset.x) + absi(offset.y))
 			if not affected.has(target):
 				affected.append(target)
-	# Apply the dominant hit to each unit: affinity damage + status.
+	# Apply the dominant hit to each unit: floor(zone_dmg × affinity). Can be 0 — no min-1.
 	for unit in unit_hit:
 		var element : ElementDef = unit_hit[unit]["element"]
-		var final_dmg := _calc_damage(unit, unit_hit[unit]["dmg"], element)
+		var affinity : float = _calc_affinity(unit, element)
+		var final_dmg : int = int(floor(unit_hit[unit]["dmg"] * affinity))
 		unit.take_damage(final_dmg, element)
 		EventBus.unit_hit_taken.emit(unit, final_dmg,
 				element.id if element else "physical", null)
 		if element and element.unit_status and Features.unit_statuses_enabled:
 			UnitStatusSystem.apply(unit, element.unit_status, 1)
 	for d in deployable_hit:
-		d.take_damage(deployable_hit[d])
+		d.take_damage(int(floor(deployable_hit[d])))
 	# Collapse once, after the whole blast (terrain + unit damage applied).
 	terrain.resolve_collapses(units, deployables)
 	terrain.aoe_resolved.emit(origin, max_dist, affected)
@@ -97,16 +98,15 @@ static func _dig_offset_map(pattern: AoEPattern, dig_pattern: AoEPattern) -> Dic
 	var src := dig_pattern if dig_pattern != null else pattern
 	return src.to_map() if src != null else {}
 
-## Source strength * zone multiplier (M7), minimum 1 — pattern shape stays untouched
-## by magnitude; magnitude comes entirely from the caller's `strength` value.
-static func _zone_damage(strength: int, multiplier: float) -> int:
-	return maxi(1, int(round(strength * multiplier)))
+## Source strength × zone multiplier (M7). No rounding, no minimum — floor happens once at call site.
+static func _zone_damage(strength: float, multiplier: float) -> float:
+	return strength * multiplier
 
-## Final damage after element affinity (M3 §3.4). Tag rules stack; a unit-specific
-## affinity-table entry OVERRIDES tag rules entirely. Minimum 1 damage on any hit.
-static func _calc_damage(unit: Unit, base_dmg: int, element: ElementDef) -> int:
+## Element affinity multiplier (M3 §3.4). Tag rules stack; a unit-specific
+## affinity-table entry OVERRIDES tag rules entirely. Returns mult only — caller applies floor().
+static func _calc_affinity(unit: Unit, element: ElementDef) -> float:
 	if element == null:
-		return base_dmg
+		return 1.0
 	var mult := 1.0
 	var tags : Array = unit.definition.tags
 	if element.strong_vs_tag != "" and element.strong_vs_tag in tags:
@@ -118,4 +118,4 @@ static func _calc_damage(unit: Unit, base_dmg: int, element: ElementDef) -> int:
 	# Unit-specific affinity override takes precedence over tag rules.
 	if unit.definition.element_affinities.has(element.id):
 		mult = float(unit.definition.element_affinities[element.id])
-	return maxi(1, int(base_dmg * mult))
+	return mult
