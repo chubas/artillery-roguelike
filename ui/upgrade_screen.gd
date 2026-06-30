@@ -115,7 +115,7 @@ func _show_pick_upgrade() -> void:
 	header.add_theme_color_override("font_color", Color(0.75, 0.78, 0.85))
 	_content.add_child(header)
 
-	_content.add_child(_make_button("+2 Attack Power  (current: %d)" % (unit.bonus_attack + (load(unit.definition_id) as UnitDefinition).attack),
+	_content.add_child(_make_button("+2 Attack Power  (current: %d)" % PowerCalculator.card_attack(unit, load(unit.definition_id)),
 			func() -> void: _apply_upgrade(0)))
 	_content.add_child(_make_button("+3 Permanent Boosted  (current: %d)" % unit.permanent_boosted,
 			func() -> void: _apply_upgrade(1)))
@@ -131,7 +131,7 @@ func _apply_upgrade(type: int) -> void:
 		return
 	var unit : RunUnitState = Run.active.squad[_source_idx]
 	match type:
-		0: unit.bonus_attack         += 2
+		0: unit.add_permanent_mod("upgrade:attack", PowerMod.Op.ADD, 2.0, "Upgrade")
 		1: unit.permanent_boosted    += 3
 		2: unit.permanent_fire_prime += 1
 		3: unit.bonus_dig            += 1

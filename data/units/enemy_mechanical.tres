@@ -10,6 +10,7 @@ id = "enemy_mechanical"
 display_name = "Drone"
 faction = "army"
 move_range = 0
+base_power = 3.0
 default_shot = ExtResource("2_jhtk4")
 tags = Array[String](["MECHANICAL"])
 element_affinities = {

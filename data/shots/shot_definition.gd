@@ -94,11 +94,10 @@ func is_salvo() -> bool:
 ## Returns the substitution dict for description_template given a live unit (may be null).
 ## Uses the same formula as DamageResolver so tooltip and gameplay always agree.
 func resolve_params(unit: Unit = null) -> Dictionary:
-	var atk   := unit.attack      if unit != null else 3
-	var flat  := unit.combat_flat if unit != null else 0
-	var dg    := unit.dig         if unit != null else 1
+	var dmg   := PowerCalculator.effective_attack(unit) if unit != null else 3
+	var dg    := unit.dig if unit != null else 1
 	return {
-		"damage": maxi(0, atk + flat),
+		"damage": maxi(0, dmg),
 		"dig":    maxi(0, roundi(dg * dig_mult)),
 		"count":  projectile_count,
 		"cost":   action_cost,

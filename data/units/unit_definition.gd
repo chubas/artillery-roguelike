@@ -20,10 +20,14 @@ extends Resource
 @export var move_range : int = 99  # max moves per activation (use 99 = unlimited for now)
 @export var weight : int = 2       # 0=weightless, 1=light, 2=medium, 3=heavy
 
-## Base attack value (M10): the source of projectile strength. Final salvo strength =
-## attack * shot.strength_mult * power + attack_modifier (clamped ≥ 0), then scaled per AoE
-## zone. Per-unit so a heavy drill hits harder than a light cluster.
-@export var attack : int = 3
+## Card base power (M39/M40): the unit's printed damage output, shown on the card / logbook.
+## The base that PowerCalculator folds source-attributed PowerMods over — there is no separate
+## flat `attack` stat anymore. Multishot units (Cluster, Splitter) carry a low base_power (1.0).
+##
+## Default 0.0 is an INVALID sentinel meaning "not authored": every unit must set a positive
+## base_power explicitly. The bake validates this (see bake_resources `_validate_unit_definitions`)
+## and fails the build if any unit definition is left at 0.
+@export var base_power : float = 0.0
 
 ## Base dig value (M16): terrain-only blast strength before shot.dig_mult. Does not scale
 ## with power; decoupled from attack so late-game damage does not dissolve the battlefield.

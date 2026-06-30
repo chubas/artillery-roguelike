@@ -12,15 +12,11 @@ signal anim_done   # M31: emitted by play_anim when the animation finishes
 
 var display_name : String = ""          # per-instance (e.g. "EnemyA" / "EnemyB")
 var hp : int = 0
-# Multiplies every shot this unit fires (M7 zone model): final strength =
-# shot.strength * power. Mutable so future upgrades can scale it without re-baking
-# any AoE pattern.
-# In-combat damage multiplier (M39). Initialized from run_state.permanent_mult at spawn.
-# In-combat effects (Focused Fire, etc.) write here; resets to permanent_mult each combat.
-var combat_mult : float = 1.0
-# Base attack value (M10): source of projectile strength (see DamageResolver).
-# Mirrors definition.attack + run_state.bonus_attack at spawn; mutable for combat buffs.
-var attack : int = 3
+# Attack power (M40): definition.base_power folded with source-attributed PowerMods. The unit
+# holds no scalar attack field anymore — effective attack is computed on demand via
+# PowerCalculator.effective_attack(self). power_mods carries both PERMANENT (run-level, copied
+# from run_state at spawn) and COMBAT (per-combat) modifiers; see add_power_mod / adjust_power_mod.
+var power_mods : Array[PowerMod] = []
 # Base dig value (M16): terrain-only impact strength; mirrors definition.dig at spawn.
 var dig : int = 1
 # Run-state link (M12): when set, this Unit is the combat representation of a persistent
@@ -40,7 +36,6 @@ var aim_angle_deg : float = 45.0        # positive-up convention; preserved per 
 # draws a marker on the charge bar at this position so the player can re-dial the same power.
 var last_power_frac : float = 0.5
 var is_done : bool = false              # true after firing this turn
-var combat_flat : int = 0               # M9/M39: in-combat additive to attack (was attack_modifier)
 var primed_elements : Array[ElementDef] = []   # M30: accumulated by prime cards; consumed on next fire
 var dig_modifier : int = 0              # M16: flat dig adjustment at fire time (unused in M16 content)
 var moved_this_turn : bool = false      # M9: set true by CombatManager.try_move(), reset each round
@@ -68,25 +63,50 @@ func available_shots() -> Array:
 	return definition.available_shots
 
 func _ready() -> void:
-	combat_mult = run_state.permanent_mult if run_state != null else 1.0
 	if run_state != null:
 		# Spawn from persistent run state: current HP (may be damaged), carried kills.
 		hp = run_state.current_hp
 		kills = run_state.kills
-		attack = _derive_attack()
 		dig = definition.dig + run_state.bonus_dig
-		armor = definition.base_armor if Features.armor_enabled else 0
+		# Permanent power mods are seeded from run state (combat mods are added later by sources).
+		for d in run_state.power_mods:
+			power_mods.append(PowerMod.from_dict(d))
 	else:
 		hp = definition.max_hp
-		attack = definition.attack
 		dig = definition.dig
 	armor = definition.base_armor if Features.armor_enabled else 0
 	move_origin = vox_position
 	if display_name == "":
 		display_name = definition.display_name
 
-func _derive_attack() -> int:
-	return definition.attack + (run_state.bonus_attack if run_state != null else 0)
+## Effective attack power (M40): base_power folded with all active PowerMods (two-tier).
+func attack_value() -> int:
+	return PowerCalculator.effective_attack(self)
+
+## Add a mod, replacing any existing mod from the same source (idempotent registration).
+func add_power_mod(mod: PowerMod) -> void:
+	remove_power_mod(mod.source)
+	power_mods.append(mod)
+	queue_redraw()
+
+## Accumulate `delta` onto a same-source ADD mod (creating it if absent). For stacking
+## buffs/debuffs that apply repeatedly, e.g. enemy_debuff's -3 per turn. MULT sources should
+## use add_power_mod instead — accumulating a product is rarely the intent.
+func adjust_power_mod(source: String, op: PowerMod.Op, delta: float,
+		tier: PowerMod.Tier, label := "") -> void:
+	for m in power_mods:
+		if m.source == source:
+			m.value += delta
+			queue_redraw()
+			return
+	power_mods.append(PowerMod.new(source, op, delta, tier, label))
+	queue_redraw()
+
+func remove_power_mod(source: String) -> void:
+	for i in range(power_mods.size() - 1, -1, -1):
+		if power_mods[i].source == source:
+			power_mods.remove_at(i)
+	queue_redraw()
 
 # --- State ---------------------------------------------------------------------
 func take_damage(dmg: int, element: ElementDef = null) -> void:
@@ -94,6 +114,9 @@ func take_damage(dmg: int, element: ElementDef = null) -> void:
 		return
 	if hp <= 0:
 		return
+	var hp_before := hp
+	var shield_before := shield
+	var armor_before := armor
 	var remaining := dmg
 	remaining = _absorb_mitigation(remaining, element, ElementDef.MitigationLayer.SHIELD,
 			"shield", Features.shields_enabled)
@@ -103,6 +126,17 @@ func take_damage(dmg: int, element: ElementDef = null) -> void:
 		var hp_mult := element.mitigation_mult(ElementDef.MitigationLayer.HP) if element else 1.0
 		var hp_hit := _layer_damage(remaining, hp_mult)
 		hp = maxi(0, hp - hp_hit)
+	var shield_abs := shield_before - shield
+	var armor_abs := armor_before - armor
+	var hp_lost := hp_before - hp
+	var el_tag := " [%s]" % element.id if element else ""
+	var mitig := ""
+	if shield_abs > 0:
+		mitig += " shield-%d" % shield_abs
+	if armor_abs > 0:
+		mitig += " armor-%d" % armor_abs
+	print("[hit] %s: incoming=%d%s%s → HP %d→%d (-%d)" % [
+			display_name, dmg, el_tag, mitig, hp_before, hp, hp_lost])
 	queue_redraw()
 	unit_damaged.emit(self, dmg, hp)
 	if hp == 0:
@@ -248,7 +282,7 @@ func _draw_bar_value(w: float, bar_top_y: float, text: String) -> void:
 func _draw_stat_icons(_w: float) -> void:
 	var cy := -16.0
 	var x := 2.0
-	x = _draw_icon_value(x, cy, Color(0.9, 0.4, 0.25), attack)   # attack — reddish
+	x = _draw_icon_value(x, cy, Color(0.9, 0.4, 0.25), attack_value())   # attack — reddish
 	if shield > 0:
 		x = _draw_icon_value(x, cy, Color(0.4, 0.75, 1.0), shield)   # shield — blue
 	if armor > 0:

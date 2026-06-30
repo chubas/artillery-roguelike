@@ -1,18 +1,21 @@
-# Central damage formula (M39). Single entry point for computing the float base
+# Central damage formula (M40). Single entry point for computing the float base
 # strength from an attacker before zone multiplier and element affinity are applied.
 #
-# Formula: (attack + combat_flat + conditional_bonus) × permanent_mult × combat_mult
+# Base attack comes from PowerCalculator.effective_attack_f(attacker): definition.base_power
+# folded with the unit's source-attributed PowerMods in two tiers —
+#   permanent = max(0, (base_power + Σ perm_add) × Π perm_mult)
+#   combat    = max(0, (permanent  + Σ comb_add) × Π comb_mult)
 #
-# Zone multiplier and element affinity are applied per-target in AoEResolver.
+# On top of that, a shot may add a flat conditional_bonus (additive, pre-zone), evaluated from
+# ShotContext. Zone multiplier and element affinity are applied per-target in AoEResolver, where
+# the single floor() happens — so this returns a float to preserve precision downstream.
 class_name DamageResolver
 
 static func compute_base(attacker: Unit, shot: ShotDefinition, context: ShotContext) -> float:
-	var base := float(attacker.attack)
-	var flat := float(attacker.combat_flat)
+	var power := PowerCalculator.effective_attack_f(attacker)
 	if Features.power_formula_enabled and shot != null:
-		flat += _eval_conditionals(shot.conditional_bonus, context)
-	var perm := attacker.run_state.permanent_mult if attacker.run_state != null else 1.0
-	return (base + flat) * perm * attacker.combat_mult
+		power += _eval_conditionals(shot.conditional_bonus, context)
+	return maxf(0.0, power)
 
 # Evaluate shot-specific conditional flat bonuses against the shot context.
 # Returns the total additional flat damage when any conditions are met.

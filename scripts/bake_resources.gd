@@ -143,6 +143,7 @@ func _ready() -> void:
 	heavy.id = "player_heavy"; heavy.display_name = "Unit1"
 	heavy.width_voxels = 2; heavy.height_voxels = 3; heavy.max_hp = 9
 	heavy.move_range = 99; heavy.weight = 2  # candidate: weight=3 (heavy bruiser)
+	heavy.base_power = 3.0
 	heavy.default_shot = basic_ref; heavy.available_shots = [basic_ref]
 	heavy.tags = []; heavy.element_affinities = {}
 	heavy.faction = Faction.ARMY
@@ -154,6 +155,7 @@ func _ready() -> void:
 	light.id = "player_light"; light.display_name = "Unit2"
 	light.width_voxels = 1; light.height_voxels = 3; light.max_hp = 4
 	light.move_range = 99; light.weight = 2  # candidate: weight=1 (light scout)
+	light.base_power = 3.0
 	light.default_shot = basic_ref; light.available_shots = [basic_ref]
 	light.tags = []; light.element_affinities = {}
 	light.faction = Faction.ARMY
@@ -164,7 +166,7 @@ func _ready() -> void:
 	var organic := UnitDefinition.new()
 	organic.id = "enemy_organic"; organic.display_name = "Brute"
 	organic.width_voxels = 2; organic.height_voxels = 3; organic.max_hp = 8
-	organic.attack = 3
+	organic.base_power = 3.0
 	organic.dig = 1
 	organic.move_range = 0; organic.weight = 2
 	organic.default_shot = basic_ref
@@ -178,7 +180,7 @@ func _ready() -> void:
 	var mechanical := UnitDefinition.new()
 	mechanical.id = "enemy_mechanical"; mechanical.display_name = "Drone"
 	mechanical.width_voxels = 2; mechanical.height_voxels = 3; mechanical.max_hp = 6
-	mechanical.attack = 3
+	mechanical.base_power = 3.0
 	mechanical.dig = 1
 	mechanical.move_range = 0; mechanical.weight = 2
 	mechanical.default_shot = basic_ref
@@ -194,13 +196,13 @@ func _ready() -> void:
 	# Values mirror the old per-shot strengths so balance is unchanged: drill is the heavy hitter.
 	# M38 weight: all at 2 (medium) — candidates noted per unit.
 	_save_player_unit("player_cluster", "Cluster", cluster_loadout,
-			Color(0.85, 0.7, 0.2), 3, 1, 4)   # goldenrod, armored; candidate: weight=3 (heavy)
+			Color(0.85, 0.7, 0.2), 1.0, 1, 4)  # multishot cluster — low per-hit power; armored; candidate weight=3
 	_save_player_unit("player_bypass", "Drill", bypass_loadout,
-			Color(0.2, 0.7, 0.65), 10)         # teal; candidate: weight=1 (light fast driller)
+			Color(0.2, 0.7, 0.65), 6.0)            # teal; heavy single-hit driller; candidate: weight=1 (light fast)
 	_save_player_unit("player_pull", "Magnet", pull_loadout,
-			Color(0.9, 0.45, 0.4), 3)          # coral
+			Color(0.9, 0.45, 0.4), 3.0)            # coral
 	_save_player_unit("player_spiral", "Spiral", spiral_loadout,
-			Color(0.6, 0.4, 0.85), 3)          # purple
+			Color(0.6, 0.4, 0.85), 3.0)            # purple
 
 	# ── M5: five behaviour shots (basic only — no elemental loadout variants) ─
 	var blast_242 : AoEPattern = load("res://data/shots/aoe/diamond_r4.tres")
@@ -248,15 +250,15 @@ func _ready() -> void:
 	var bigball_ref : ShotDefinition = load("res://data/shots/bigball_basic.tres")
 
 	_save_player_unit("player_split", "Splitter", [split_ref],
-			Color(0.95, 0.75, 0.25), 1)   # M39: attack=1 (multishot — lower per-hit power); weight=1 (light aerial splitter)
+			Color(0.95, 0.75, 0.25), 1.0)  # multishot — lower per-hit power; weight=1 (light aerial splitter)
 	_save_player_unit("player_walker", "Crawler", [walker_ref],
-			Color(0.55, 0.85, 0.35), 3)   # candidate: weight=3 (heavy ground crawler)
+			Color(0.55, 0.85, 0.35), 3.0)  # candidate: weight=3 (heavy ground crawler)
 	_save_player_unit("player_barrier", "Builder", [barrier_ref],
-			Color(0.45, 0.55, 0.95), 3)   # candidate: weight=3 (heavy defensive builder)
+			Color(0.45, 0.55, 0.95), 3.0)  # candidate: weight=3 (heavy defensive builder)
 	_save_player_unit("player_teleport", "Blink", [teleport_ref],
-			Color(0.85, 0.4, 0.95), 3)    # candidate: weight=0 (weightless teleporter)
+			Color(0.85, 0.4, 0.95), 3.0)   # candidate: weight=0 (weightless teleporter)
 	_save_player_unit("player_bigball", "Big Ball", [bigball_ref],
-			Color(0.9, 0.55, 0.2), 3)
+			Color(0.9, 0.55, 0.2), 3.0)
 
 	# ── M5: cards ─────────────────────────────────────────────────────────────
 	var shield_card := CardDefinition.new()
@@ -365,6 +367,11 @@ func _ready() -> void:
 	_bake_artifact(ArtifactStartBoosted.new(), "Battle Drills",
 			"At the start of the stage, give your units Boosted (3).",
 			"res://data/artifacts/resources/start_boosted.tres", Faction.ARMY)
+
+	# ── M40: artifacts ─────────────────────────────────────────────────────────
+	_bake_artifact(ArtifactLastStand.new(), "Last Stand",
+			"While a unit is your only survivor, its attack is multiplied by 1.5.",
+			"res://data/artifacts/resources/last_stand.tres", Faction.NEUTRAL)
 
 	# ── M22: essences ─────────────────────────────────────────────────────────
 	var armor_primer := EssenceArmorPrimer.new()
@@ -532,6 +539,7 @@ func _ready() -> void:
 	_save(tp_pit, "res://data/terrain/profiles/pit_crossing.tres")
 
 	print("[bake] all M14 resources written")
+	_validate_unit_definitions()
 	get_tree().quit()
 
 # Build a core1/edge2 diamond pattern with every group carrying `element`.
@@ -634,8 +642,8 @@ func _make_behavior_shot(id: String, label: String, desc: String,
 	return s
 
 func _save_player_unit(id: String, dname: String,
-		loadout: Array[ShotDefinition], color: Color, attack: int = 3, dig: int = 1,
-		base_armor: int = 0) -> void:
+		loadout: Array[ShotDefinition], color: Color, base_power: float = 3.0,
+		dig: int = 1, base_armor: int = 0) -> void:
 	var u := UnitDefinition.new()
 	u.id = id
 	u.display_name = dname
@@ -643,7 +651,7 @@ func _save_player_unit(id: String, dname: String,
 	u.height_voxels = 3
 	u.max_hp = 6
 	u.base_armor = base_armor
-	u.attack = attack
+	u.base_power = base_power
 	u.dig = dig
 	u.move_range = 99
 	u.weight = 2
@@ -678,3 +686,36 @@ func _save(res: Resource, path: String) -> void:
 		push_error("[bake] FAILED to save %s (err %d)" % [path, err])
 	else:
 		print("[bake] saved ", path)
+
+# Build-time guard: every UnitDefinition in res://data/units must carry a positive base_power.
+# A unit left at the 0.0 sentinel (base_power never authored) fails the build loudly. This is the
+# single enforcement point for "all units have a defined base power" — see UnitDefinition.base_power.
+func _validate_unit_definitions() -> bool:
+	var dir_path := "res://data/units"
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		push_error("[validate] cannot open %s" % dir_path)
+		return false
+	var failures : Array[String] = []
+	var checked := 0
+	for file in dir.get_files():
+		if not file.ends_with(".tres"):
+			continue
+		var path := "%s/%s" % [dir_path, file]
+		var def := load(path) as UnitDefinition
+		if def == null:
+			failures.append("%s: not a UnitDefinition" % file)
+			continue
+		checked += 1
+		if def.base_power <= 0.0:
+			failures.append("%s (id=%s): base_power=%.2f — must be > 0 (set it explicitly)"
+					% [file, def.id, def.base_power])
+	if failures.is_empty():
+		print("[validate] OK — all %d unit definitions have base_power > 0" % checked)
+		return true
+	push_error("[validate] FAILED — %d/%d unit definitions missing a valid base_power:"
+			% [failures.size(), checked])
+	for f in failures:
+		push_error("  - %s" % f)
+		print("[validate]   ✗ %s" % f)
+	return false

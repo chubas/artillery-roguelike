@@ -44,7 +44,8 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 				continue
 			var prev = unit_hit.get(unit, null)
 			if prev == null or zone_dmg > prev["dmg"]:
-				unit_hit[unit] = { "dmg": zone_dmg, "element": element }
+				unit_hit[unit] = { "dmg": zone_dmg, "element": element,
+						"base": strength, "zone_mult": group.multiplier }
 		# Same dominant-hit rule for deployables (mines, shield generators), flat damage.
 		for d in deployables:
 			if d.hp <= 0 or not d.contains_voxel(target):
@@ -66,14 +67,23 @@ static func resolve(terrain: TerrainManager, units: Array, origin: Vector2i,
 	for unit in unit_hit:
 		var element : ElementDef = unit_hit[unit]["element"]
 		var affinity : float = _calc_affinity(unit, element)
-		var final_dmg : int = int(floor(unit_hit[unit]["dmg"] * affinity))
+		var base_str : float = unit_hit[unit]["base"]
+		var zone_mult : float = unit_hit[unit]["zone_mult"]
+		var zone_dmg : float = unit_hit[unit]["dmg"]
+		var raw : float = zone_dmg * affinity
+		var final_dmg : int = int(floor(raw))
+		var el_id : String = element.id if element else "physical"
+		print("[dmg] %s: Base(%.2f) × Zone(%.2f) × Affinity(%.2f) = floor(%.2f) → %d  [%s]" % [
+				unit.display_name, base_str, zone_mult, affinity, raw, final_dmg, el_id])
 		unit.take_damage(final_dmg, element)
-		EventBus.unit_hit_taken.emit(unit, final_dmg,
-				element.id if element else "physical", null)
+		EventBus.unit_hit_taken.emit(unit, final_dmg, el_id, null)
 		if element and element.unit_status and Features.unit_statuses_enabled:
 			UnitStatusSystem.apply(unit, element.unit_status, 1)
 	for d in deployable_hit:
-		d.take_damage(int(floor(deployable_hit[d])))
+		var dep_dmg : float = deployable_hit[d]
+		var dep_final : int = int(floor(dep_dmg))
+		print("[dmg] %s (deployable): Base(%.2f) → %d" % [d.display_name if d.has_method("get") else str(d), dep_dmg, dep_final])
+		d.take_damage(dep_final)
 	# Collapse once, after the whole blast (terrain + unit damage applied).
 	terrain.resolve_collapses(units, deployables)
 	terrain.aoe_resolved.emit(origin, max_dist, affected)

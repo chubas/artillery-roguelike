@@ -9,6 +9,7 @@ script = ExtResource("3_wypb5")
 id = "player_bigball"
 display_name = "Big Ball"
 faction = "army"
+base_power = 3.0
 default_shot = ExtResource("2_auibj")
 available_shots = Array[ExtResource("1_stiu4")]([ExtResource("2_auibj")])
 color = Color(0.9, 0.55, 0.2, 1)

@@ -421,14 +421,20 @@ class UnitInspector:
 		draw_string(font, Vector2(10, y), "HP: %d / %d" % [unit.hp, unit.definition.max_hp],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
 		y += 16
-		var atk_txt : String
-		if unit.combat_flat != 0:
-			atk_txt = "★ %d (%+d)" % [unit.attack, unit.combat_flat]
-		else:
-			atk_txt = "★ %d" % unit.attack
-		draw_string(font, Vector2(10, y), atk_txt,
+		var eff_atk := PowerCalculator.effective_attack(unit)
+		draw_string(font, Vector2(10, y), "★ %d" % eff_atk,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.65, 0.25))
 		y += 16
+		# Breakdown sub-lines: each active mod (base row skipped — it's the ★ total's seed).
+		var rows := PowerCalculator.breakdown(unit)
+		for i in range(1, rows.size()):
+			var row : Dictionary = rows[i]
+			var sym := "×" if int(row["op"]) == PowerMod.Op.MULT else ("+" if row["value"] >= 0 else "")
+			var val_txt : String = ("%.2g" % row["value"]) if int(row["op"]) == PowerMod.Op.MULT \
+					else ("%d" % int(row["value"]))
+			draw_string(font, Vector2(20, y), "%s%s %s" % [sym, val_txt, row["label"]],
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.75, 0.6, 0.4))
+			y += 13
 		var shield_txt := "Shield: %d" % unit.shield if unit.shield > 0 else "Shield: —"
 		draw_string(font, Vector2(10, y), shield_txt,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.6, 0.85, 1.0))

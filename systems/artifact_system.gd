@@ -39,7 +39,7 @@ static func apply_card_cost(artifacts: Array, ctx: ArtifactContext, card: CardDe
 		cost = a.modify_card_cost(ctx, card, cost)
 	return cost
 
-static func apply_projectile_strength(artifacts: Array, ctx: ArtifactContext, strength: int, flight_time: float) -> int:
+static func apply_projectile_strength(artifacts: Array, ctx: ArtifactContext, strength: float, flight_time: float) -> float:
 	if not Features.artifacts_enabled:
 		return strength
 	var s := strength

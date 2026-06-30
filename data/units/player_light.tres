@@ -11,6 +11,7 @@ display_name = "Unit2"
 faction = "army"
 width_voxels = 1
 max_hp = 4
+base_power = 3.0
 default_shot = ExtResource("2_2jknk")
 available_shots = Array[ExtResource("1_ge6l5")]([ExtResource("2_2jknk")])
 color = Color(0.35, 0.75, 0.95, 1)

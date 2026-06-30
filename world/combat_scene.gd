@@ -244,6 +244,7 @@ func _smoke_test() -> void:
 	_m37_smoke()
 	_m38_smoke()
 	_m39_smoke()
+	_m40_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -505,17 +506,15 @@ func _m7_smoke() -> void:
 	AoEResolver.resolve(terrain, combat.all_units, ea.center_voxel(), phys_pat, 5, false)
 	print("  strength=5 on core voxel: -%d (expect -5)" % (ea.definition.max_hp - ea.hp))
 
-	print("[smoke] -- M7/M10 attack × combat_mult scales DamageResolver output --")
+	print("[smoke] -- M7/M10/M40 base_power × MULT mod scales DamageResolver output --")
 	var p : Unit = combat.player_units[0]
-	var base_cm := p.combat_mult
-	var base_atk := p.attack
-	p.attack = 3
-	p.combat_mult = 2.0
-	# M39 formula: (attack + combat_flat) * permanent_mult * combat_mult — no shot multiplier.
+	var saved_mods := p.power_mods.duplicate()
+	p.power_mods.clear()
+	p.add_power_mod(PowerMod.new("test:mult", PowerMod.Op.MULT, 2.0, PowerMod.Tier.COMBAT))
+	# M40: base_power(3) folded with a ×2 combat mod -> effective_attack_f = 6.0.
 	var scaled_strength := DamageResolver.compute_base(p, null, null)
-	print("  attack=3 * combat_mult=2.0 -> DamageResolver.compute_base=%s (expect 6.0)" % scaled_strength)
-	p.combat_mult = base_cm
-	p.attack = base_atk
+	print("  base_power=3 × MULT 2.0 -> DamageResolver.compute_base=%s (expect 6.0)" % scaled_strength)
+	p.power_mods = saved_mods
 
 	print("[smoke] -- M7 mine strength independent of unit power --")
 	var mine := Mine.new()
@@ -644,14 +643,16 @@ func _m9_smoke() -> void:
 			[bonus_all_idle, combat.player_units.size(),
 			bonus_one_moved, combat.player_units.size() - 1])
 
-	# --- Artifact #3: enemy debuff stacks ---
+	# --- Artifact #3: enemy debuff stacks (M40: accumulating -3 ADD combat mod) ---
 	var a3 := ArtifactEnemyDebuff.new()
 	var enemy : Unit = combat.enemy_units[0]
-	enemy.combat_flat = 0
+	enemy.remove_power_mod("artifact:enemy_debuff")
+	var enemy_base := PowerCalculator.effective_attack(enemy)
 	a3.on_player_turn_end(ctx)
 	a3.on_player_turn_end(ctx)
-	print("  enemy debuff after 2 turns: combat_flat=%d (expect -6)" % enemy.combat_flat)
-	enemy.combat_flat = 0
+	print("  enemy debuff after 2 turns: attack=%d (expect %d, base %d -6 clamped≥0)" %
+			[PowerCalculator.effective_attack(enemy), maxi(0, enemy_base - 6), enemy_base])
+	enemy.remove_power_mod("artifact:enemy_debuff")
 
 	# --- Artifact #1: squad regen ---
 	var a1 := ArtifactSquadRegen.new()
@@ -673,16 +674,14 @@ func _m9_smoke() -> void:
 # Boosted is spent by moves (free move bypasses AP), undo refunds spent Boosted, and the
 # Start-Boosted artifact grants 3 stacks at stage start.
 func _m10_smoke() -> void:
-	print("[smoke] -- M10 attack value drives strength --")
+	print("[smoke] -- M10/M40 base_power drives effective attack --")
 	var drill := _find_unit("Drill")
 	var cluster := _find_unit("Cluster")
 	if drill != null and cluster != null:
-		print("  drill attack=%d (expect 10), cluster attack=%d (expect 3)" %
-				[drill.attack, cluster.attack])
-	# M39 formula: floor((attack + combat_flat) * permanent_mult * combat_mult).
-	var s_norm := maxi(0, roundi(3 * 1.0 * 1.0) + 0)
-	var s_clamped := maxi(0, roundi(3 * 1.0 * 1.0) + (-5))
-	print("  atk3+flat0*mult1.0=%d (expect 3); flat=-5 clamped=%d (expect 0)" % [s_norm, s_clamped])
+		print("  drill: effective_attack=%d base_power=%.1f (expect 6, 6.0)" %
+				[PowerCalculator.effective_attack(drill), drill.definition.base_power])
+		print("  cluster: effective_attack=%d base_power=%.1f (expect 1, 1.0)" %
+				[PowerCalculator.effective_attack(cluster), cluster.definition.base_power])
 
 	print("[smoke] -- M10 Boosted persists across tick --")
 	var boosted_def : StatusEffectDef = load("res://data/statuses/boosted.tres")
@@ -803,7 +802,7 @@ func _m12_smoke() -> void:
 	var ua : Unit = s1[0]
 	ua.shield = 5   # tactical buffer that must NOT persist to stage 2
 	print("  stage-1 build: count=%d (expect 2), A hp=%d (expect max-2=%d), attack=%d (expect %d)" %
-			[s1.size(), ua.hp, a.max_hp - 2, ua.attack, ua.definition.attack])
+			[s1.size(), ua.hp, a.max_hp - 2, ua.attack_value(), int(ua.definition.base_power)])
 
 	# Simulate the fight: A takes more damage + scores a kill; B is destroyed.
 	ua.hp = a.max_hp - 4
@@ -1486,16 +1485,21 @@ func _m36_smoke() -> void:
 		print("  heal_vial=MISSING (bake not run?)")
 	# RunUnitState round-trip for upgrade fields
 	var rus := RunUnitState.new()
-	rus.bonus_attack = 3
+	rus.add_permanent_mod("upgrade:attack", PowerMod.Op.ADD, 3.0, "Upgrade")
 	rus.permanent_boosted = 5
 	rus.permanent_fire_prime = 2
 	rus.bonus_dig = 1
 	var d := rus.to_dict()
 	var rus2 := RunUnitState.from_dict(d)
-	print("  upgrade_round_trip bonus_attack=%d (expect 3)" % rus2.bonus_attack)
+	print("  upgrade_round_trip power_mods=%d entry, attack mod value=%.0f (expect 1, 3)" %
+			[rus2.power_mods.size(), float(rus2.power_mods[0]["value"]) if not rus2.power_mods.is_empty() else -1])
 	print("  upgrade_round_trip permanent_boosted=%d (expect 5)" % rus2.permanent_boosted)
 	print("  upgrade_round_trip permanent_fire_prime=%d (expect 2)" % rus2.permanent_fire_prime)
 	print("  upgrade_round_trip bonus_dig=%d (expect 1)" % rus2.bonus_dig)
+	# Legacy save migration: old bonus_attack -> permanent ADD mod
+	var legacy := RunUnitState.from_dict({ "definition_id": "", "bonus_attack": 4 })
+	print("  legacy bonus_attack migrated: mods=%d value=%.0f (expect 1, 4)" %
+			[legacy.power_mods.size(), float(legacy.power_mods[0]["value"]) if not legacy.power_mods.is_empty() else -1])
 	# Fuse units check
 	if Run.active.squad.size() >= 2:
 		var src : RunUnitState = Run.active.squad[0]
@@ -1594,60 +1598,97 @@ func _m38_smoke() -> void:
 	print("  weight_mobility_enabled=%s (expect true)" % str(Features.weight_mobility_enabled))
 
 func _m39_smoke() -> void:
-	print("[smoke] -- M39 unified damage formula --")
+	print("[smoke] -- M39/M40 damage formula via PowerCalculator --")
 
-	# DamageResolver.compute_base: base case (attack=3, flat=0, perm=1, mult=1)
+	# DamageResolver.compute_base: base case (base_power=3, no mods)
 	var u : Unit = combat.player_units[0]
-	var orig_atk := u.attack
-	var orig_flat := u.combat_flat
-	var orig_cm := u.combat_mult
-	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
+	var saved := u.power_mods.duplicate()
+	u.power_mods.clear()
 	var base := DamageResolver.compute_base(u, null, null)
-	print("  compute_base(atk=3,flat=0,mult=1.0)=%s (expect 3.0)" % base)
+	print("  compute_base(base_power=3, no mods)=%s (expect 3.0)" % base)
 
-	# permanent_mult scales output
-	u.combat_mult = 2.0
+	# A COMBAT MULT mod scales output
+	u.add_power_mod(PowerMod.new("test:mult", PowerMod.Op.MULT, 2.0, PowerMod.Tier.COMBAT))
 	var scaled := DamageResolver.compute_base(u, null, null)
-	print("  compute_base(atk=3,mult=2.0)=%s (expect 6.0)" % scaled)
+	print("  compute_base(×2 combat)=%s (expect 6.0)" % scaled)
 
-	# combat_flat shifts base before mult
-	u.attack = 3; u.combat_flat = 2; u.combat_mult = 2.0
+	# A COMBAT ADD mod shifts base before the mult: (3 + 2) × 2 = 10
+	u.add_power_mod(PowerMod.new("test:add", PowerMod.Op.ADD, 2.0, PowerMod.Tier.COMBAT))
 	var with_flat := DamageResolver.compute_base(u, null, null)
-	print("  compute_base(atk=3,flat=2,mult=2.0)=%s (expect 10.0)" % with_flat)
+	print("  compute_base(+2 then ×2 combat)=%s (expect 10.0)" % with_flat)
 
 	# floor() rounding: edge zone (x0.5) — 3 * 0.5 = 1.5 → floor = 1
-	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
+	u.power_mods.clear()
 	var base3 := DamageResolver.compute_base(u, null, null)
 	var edge_dmg := int(floor(base3 * 0.5))
 	print("  edge zone floor(3*0.5)=%d (expect 1)" % edge_dmg)
 
-	# floor() rounding: low-power edge — 1 * 0.5 = 0.5 → floor = 0 (no min-1)
-	u.attack = 1
-	var base1 := DamageResolver.compute_base(u, null, null)
-	var low_edge := int(floor(base1 * 0.5))
-	print("  low edge floor(1*0.5)=%d (expect 0, no min-1)" % low_edge)
-
 	# conditional_bonus returns 0 for empty dict (scaffolding check)
 	var ctx39 := ShotContext.new()
-	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
 	var shot39 : ShotDefinition = load("res://data/shots/basic_shell.tres")
 	var with_ctx := DamageResolver.compute_base(u, shot39, ctx39)
 	print("  compute_base with empty conditional_bonus=%s (expect 3.0)" % with_ctx)
 
-	# feature flag off: perm_mult and conditional_bonus skipped
-	Features.power_formula_enabled = false
-	u.attack = 3; u.combat_flat = 0; u.combat_mult = 1.0
-	var flag_off := DamageResolver.compute_base(u, shot39, ctx39)
-	Features.power_formula_enabled = true
-	print("  flag_off compute_base=%s (expect 3.0, perm_mult still 1.0)" % flag_off)
-
-	# player_split baked at attack=1
+	# player_split baked at base_power=1
 	var split_def : UnitDefinition = load("res://data/units/player_split.tres")
-	print("  player_split.attack=%d (expect 1)" % split_def.attack)
+	print("  player_split.base_power=%.1f (expect 1.0)" % split_def.base_power)
 
-	# Restore
-	u.attack = orig_atk; u.combat_flat = orig_flat; u.combat_mult = orig_cm
+	u.power_mods = saved
 	print("  power_formula_enabled=%s (expect true)" % str(Features.power_formula_enabled))
+
+func _m40_smoke() -> void:
+	print("[smoke] -- M40 source-attributed power modifiers --")
+	var u : Unit = combat.player_units[0]
+	var saved := u.power_mods.duplicate()
+	u.power_mods.clear()
+
+	# Two-tier fold: perm (3+1)×2 = 8, then combat (8+1)×1.5 = 13.5 → floor 13
+	u.add_power_mod(PowerMod.new("eq:plate", PowerMod.Op.ADD, 1.0, PowerMod.Tier.PERMANENT, "Plate"))
+	u.add_power_mod(PowerMod.new("eq:railgun", PowerMod.Op.MULT, 2.0, PowerMod.Tier.PERMANENT, "Railgun"))
+	print("  card (permanent only)=%d (expect 8)" % PowerCalculator.effective_attack(u, false))
+	u.add_power_mod(PowerMod.new("buff:rally", PowerMod.Op.ADD, 1.0, PowerMod.Tier.COMBAT, "Rally"))
+	u.add_power_mod(PowerMod.new("buff:focus", PowerMod.Op.MULT, 1.5, PowerMod.Tier.COMBAT, "Focus"))
+	print("  combat (full) float=%.2f int=%d (expect 13.50, 13)" %
+			[PowerCalculator.effective_attack_f(u), PowerCalculator.effective_attack(u)])
+
+	# ≥0 clamp: a net-negative debuff floors at 0, never negative
+	u.power_mods.clear()
+	u.add_power_mod(PowerMod.new("debuff:huge", PowerMod.Op.ADD, -99.0, PowerMod.Tier.COMBAT, "Curse"))
+	print("  clamp net-negative=%d (expect 0)" % PowerCalculator.effective_attack(u))
+
+	# Compute-time predicate: mod active only while its condition holds
+	u.power_mods.clear()
+	var gate := { "on": false }
+	var cond := func(_x) -> bool: return gate["on"]
+	u.add_power_mod(PowerMod.new("cond:test", PowerMod.Op.MULT, 2.0, PowerMod.Tier.COMBAT, "Cond", cond))
+	var off := PowerCalculator.effective_attack(u)
+	gate["on"] = true
+	var on := PowerCalculator.effective_attack(u)
+	print("  predicate off=%d on=%d (expect 3, 6)" % [off, on])
+
+	# card_attack(run_state) ignores COMBAT-tier mods
+	var rus := RunUnitState.new()
+	rus.definition_id = u.definition.resource_path
+	rus.add_permanent_mod("eq:plate", PowerMod.Op.ADD, 2.0, "Plate")
+	print("  card_attack ignores combat mods=%d (expect %d)" %
+			[PowerCalculator.card_attack(rus, u.definition), int(u.definition.base_power) + 2])
+
+	# Last Stand artifact: ×1.5 only while sole survivor (predicate path end-to-end)
+	var ls := ArtifactLastStand.new()
+	var lctx := ArtifactContext.new()
+	lctx.units = combat.all_units
+	u.power_mods.clear()
+	ls.on_combat_start(lctx)
+	var allies_alive := 0
+	for a in combat.player_units:
+		if a.hp > 0: allies_alive += 1
+	var ls_expect : String = "active" if allies_alive == 1 else "inactive"
+	print("  last_stand mod present=%s (sole survivor=%s, condition %s)" %
+			[str(u.power_mods.any(func(m): return m.source == "artifact:last_stand")),
+			str(allies_alive == 1), ls_expect])
+
+	u.power_mods = saved
+	print("  power_mods_enabled=%s (expect true)" % str(Features.power_mods_enabled))
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

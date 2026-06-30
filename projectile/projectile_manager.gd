@@ -63,7 +63,7 @@ func fire(origin: Vector2, direction: Vector2, speed: float,
 	ctx.is_first_shot = firing_unit != null and not firing_unit.moved_this_turn
 	if _combat != null:
 		var cm := _combat as CombatManager
-		ctx.launch_round = cm.current_round if cm != null else 0
+		ctx.launch_round = cm.round_index if cm != null else 0
 	if firing_unit != null:
 		salvo.strength = DamageResolver.compute_base(firing_unit, shot, ctx)
 	else:

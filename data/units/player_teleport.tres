@@ -9,6 +9,7 @@ script = ExtResource("3_nyeo1")
 id = "player_teleport"
 display_name = "Blink"
 faction = "army"
+base_power = 3.0
 default_shot = ExtResource("2_hoooc")
 available_shots = Array[ExtResource("1_jvlys")]([ExtResource("2_hoooc")])
 color = Color(0.85, 0.4, 0.95, 1)

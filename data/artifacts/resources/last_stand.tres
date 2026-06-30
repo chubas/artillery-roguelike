@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ArtifactLastStand" format=3]
+
+[ext_resource type="Script" path="res://data/artifacts/artifact_last_stand.gd" id="1_8i1n5"]
+
+[resource]
+script = ExtResource("1_8i1n5")
+artifact_name = "Last Stand"
+description_template = "While a unit is your only survivor, its attack is multiplied by 1.5."

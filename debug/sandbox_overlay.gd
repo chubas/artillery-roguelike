@@ -334,7 +334,7 @@ func _build_panel() -> void:
 		if Run.active == null: return
 		var idx := int(upg_spin.value)
 		if idx < Run.active.squad.size():
-			(Run.active.squad[idx] as RunUnitState).bonus_attack += 2)
+			(Run.active.squad[idx] as RunUnitState).add_permanent_mod("upgrade:attack", PowerMod.Op.ADD, 2.0, "Upgrade"))
 	col.add_child(atk_btn)
 	var boost_btn := _make_btn("+3 Boosted")
 	boost_btn.pressed.connect(func() -> void:

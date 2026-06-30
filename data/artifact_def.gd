@@ -20,7 +20,7 @@ func on_unit_killed(ctx: ArtifactContext, victim: Unit, killer: Unit) -> void: p
 func modify_card_cost(ctx: ArtifactContext, card: CardDefinition, base_cost: int) -> int:
 	return base_cost
 
-func modify_projectile_strength(ctx: ArtifactContext, strength: int, flight_time: float) -> int:
+func modify_projectile_strength(ctx: ArtifactContext, strength: float, flight_time: float) -> float:
 	return strength
 
 func bonus_actions_on_round_start(ctx: ArtifactContext) -> int:

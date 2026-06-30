@@ -10,6 +10,7 @@ id = "player_cluster"
 display_name = "Cluster"
 faction = "army"
 base_armor = 4
+base_power = 1.0
 default_shot = ExtResource("2_ey64v")
 available_shots = Array[ExtResource("1_68gmf")]([ExtResource("2_ey64v")])
 color = Color(0.85, 0.7, 0.2, 1)

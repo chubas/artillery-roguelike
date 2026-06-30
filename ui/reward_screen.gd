@@ -141,7 +141,7 @@ class OptionCard:
 		y += 24
 		draw_line(Vector2(12, y), Vector2(W - 12, y), Color(1, 1, 1, 0.2), 1.0)
 		y += 14
-		draw_string(font, Vector2(12, y), "ATK   %d" % def.attack,
+		draw_string(font, Vector2(12, y), "ATK   %d" % int(def.base_power),
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 		y += 20
 		draw_string(font, Vector2(12, y), "HP    %d" % def.max_hp,

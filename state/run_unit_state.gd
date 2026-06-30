@@ -16,14 +16,15 @@ var equipped_essences : Array[String] = []  # EssenceDef resource paths equipped
 var upgrades          : Array[String] = []  # empty in M12 — seam for permanent upgrades
 var equipment         : Array[String] = []  # empty in M12 — seam for equipment loadout
 # M36: permanent stat upgrades applied at combat start via CombatBridge.
-var bonus_attack         : int = 0
 var permanent_boosted    : int = 0
 var permanent_fire_prime : int = 0
 var bonus_dig            : int = 0
-# M39: persistent damage multiplier. 1.0 = no bonus; applied to Unit.combat_mult at spawn.
-var permanent_mult       : float = 1.0
+# M40: persistent attack power modifiers (serialized PowerMod dicts, PERMANENT tier). Folded over
+# definition.base_power by PowerCalculator. Replaces the old bonus_attack/permanent_mult scalars.
+var power_mods           : Array = []
 
-# Build a fresh, full-HP run-unit from a UnitDefinition path.
+# Build a fresh, full-HP run-unit from a UnitDefinition path. No power mods seeded — base power
+# lives on the definition; permanent mods accrue across the run (upgrades, equipment, artifacts).
 static func from_definition(def_path: String, dname: String = "") -> RunUnitState:
 	var rus := RunUnitState.new()
 	rus.definition_id = def_path
@@ -32,6 +33,19 @@ static func from_definition(def_path: String, dname: String = "") -> RunUnitStat
 	rus.current_hp = def.max_hp
 	rus.display_name = dname if dname != "" else def.display_name
 	return rus
+
+## Update-or-insert a PERMANENT-tier mod by source on the stored list. ADD ops accumulate
+## `value`; MULT (and first-time) ops set it. Used by upgrades / equipment / lasting artifacts.
+func add_permanent_mod(source: String, op: PowerMod.Op, value: float, label := "") -> void:
+	for d in power_mods:
+		if d.get("source", "") == source:
+			if op == PowerMod.Op.ADD:
+				d["value"] = float(d.get("value", 0.0)) + value
+			else:
+				d["value"] = value
+			return
+	power_mods.append({ "source": source, "label": label if label != "" else source,
+			"op": int(op), "value": value, "tier": int(PowerMod.Tier.PERMANENT) })
 
 func to_dict() -> Dictionary:
 	return {
@@ -46,11 +60,10 @@ func to_dict() -> Dictionary:
 		"equipped_essences": equipped_essences.duplicate(),
 		"upgrades": upgrades.duplicate(),
 		"equipment": equipment.duplicate(),
-		"bonus_attack": bonus_attack,
 		"permanent_boosted": permanent_boosted,
 		"permanent_fire_prime": permanent_fire_prime,
 		"bonus_dig": bonus_dig,
-		"permanent_mult": permanent_mult,
+		"power_mods": power_mods.duplicate(true),
 	}
 
 static func from_dict(d: Dictionary) -> RunUnitState:
@@ -66,9 +79,13 @@ static func from_dict(d: Dictionary) -> RunUnitState:
 	rus.equipped_essences.assign(d.get("equipped_essences", []))
 	rus.upgrades.assign(d.get("upgrades", []))
 	rus.equipment.assign(d.get("equipment", []))
-	rus.bonus_attack         = d.get("bonus_attack", 0)
 	rus.permanent_boosted    = d.get("permanent_boosted", 0)
 	rus.permanent_fire_prime = d.get("permanent_fire_prime", 0)
 	rus.bonus_dig            = d.get("bonus_dig", 0)
-	rus.permanent_mult       = d.get("permanent_mult", 1.0)
+	rus.power_mods           = (d.get("power_mods", []) as Array).duplicate(true)
+	# Back-compat (pre-M40 saves): migrate a legacy flat bonus_attack into a permanent ADD mod.
+	# Legacy permanent_mult is dropped — definition.base_power reasserts as the base.
+	var legacy_atk : int = d.get("bonus_attack", 0)
+	if legacy_atk > 0:
+		rus.add_permanent_mod("upgrade:attack", PowerMod.Op.ADD, float(legacy_atk), "Upgrade")
 	return rus

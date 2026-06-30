@@ -11,6 +11,7 @@ display_name = "Brute"
 faction = "army"
 max_hp = 8
 move_range = 0
+base_power = 3.0
 default_shot = ExtResource("2_xwk54")
 tags = Array[String](["ORGANIC"])
 element_affinities = {

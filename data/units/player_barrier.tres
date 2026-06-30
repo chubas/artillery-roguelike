@@ -9,6 +9,7 @@ script = ExtResource("3_ug1kc")
 id = "player_barrier"
 display_name = "Builder"
 faction = "army"
+base_power = 3.0
 default_shot = ExtResource("2_awa2m")
 available_shots = Array[ExtResource("1_ypcjo")]([ExtResource("2_awa2m")])
 color = Color(0.45, 0.55, 0.95, 1)

@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-29 M39)
+## Current state (2026-06-29 M40)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -50,7 +50,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   **M36 (Repair shop + upgrade shop + CONSUMABLE keyword: REPAIR node (L2) and UPGRADE node (L3) added to map; `RepairScreen` with three options — distribute 4 HP / heal one unit 6 HP / add Heal Vial card; `UpgradeScreen` with three options — upgrade unit stat (+ATK/+Boosted/+FirePrime/+Dig) / fuse two units (transfer essences, 5◆ refund, `FUSION_REFUND` const) / remove up to 2 deck cards; `HEAL` EffectType and `is_consumable` on `CardDefinition` — consumable cards purged from run deck after one use; four permanent upgrade fields on `RunUnitState` applied at combat start via `CombatBridge`; `SquadOps.fuse_units()`; sandbox REPAIR and UPGRADE debug sections; `Features.repair_enabled` and `Features.upgrade_enabled` kill switches)**,
   **M37 (Card Viewer + Squad Viewer: `DeckViewer` and `SquadViewer` modals — `Control` nodes with `set_as_top_level(true)`, open from both world map and combat HUD; "Deck [N]" button top-left and "Squad" button top-right on `MapScreen`; HUD deck label replaced with clickable button, Squad button added in HUD top-right column; `DeckViewer` two-column layout: scrollable card list with cost+name, hover updates detail panel showing effect/target/magnitude/CONSUMABLE; `SquadViewer` shows units with HP, Retire button visible only in world mode (`world_mode=true`), retire calls `SquadOps.retire_unit()`; `Features.deck_viewer_enabled` and `Features.squad_viewer_enabled` kill switches; `CombatManager._process()` null-guard for `_hud`/`_targeting` before `setup()` runs; 60s safety quit timer in `_smoke_test()` to prevent infinite-loop hangs)**,
   **M38 (Unit Weight Classes: `UnitDefinition.weight` integer field replaces `climb_max` — 0=weightless, 1=light, 2=medium, 3=heavy; `UnitMovement.free_climb_for_weight()` and `max_climb_for_weight()` static helpers; `resolve_move()` extended to loop through 1..max_climb voxels finding lowest accessible ledge; `CombatManager._move_ap_cost()` helper computes 1 or 2 AP based on climb height vs free-climb threshold; `try_move()` refactored to separate AP calculation from token handling — token covers 1 AP, extended climbs still deduct remainder from action pool; all current units baked at weight=2 (medium) with light/heavy candidate comments; `Features.weight_mobility_enabled` kill switch)**,
-  **M39 (Unified damage formula: `DamageResolver.compute_base(attacker, shot, context) -> float` is the single entry point — formula is `(attack + combat_flat + conditional_bonus) × permanent_mult × combat_mult`; single `floor()` at AoE application, no min-1; `ShotDefinition.strength` and `strength_mult` removed (shots carry AoE pattern + element only); `UnitDefinition.base_power` removed; `Unit.power` renamed `combat_mult`, `Unit.attack_modifier` renamed `combat_flat`; `RunUnitState.permanent_mult` field added with serialization; new `ShotContext` scaffolding class for future conditional bonuses; `ShotDefinition.conditional_bonus: Dictionary` empty on all current shots; `AoEResolver._zone_damage()` returns float (no rounding/min), `_calc_damage()` renamed `_calc_affinity()` returns mult only, final damage is `int(floor(zone_dmg × affinity))`; `Salvo.strength` changed to float; `player_split` baked at attack=1 (multishot unit); `★ N` attack display in UnitInspector HUD; `Features.power_formula_enabled` kill switch)**.
+  **M39 (Unified damage formula: `DamageResolver.compute_base(attacker, shot, context) -> float` is the single entry point — formula is `(attack + combat_flat + conditional_bonus) × permanent_mult × combat_mult`; single `floor()` at AoE application, no min-1; `ShotDefinition.strength` and `strength_mult` removed (shots carry AoE pattern + element only); `UnitDefinition.base_power` removed; `Unit.power` renamed `combat_mult`, `Unit.attack_modifier` renamed `combat_flat`; `RunUnitState.permanent_mult` field added with serialization; new `ShotContext` scaffolding class for future conditional bonuses; `ShotDefinition.conditional_bonus: Dictionary` empty on all current shots; `AoEResolver._zone_damage()` returns float (no rounding/min), `_calc_damage()` renamed `_calc_affinity()` returns mult only, final damage is `int(floor(zone_dmg × affinity))`; `Salvo.strength` changed to float; `player_split` baked at attack=1 (multishot unit); `★ N` attack display in UnitInspector HUD; `Features.power_formula_enabled` kill switch)**,
+  **M40 (Source-attributed power modifiers: replaces M39's three-field scheme (`attack`/`combat_flat`/`combat_mult`) and `RunUnitState.permanent_mult`/`bonus_attack` with `base_power` + a list of `PowerMod` objects; new `systems/power_mod.gd` (`source`/`label`/`op` ADD|MULT/`value`/`tier` PERMANENT|COMBAT/optional `condition: Callable` compute-time predicate) and `systems/power_calculator.gd` (two-tier fold `permanent = max(0,(base+Σadd)×Πmult)` then `combat = max(0,(permanent+Σadd)×Πmult)`, clamped ≥0 at both tiers; `effective_attack`/`effective_attack_f`/`card_attack`/`breakdown`); `Unit.power_mods` with `add_power_mod`/`adjust_power_mod`/`remove_power_mod`/`attack_value`; permanent mods serialized on `RunUnitState.power_mods` (legacy `bonus_attack` migrated to a permanent ADD mod, `permanent_mult` dropped); `UnitDefinition.attack` removed (base_power is the printed number: 3 standard / 10 Drill / 1 Splitter); `DamageResolver.compute_base` reads `PowerCalculator.effective_attack_f`; `enemy_debuff` artifact migrated to an accumulating −3 COMBAT ADD mod; new `ArtifactLastStand` (×1.5 COMBAT MULT gated by a sole-survivor predicate) validates the conditional path; HUD inspector shows `★ N` plus a per-mod breakdown; flight-time `modify_projectile_strength` hook widened to float; `Features.power_mods_enabled` kill switch)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.
@@ -62,6 +63,35 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-06-29 — Milestone 40: Source-Attributed Power Modifiers
+
+Reworks attack power into `base_power` + a list of source-tagged `PowerMod`s, folded on demand by
+`PowerCalculator` in two tiers (permanent → combat). Modifiers can be additive or multiplicative,
+carry the `source` that created them (so they can be removed/shown/stacked), and may gate behind a
+compute-time predicate. The unit holds no scalar attack field; effective attack is computed.
+Full design in [docs/planning/milestone-40-plan.md](docs/planning/milestone-40-plan.md).
+
+- **Two-tier fold:** `permanent = max(0, (base_power + Σ perm_add) × Π perm_mult)` is the card /
+  round-start value; `combat = max(0, (permanent + Σ comb_add) × Π comb_mult)` is the live value.
+  Clamped ≥0 at both boundaries so a net-negative permanent can't flip sign under a combat mult.
+- **`PowerMod`** (`systems/power_mod.gd`): `source`, `label`, `op` (ADD|MULT), `value`, `tier`
+  (PERMANENT|COMBAT), optional `condition: Callable`. `to_dict`/`from_dict` (predicate not
+  serialized — conditional mods are re-attached live by their source each combat).
+- **`PowerCalculator`** (`systems/power_calculator.gd`): `effective_attack` / `effective_attack_f`
+  (live unit), `card_attack(run_state, definition)` (permanent-tier only, for cards/logbook),
+  `breakdown` (ordered rows for the inspector tooltip).
+- **`Unit`**: `power_mods: Array[PowerMod]` + `add_power_mod` / `adjust_power_mod` (accumulating) /
+  `remove_power_mod` / `attack_value`. `_ready()` seeds permanent mods from `run_state.power_mods`.
+- **`RunUnitState`**: `permanent_mult` and `bonus_attack` removed; `power_mods: Array` of dicts
+  serialized; `add_permanent_mod()`; `from_dict` migrates legacy `bonus_attack` → permanent ADD mod.
+- **`DamageResolver.compute_base`** now reads `PowerCalculator.effective_attack_f`; the single
+  `floor()` still lives in AoEResolver. `UnitDefinition.attack` removed (base_power is the number).
+- **Artifacts:** `enemy_debuff` → accumulating −3 COMBAT ADD mod; new `ArtifactLastStand` (×1.5
+  COMBAT MULT gated by a "sole surviving player unit" predicate) proves the conditional path.
+- **UI:** inspector shows `★ N` plus a per-mod breakdown; upgrade/reward/sandbox use the new API.
+- **Smoke:** `_m40_smoke()` asserts the two-tier fold (8 then 13.50/13), ≥0 clamp, predicate
+  on/off, `card_attack` ignoring combat mods, and the Last Stand artifact. `power_mods_enabled` flag.
 
 ## 2026-06-28 — Milestone 38: Unit Weight Classes
 

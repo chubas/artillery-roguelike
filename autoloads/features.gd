@@ -37,4 +37,5 @@ var upgrade_enabled          : bool = true  # M36: upgrade node type + upgrade s
 var deck_viewer_enabled      : bool = true  # M37: deck viewer modal (world + combat)
 var squad_viewer_enabled     : bool = true  # M37: squad viewer modal (world + combat)
 var weight_mobility_enabled  : bool = true  # M38: weight-based climb limits + AP costs
-var power_formula_enabled    : bool = true  # M39: permanent_mult + conditional_bonus in DamageResolver
+var power_formula_enabled    : bool = true  # M39: shot conditional_bonus in DamageResolver
+var power_mods_enabled       : bool = true  # M40: source-attributed power modifier system
