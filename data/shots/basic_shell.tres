@@ -8,4 +8,5 @@ script = ExtResource("2_n3v1n")
 id = "basic_shell"
 display_name = "Basic"
 description_template = "Free to fire. Deals {damage} damage on impact."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_60n4d")

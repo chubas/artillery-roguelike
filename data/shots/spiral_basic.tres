@@ -8,6 +8,7 @@ script = ExtResource("2_jakju")
 id = "spiral_basic"
 display_name = "Spiral"
 description_template = "Main shell plus two arms that weave around its flight path."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_p1oyl")
 dig_pattern = ExtResource("1_p1oyl")
 spiral_arms = 2

@@ -7,5 +7,6 @@ script = ExtResource("1_luajc")
 id = "boosted_card"
 display_name = "Overdrive"
 effect_type = 3
+keywords = Array[String](["boosted"])
 magnitude = 2
 color = Color(0.3, 0.8, 0.4, 1)

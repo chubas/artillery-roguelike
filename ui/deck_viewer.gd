@@ -104,6 +104,9 @@ func _build() -> void:
 			var row_btn := _make_button(row_text, Callable())
 			row_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			var kw := KeywordRegistry.tooltip(KeywordRegistry.for_card(def))
+			if kw != "":
+				row_btn.tooltip_text = kw
 			var d := def
 			row_btn.mouse_entered.connect(func() -> void:
 				detail_name.text = d.display_name
@@ -122,6 +125,11 @@ func _card_detail(def: CardDefinition) -> String:
 	if def.is_consumable:
 		lines.append("")
 		lines.append("CONSUMABLE — removed from deck after use")
+	var kw := KeywordRegistry.tooltip(KeywordRegistry.for_card(def))
+	if kw != "":
+		lines.append("")
+		lines.append("Keywords:")
+		lines.append(kw)
 	return "\n".join(lines)
 
 func _make_button(text: String, callback: Callable) -> Button:

@@ -4,6 +4,10 @@ extends Resource
 @export var artifact_name        : String = ""
 @export var description_template : String = ""
 
+## Keyword ids this artifact references / grants (M41). e.g. Battle Drills lists ["boosted"], so its
+## hover tooltip explains Boosted. Surfaced via KeywordRegistry.
+@export var keywords : Array[String] = []
+
 func resolve_description() -> String:
 	return description_template
 

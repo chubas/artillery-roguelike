@@ -8,6 +8,7 @@ script = ExtResource("2_adkck")
 id = "pull_electric"
 display_name = "Pull Electric"
 description_template = "Explodes normally, then drags nearby units toward the impact. Shocks on impact; strong vs mechanical."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_5w4k6")
 dig_pattern = ExtResource("1_5w4k6")
 action_cost = 3

@@ -7,5 +7,6 @@ script = ExtResource("1_ms0c5")
 id = "barrier_basic"
 display_name = "Barrier"
 description_template = "After 2s, leaves 1-HP terrain in open air along its path. No blast on impact."
+keywords = Array[String](["shot"])
 behavior = 3
 barrier_delay_sec = 2.0

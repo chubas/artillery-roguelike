@@ -14,6 +14,7 @@ move_range = 0
 base_power = 3.0
 default_shot = ExtResource("2_xwk54")
 tags = Array[String](["ORGANIC"])
+keywords = Array[String](["unit"])
 element_affinities = {
 "electric": 0.75,
 "fire": 1.5

@@ -8,6 +8,7 @@ script = ExtResource("2_0da3c")
 id = "spiral_electric"
 display_name = "Spiral Electric"
 description_template = "Main shell plus two arms that weave around its flight path. Shocks on impact; strong vs mechanical."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_ei18l")
 dig_pattern = ExtResource("1_ei18l")
 action_cost = 3

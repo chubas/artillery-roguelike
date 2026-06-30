@@ -98,6 +98,17 @@ class OptionCard:
 		_resource = load(path)
 		custom_minimum_size = Vector2(W, H)
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		# M41: keyword tooltip on the reward preview.
+		var ids : Array = []
+		if _category == RewardScreen.Category.UNIT and _resource is UnitDefinition:
+			ids = KeywordRegistry.for_definition(_resource)
+		elif _category == RewardScreen.Category.CARD and _resource is CardDefinition:
+			ids = KeywordRegistry.for_card(_resource)
+		elif _category == RewardScreen.Category.ARTIFACT and _resource is ArtifactDef:
+			ids = KeywordRegistry.for_artifact(_resource)
+		var kw := KeywordRegistry.tooltip(ids)
+		if kw != "":
+			tooltip_text = kw
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_MOUSE_ENTER:
@@ -136,8 +147,13 @@ class OptionCard:
 		var def : UnitDefinition = _resource as UnitDefinition
 		if def == null:
 			return
+		var shot := def.default_shot
+		# M41 QoL: default-shot pattern glyph pinned to the card's top-right corner (clear of text).
+		if shot != null and shot.aoe_pattern != null:
+			PatternGlyph.draw(self, shot.aoe_pattern, Rect2(Vector2(W - 54, 10.0), Vector2(44, 44)))
+		# Name width is clipped so it never runs under the corner glyph.
 		draw_string(font, Vector2(12, y), def.display_name,
-				HORIZONTAL_ALIGNMENT_LEFT, W - 24, 16, Color(0.6, 0.9, 1.0))
+				HORIZONTAL_ALIGNMENT_LEFT, W - 62, 16, Color(0.6, 0.9, 1.0))
 		y += 24
 		draw_line(Vector2(12, y), Vector2(W - 12, y), Color(1, 1, 1, 0.2), 1.0)
 		y += 14
@@ -147,11 +163,18 @@ class OptionCard:
 		draw_string(font, Vector2(12, y), "HP    %d" % def.max_hp,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 		y += 20
-		draw_string(font, Vector2(12, y), "Shots: %d" % def.available_shots.size(),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.75))
-		y += 20
 		draw_string(font, Vector2(12, y), "Capacity: %d" % def.capacity_cost,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.75, 0.6, 1.0))
+		y += 24
+		# Shot name + description (the glyph is up top, so these get the full card width).
+		if shot != null:
+			draw_string(font, Vector2(12, y), "Shot: %s" % shot.display_name,
+					HORIZONTAL_ALIGNMENT_LEFT, W - 24, 13, Color(0.95, 0.85, 0.5))
+			y += 18
+			var desc := shot.resolve_description(null)
+			if desc != "":
+				draw_multiline_string(font, Vector2(12, y), desc,
+						HORIZONTAL_ALIGNMENT_LEFT, W - 24, 11, 4, Color(1, 1, 1, 0.8))
 
 	func _draw_artifact(font: Font, y: float) -> void:
 		var def : ArtifactDef = _resource as ArtifactDef

@@ -8,6 +8,7 @@ script = ExtResource("2_3dq8b")
 id = "pull_basic"
 display_name = "Pull"
 description_template = "Explodes normally, then drags nearby units toward the impact."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_tdgya")
 dig_pattern = ExtResource("1_tdgya")
 pull_near_radius = 4

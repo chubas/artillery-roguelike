@@ -45,6 +45,10 @@ extends Resource
 ## Valid values: ORGANIC, MECHANICAL, SHIELDED, HEAVY, FLYING
 @export var tags : Array[String] = []
 
+## Keyword ids this unit always has (M41). Resolved to descriptions via KeywordRegistry for
+## hover tooltips. Distinct from `tags` (structural) — keywords are named mechanics.
+@export var keywords : Array[String] = []
+
 ## Per-element damage multiplier overrides. Key = element id, value = multiplier.
 ## Missing element id defaults to 1.0. Takes precedence over tag rules.
 ## Example: { "fire": 1.5, "electric": 0.5 }

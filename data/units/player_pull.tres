@@ -12,4 +12,5 @@ faction = "army"
 base_power = 3.0
 default_shot = ExtResource("2_yobg4")
 available_shots = Array[ExtResource("1_482f7")]([ExtResource("2_yobg4")])
+keywords = Array[String](["unit"])
 color = Color(0.9, 0.45, 0.4, 1)

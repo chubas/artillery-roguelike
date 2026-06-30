@@ -9,6 +9,7 @@ script = ExtResource("3_a865j")
 id = "bigball_basic"
 display_name = "Big Ball"
 description_template = "Oversized shell. Detonates [[shape]] on impact."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_7isek")
 dig_pattern = ExtResource("2_tyn3g")
 behavior = 5

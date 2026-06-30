@@ -360,6 +360,9 @@ class CardChip:
 		custom_minimum_size = Vector2(W, H)
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		tooltip_text = card.display_name
+		var kw := KeywordRegistry.tooltip(KeywordRegistry.for_card(card))
+		if kw != "":
+			tooltip_text += "\n\n" + kw
 
 	func set_state(affordable: bool, selected: bool) -> void:
 		if affordable == _affordable and selected == _selected:
@@ -405,6 +408,14 @@ class UnitInspector:
 	extends Control
 
 	var unit : Unit = null
+
+	# Live keyword tooltip (M41): recomputed each hover so effects applied mid-combat (e.g. Boosted
+	# from a card) appear immediately without re-inspecting.
+	func _get_tooltip(_at_position: Vector2) -> String:
+		if unit == null or not is_instance_valid(unit):
+			return ""
+		var kw := KeywordRegistry.tooltip(KeywordRegistry.for_unit(unit))
+		return "%s\n\n%s" % [unit.display_name, kw] if kw != "" else ""
 
 	func _draw() -> void:
 		if unit == null or not is_instance_valid(unit):
@@ -491,26 +502,7 @@ class UnitInspector:
 	# zone (orange = full strength, yellow = half) via the same palette the in-world
 	# targeting preview uses (AoEPattern.zone_color), so both views read consistently.
 	func _draw_pattern_glyph(pattern: AoEPattern, rect: Rect2) -> void:
-		var aoe_map := pattern.to_map()
-		if aoe_map.is_empty():
-			return
-		var min_c := 0
-		var max_c := 0
-		var min_r := 0
-		var max_r := 0
-		for offset in aoe_map:
-			min_c = mini(min_c, offset.x)
-			max_c = maxi(max_c, offset.x)
-			min_r = mini(min_r, offset.y)
-			max_r = maxi(max_r, offset.y)
-		var span := maxi(max_c - min_c, max_r - min_r) + 1
-		var cell := clampf(floorf(minf(rect.size.x, rect.size.y) / span), 3.0, 8.0)
-		var origin := rect.position + rect.size * 0.5 - Vector2(cell, cell) * 0.5
-		for offset in aoe_map:
-			var group : AoEGroup = aoe_map[offset]
-			var pos := origin + Vector2(offset.x, offset.y) * cell
-			draw_rect(Rect2(pos, Vector2(cell, cell)), AoEPattern.zone_color(group.multiplier))
-		draw_rect(Rect2(origin, Vector2(cell, cell)), Color(1, 1, 1, 0.9), false, 1.0)
+		PatternGlyph.draw(self, pattern, rect)
 
 # Wind Indicator (M8): compact readout in the top-right column, below the action buttons.
 # Hidden when wind_strength ≈ 0. Color: 0–20% white, 20–50% orange, >50% red.
@@ -560,6 +552,9 @@ class ArtifactIcon:
 		custom_minimum_size = Vector2(SIZE, SIZE)
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		tooltip_text = "Artifact%d\n%s" % [index + 1, artifact.resolve_description()]
+		var kw := KeywordRegistry.tooltip(KeywordRegistry.for_artifact(artifact))
+		if kw != "":
+			tooltip_text += "\n\n" + kw
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, Vector2(SIZE, SIZE))

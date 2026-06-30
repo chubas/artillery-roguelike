@@ -14,4 +14,5 @@ max_hp = 4
 base_power = 3.0
 default_shot = ExtResource("2_2jknk")
 available_shots = Array[ExtResource("1_ge6l5")]([ExtResource("2_2jknk")])
+keywords = Array[String](["unit"])
 color = Color(0.35, 0.75, 0.95, 1)

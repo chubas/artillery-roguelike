@@ -8,6 +8,7 @@ script = ExtResource("2_lacmh")
 id = "electric_shell"
 display_name = "Electric"
 description_template = "Shocks on impact; strong vs mechanical, chains through conductive terrain."
+keywords = Array[String](["shot"])
 base_speed = 650.0
 gravity_scale = 0.85
 aoe_pattern = ExtResource("1_b3o7e")

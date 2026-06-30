@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="KeywordDef" format=3]
+
+[ext_resource type="Script" path="res://data/keyword_def.gd" id="1_13ch5"]
+
+[resource]
+script = ExtResource("1_13ch5")
+id = "shot"
+display_name = "Shot"
+description_template = "Test keyword attached to every shot (M41 mapping check)."
+color = Color(0.95, 0.8, 0.4, 1)

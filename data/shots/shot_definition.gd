@@ -8,6 +8,9 @@ extends Resource
 ## {uses} tokens; AoE shape is not tokened — use [[shape]] as a visual placeholder.
 @export var description_template : String = ""
 
+## Keyword ids this shot carries (M41). Surfaced in tooltips via KeywordRegistry.
+@export var keywords : Array[String] = []
+
 ## Physics
 @export var base_speed : float = 600.0     # px/s at full charge
 @export var gravity_scale : float = 1.0    # multiplier on global GRAVITY

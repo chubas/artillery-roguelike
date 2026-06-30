@@ -18,6 +18,11 @@ enum EffectType { SHIELD_BUFF, ARMOR_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MI
 @export var target_type : TargetType = TargetType.ALLY
 @export var effect_type : EffectType = EffectType.SHIELD_BUFF
 @export var description_template : String = ""
+
+## Keyword ids this card references / grants (M41). e.g. the Boosted card lists ["boosted"], so its
+## hover tooltip explains Boosted. Surfaced via KeywordRegistry.
+@export var keywords : Array[String] = []
+
 @export var magnitude       : int = 0   # shield/armor points, damage dealt, or Boosted stacks
 @export var magnitude_per_level : int = 0   # seam for card-shop upgrades; 0 = no scaling yet
 @export var action_cost : int = 1

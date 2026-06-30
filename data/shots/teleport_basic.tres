@@ -7,4 +7,5 @@ script = ExtResource("1_yxykn")
 id = "teleport_basic"
 display_name = "Teleporter"
 description_template = "On landing, moves you to the impact site if there is room. Otherwise nothing happens."
+keywords = Array[String](["shot"])
 behavior = 4

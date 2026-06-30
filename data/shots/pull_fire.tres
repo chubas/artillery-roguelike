@@ -8,6 +8,7 @@ script = ExtResource("2_46d5u")
 id = "pull_fire"
 display_name = "Pull Fire"
 description_template = "Explodes normally, then drags nearby units toward the impact. Burns on impact; strong vs organic."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_dlmls")
 dig_pattern = ExtResource("1_dlmls")
 action_cost = 2

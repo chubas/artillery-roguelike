@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="KeywordDef" format=3]
+
+[ext_resource type="Script" path="res://data/keyword_def.gd" id="1_154tk"]
+
+[resource]
+script = ExtResource("1_154tk")
+id = "unit"
+display_name = "Unit"
+description_template = "Test keyword attached to every unit (M41 mapping check)."
+color = Color(0.6, 0.9, 1, 1)

@@ -8,6 +8,7 @@ script = ExtResource("2_cr5nk")
 id = "cluster_electric"
 display_name = "Cluster Electric"
 description_template = "Five shells fan out and detonate together. Shocks on impact; strong vs mechanical."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_fx7bd")
 dig_pattern = ExtResource("1_fx7bd")
 action_cost = 3

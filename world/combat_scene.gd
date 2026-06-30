@@ -8,6 +8,8 @@ signal combat_exited(outcome: String)
 const PAN_SPEED := 700.0
 const ZOOM_MIN := 0.5
 const ZOOM_MAX := 3.0
+# M41 QoL: start slightly zoomed out (≈ two 1/1.1 scroll steps from 1.0) to show more battlefield.
+const DEFAULT_ZOOM := 0.83
 
 @onready var terrain : TerrainManager = $TerrainManager
 @onready var renderer : TerrainRenderer = $TerrainRenderer
@@ -36,6 +38,7 @@ var _focusing : bool = false
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color8(24, 26, 34))
+	camera.zoom = Vector2(DEFAULT_ZOOM, DEFAULT_ZOOM)
 	AnimationSequencer.world_fx = world_fx
 	# M13: the stage descriptor drives terrain generation (its seed) before the renderer builds
 	# chunks, plus enemies/reinforcements/wind/deployables/objective inside combat.
@@ -245,6 +248,7 @@ func _smoke_test() -> void:
 	_m38_smoke()
 	_m39_smoke()
 	_m40_smoke()
+	_m41_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1689,6 +1693,45 @@ func _m40_smoke() -> void:
 
 	u.power_mods = saved
 	print("  power_mods_enabled=%s (expect true)" % str(Features.power_mods_enabled))
+
+func _m41_smoke() -> void:
+	print("[smoke] -- M41 keyword registry + collectors --")
+	# Registry loads the three baked keywords.
+	print("  registry has boosted/unit/shot=%s,%s,%s (expect true x3)" %
+			[str(KeywordRegistry.has("boosted")), str(KeywordRegistry.has("unit")),
+			str(KeywordRegistry.has("shot"))])
+
+	# A fresh combat unit surfaces its definition + active-shot test keywords.
+	var u : Unit = combat.player_units[0]
+	for sid in u.active_statuses.keys():
+		u.active_statuses.erase(sid)
+	var base_ids := KeywordRegistry.for_unit(u)
+	print("  for_unit fresh=%s (expect contains unit+shot)" % str(base_ids))
+
+	# Applying the Boosted status surfaces the `boosted` keyword (effect transfer).
+	UnitStatusSystem.apply(u, load("res://data/statuses/boosted.tres"), 2)
+	var boosted_ids := KeywordRegistry.for_unit(u)
+	print("  for_unit after Boosted has boosted=%s (expect true)" % str(boosted_ids.has("boosted")))
+
+	# Card collector + tooltip formatting.
+	var bcard : CardDefinition = load("res://data/cards/boosted_card.tres")
+	print("  for_card(Overdrive)=%s (expect [boosted])" % str(KeywordRegistry.for_card(bcard)))
+
+	# Artifact collector — Battle Drills grants Boosted.
+	var bdrills : ArtifactDef = load("res://data/artifacts/resources/start_boosted.tres")
+	print("  for_artifact(Battle Drills)=%s (expect [boosted])" % str(KeywordRegistry.for_artifact(bdrills)))
+	var tip := KeywordRegistry.tooltip(boosted_ids)
+	print("  tooltip non-empty=%s contains 'Boosted'=%s (expect true, true)" %
+			[str(tip != ""), str(tip.contains("Boosted"))])
+
+	# Feature flag off → collectors return [].
+	Features.keywords_enabled = false
+	var off := KeywordRegistry.for_unit(u)
+	Features.keywords_enabled = true
+	print("  flag off for_unit=%s (expect [])" % str(off))
+
+	# Default zoom QoL constant.
+	print("  default zoom=%.2f (expect 0.83, < 1.0 = zoomed out)" % DEFAULT_ZOOM)
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

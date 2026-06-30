@@ -9,6 +9,7 @@ script = ExtResource("3_dciv3")
 id = "walker_basic"
 display_name = "Walker"
 description_template = "On landing, crawls along terrain away from you (up to 10 voxels), then explodes [[shape]]."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_o58te")
 dig_pattern = ExtResource("2_pknb0")
 behavior = 2

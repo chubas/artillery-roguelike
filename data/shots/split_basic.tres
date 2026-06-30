@@ -9,6 +9,7 @@ script = ExtResource("3_v0nw4")
 id = "split_basic"
 display_name = "Split"
 description_template = "Splits after 2s into five shells (±10°). Each detonates [[shape]]."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_8ljtk")
 dig_pattern = ExtResource("2_aqmfd")
 behavior = 1

@@ -12,11 +12,24 @@ extends Node
 
 func _ready() -> void:
 	for d in ["res://data/elements", "res://data/statuses", "res://data/tile_statuses",
-			"res://data/shots/aoe", "res://data/units", "res://data/cards",
+			"res://data/shots/aoe", "res://data/units", "res://data/cards", "res://data/keywords",
 			"res://data/artifacts/resources", "res://data/stages",
 			"res://data/essences/resources",
 			"res://data/terrain/profiles", "res://data/terrain/features"]:
 		DirAccess.make_dir_recursive_absolute(d)
+
+	# ── Keywords (M41): named mechanics surfaced in hover tooltips ─────────────
+	# `boosted` shares its id with the Boosted status so applying it surfaces the keyword.
+	# `unit` / `shot` are throwaway test keywords proving unit/shot → tooltip mapping.
+	_bake_keyword("boosted", "Boosted",
+			"The unit's next moves spend a Boosted stack instead of an action point.",
+			Color(0.3, 0.8, 0.4))
+	_bake_keyword("unit", "Unit",
+			"Test keyword attached to every unit (M41 mapping check).",
+			Color(0.6, 0.9, 1.0))
+	_bake_keyword("shot", "Shot",
+			"Test keyword attached to every shot (M41 mapping check).",
+			Color(0.95, 0.8, 0.4))
 
 	# ── Unit statuses (leaf — no refs) ────────────────────────────────────────
 	var burn := StatusEffectDef.new()
@@ -296,6 +309,7 @@ func _ready() -> void:
 	boosted_card.magnitude = 2; boosted_card.action_cost = 1
 	boosted_card.faction = Faction.NEUTRAL; boosted_card.rarity = Rarity.COMMON
 	boosted_card.color = Color(0.3, 0.8, 0.4)
+	boosted_card.keywords = ["boosted"]   # M41: hover explains Boosted that this card grants
 	_save(boosted_card, "res://data/cards/boosted_card.tres")
 
 	var mine_card := CardDefinition.new()
@@ -366,7 +380,8 @@ func _ready() -> void:
 	# ── M10: artifacts ─────────────────────────────────────────────────────────
 	_bake_artifact(ArtifactStartBoosted.new(), "Battle Drills",
 			"At the start of the stage, give your units Boosted (3).",
-			"res://data/artifacts/resources/start_boosted.tres", Faction.ARMY)
+			"res://data/artifacts/resources/start_boosted.tres", Faction.ARMY,
+			Rarity.COMMON, ["boosted"])
 
 	# ── M40: artifacts ─────────────────────────────────────────────────────────
 	_bake_artifact(ArtifactLastStand.new(), "Last Stand",
@@ -539,6 +554,7 @@ func _ready() -> void:
 	_save(tp_pit, "res://data/terrain/profiles/pit_crossing.tres")
 
 	print("[bake] all M14 resources written")
+	_tag_test_keywords()
 	_validate_unit_definitions()
 	get_tree().quit()
 
@@ -665,11 +681,13 @@ func _save_player_unit(id: String, dname: String,
 	_save(u, "res://data/units/%s.tres" % id)
 
 func _bake_artifact(a: ArtifactDef, name: String, desc: String, path: String,
-		faction: String = Faction.NEUTRAL, rarity: String = Rarity.COMMON) -> void:
+		faction: String = Faction.NEUTRAL, rarity: String = Rarity.COMMON,
+		keywords: Array = []) -> void:
 	a.artifact_name = name
 	a.description_template = desc
 	a.faction = faction
 	a.rarity = rarity
+	a.keywords.assign(keywords)
 	_save(a, path)
 
 func _bake_essence(e: EssenceDef, name: String, desc: String, slot_cost: int,
@@ -686,6 +704,39 @@ func _save(res: Resource, path: String) -> void:
 		push_error("[bake] FAILED to save %s (err %d)" % [path, err])
 	else:
 		print("[bake] saved ", path)
+
+func _bake_keyword(id: String, dname: String, desc: String, color: Color) -> void:
+	var kw := KeywordDef.new()
+	kw.id = id
+	kw.display_name = dname
+	kw.description_template = desc
+	kw.color = color
+	_save(kw, "res://data/keywords/%s.tres" % id)
+
+# M41 TEST tagging: every unit gets the `unit` keyword and every shot gets the `shot` keyword, to
+# verify keyword→tooltip mapping across all surfaces. Centralized post-pass so we don't touch every
+# construction site; remove this when real keywords replace the test ones. Real keyword assignments
+# (e.g. boosted_card → ["boosted"]) are set at their own construction sites and preserved here.
+func _tag_test_keywords() -> void:
+	for spec in [["res://data/units", "unit"], ["res://data/shots", "shot"]]:
+		var dir_path : String = spec[0]
+		var kw : String = spec[1]
+		var dir := DirAccess.open(dir_path)
+		if dir == null:
+			continue
+		for file in dir.get_files():
+			if not file.ends_with(".tres"):
+				continue
+			var path := "%s/%s" % [dir_path, file]
+			var res := load(path)
+			if res == null or not (res is UnitDefinition or res is ShotDefinition):
+				continue
+			if not res.keywords.has(kw):
+				var arr : Array[String] = []
+				arr.assign(res.keywords)
+				arr.append(kw)
+				res.keywords = arr
+				_save(res, path)
 
 # Build-time guard: every UnitDefinition in res://data/units must carry a positive base_power.
 # A unit left at the 0.0 sentinel (base_power never authored) fails the build loudly. This is the

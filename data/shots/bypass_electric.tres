@@ -8,6 +8,7 @@ script = ExtResource("2_wfuxh")
 id = "bypass_electric"
 display_name = "Drill Electric"
 description_template = "Drills straight through terrain, exploding on the first enemy hit. Shocks on impact; strong vs mechanical."
+keywords = Array[String](["shot"])
 aoe_pattern = ExtResource("1_n88cq")
 action_cost = 3
 bypass_terrain = true

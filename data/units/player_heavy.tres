@@ -13,4 +13,5 @@ max_hp = 9
 base_power = 3.0
 default_shot = ExtResource("2_2lyvg")
 available_shots = Array[ExtResource("1_niskg")]([ExtResource("2_2lyvg")])
+keywords = Array[String](["unit"])
 color = Color(0.25, 0.45, 0.9, 1)

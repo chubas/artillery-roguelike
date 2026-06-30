@@ -69,6 +69,9 @@ func _build() -> void:
 			var row_btn := _make_button(row_text, Callable())
 			row_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			var kw := KeywordRegistry.tooltip(KeywordRegistry.for_run_unit(rus))
+			if kw != "":
+				row_btn.tooltip_text = kw
 			if rus.is_disabled:
 				row_btn.modulate = Color(1, 1, 1, 0.45)
 			var idx := i

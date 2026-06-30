@@ -13,6 +13,7 @@ move_range = 0
 base_power = 3.0
 default_shot = ExtResource("2_jhtk4")
 tags = Array[String](["MECHANICAL"])
+keywords = Array[String](["unit"])
 element_affinities = {
 "electric": 1.5,
 "fire": 0.75

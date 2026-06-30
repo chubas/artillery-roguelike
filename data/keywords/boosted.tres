@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="KeywordDef" format=3]
+
+[ext_resource type="Script" path="res://data/keyword_def.gd" id="1_efby8"]
+
+[resource]
+script = ExtResource("1_efby8")
+id = "boosted"
+display_name = "Boosted"
+description_template = "The unit's next moves spend a Boosted stack instead of an action point."
+color = Color(0.3, 0.8, 0.4, 1)
