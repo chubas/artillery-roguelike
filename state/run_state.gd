@@ -10,7 +10,9 @@ const MAX_SQUAD_CAPACITY := 8
 var squad     : Array[RunUnitState] = []
 var deck      : Array[String] = []      # canonical card list (resource paths) — edited between stages
 var artifacts : Array[String] = []      # active run-level modifiers (resource paths)
-var resources : Dictionary = { "gold": 0, "scrap": 0, "intel": 0, "shards": 0 }
+var resources : Dictionary = { "gold": 0, "scrap": 0, "intel": 0 }   # unused seams (M42: shards→currency)
+# M42: the single run currency (was resources["shards"]). Displayed in UI as "◆ Shards".
+var currency  : int = 0
 var map       : Variant = null          # MapState — placeholder until M14
 var run_meta  : Dictionary = { "seed": 0, "act": 1, "stage_index": 0 }
 # Reward pools (M16): options offered at reward screens. Units/cards repeat OK; artifacts don't.
@@ -19,6 +21,21 @@ var card_pool          : Array[String] = []
 var artifact_pool      : Array[String] = []   # shrinks as artifacts are claimed (no repeats)
 var artifact_seen_set  : Array[String] = []   # M34: offered this cycle (rewards + shop); resets when pool exhausted
 var card_upgrades      : Dictionary   = {}    # card.id → upgrade tier (int); seam for card-shop upgrades
+
+# --- Currency (M42) ------------------------------------------------------------
+## Grant currency (Ore collection, combat clear rewards, refunds).
+func add_currency(n: int) -> void:
+	currency += n
+
+## Spend currency if affordable; returns true on success, leaves it untouched otherwise.
+func spend_currency(n: int) -> bool:
+	if currency < n:
+		return false
+	currency -= n
+	return true
+
+func can_afford(n: int) -> bool:
+	return currency >= n
 
 func to_dict() -> Dictionary:
 	var squad_d : Array = []
@@ -29,6 +46,7 @@ func to_dict() -> Dictionary:
 		"deck": deck.duplicate(),
 		"artifacts": artifacts.duplicate(),
 		"resources": resources.duplicate(),
+		"currency": currency,
 		"run_meta": run_meta.duplicate(),
 		"map": (map as MapState).to_dict() if map is MapState else null,
 		"unit_pool":         unit_pool.duplicate(),
@@ -45,6 +63,8 @@ static func from_dict(d: Dictionary) -> RunState:
 	rs.deck.assign(d.get("deck", []))
 	rs.artifacts.assign(d.get("artifacts", []))
 	rs.resources = (d.get("resources", {}) as Dictionary).duplicate()
+	# M42: currency replaces the old resources["shards"] key; migrate legacy saves.
+	rs.currency = d.get("currency", (d.get("resources", {}) as Dictionary).get("shards", 0))
 	rs.run_meta = (d.get("run_meta", {}) as Dictionary).duplicate()
 	var md = d.get("map", null)
 	rs.map = MapState.from_dict(md) if md is Dictionary else null

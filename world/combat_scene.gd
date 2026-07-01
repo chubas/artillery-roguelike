@@ -58,11 +58,16 @@ func _ready() -> void:
 	if Run.active == null:
 		Run.start_default_run()
 	var squad := CombatBridge.build_squad(Run.active)
+	# M42: Ore drops render above units/deployables — add their layer last (top of draw order).
+	var ore_layer := Node2D.new()
+	ore_layer.name = "OreLayer"
+	add_child(ore_layer)
 	combat.combat_finished.connect(_on_combat_finished)
 	combat.setup(terrain, projectiles, unit_layer, hud, targeting,
 			deployable_layer_back, deployable_layer_front,
-			squad, Run.active.deck, Run.active.artifacts, stage)
+			squad, Run.active.deck, Run.active.artifacts, stage, ore_layer)
 	targeting.setup(terrain, combat.all_units)
+	hud.refresh_currency()   # M42: Run.active is guaranteed set by now
 	_setup_camera()
 	print("[terrain] ", terrain.debug_stats())
 	if Features.sandbox_enabled and OS.get_environment("ARTILLERY_SMOKE") != "1":
@@ -249,6 +254,7 @@ func _smoke_test() -> void:
 	_m39_smoke()
 	_m40_smoke()
 	_m41_smoke()
+	_m42_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1227,39 +1233,39 @@ func _m27_smoke() -> void:
 	print("[smoke] -- M27 map squad bar + repair/retire --")
 	Run.start_default_run()
 	var rs := Run.active
-	print("  shards start=%d (expect 25)" % rs.resources.get("shards", -1))
+	print("  shards start=%d (expect 25)" % rs.currency)
 	rs.squad[0].is_disabled = true
 	rs.squad[0].current_hp = 0
 	print("  used_capacity disabled=%d (expect 4)" % SquadOps.used_capacity(rs))
 	print("  repair ok=%s (expect true)" % SquadOps.repair_unit(rs, 0))
-	print("  shards after repair=%d (expect 20)" % rs.resources.get("shards", -1))
+	print("  shards after repair=%d (expect 20)" % rs.currency)
 	print("  repaired hp=%d disabled=%s (expect full/false)" %
 			[rs.squad[0].current_hp, rs.squad[0].is_disabled])
 	rs.squad[0].is_disabled = true
 	rs.squad[0].current_hp = 0
 	print("  retire disabled ok=%s squad=%d shards=%d cap=%d (expect true/1/22/2)" %
 			[SquadOps.retire_unit(rs, 0), rs.squad.size(),
-			rs.resources.get("shards", -1), SquadOps.used_capacity(rs)])
+			rs.currency, SquadOps.used_capacity(rs)])
 	Run.start_default_run()
 	rs = Run.active
 	print("  retire healthy ok=%s squad=%d shards=%d cap=%d (expect true/1/27/2)" %
 			[SquadOps.retire_unit(rs, 0), rs.squad.size(),
-			rs.resources.get("shards", -1), SquadOps.used_capacity(rs)])
+			rs.currency, SquadOps.used_capacity(rs)])
 	rs.squad[0].is_disabled = true
 	rs.squad[0].current_hp = 0
 	var rs2 := RunState.from_dict(rs.to_dict())
 	print("  rt shards=%d disabled=%s (expect 27/true)" %
-			[rs2.resources.get("shards", -1), rs2.squad[0].is_disabled])
+			[rs2.currency, rs2.squad[0].is_disabled])
 
 func _m21_smoke() -> void:
 	print("[smoke] -- M21 shards + upgrade slots --")
 	Run.start_default_run()
 	var rs := Run.active
-	print("  shards start=%d (expect 25)" % rs.resources.get("shards", -1))
+	print("  shards start=%d (expect 25)" % rs.currency)
 	for u in rs.squad:
 		print("  upgrade_slots %s=%d (expect 2)" % [u.display_name, u.upgrade_slots])
 	var rs2 := RunState.from_dict(rs.to_dict())
-	print("  rt shards=%d (expect 25)" % rs2.resources.get("shards", -1))
+	print("  rt shards=%d (expect 25)" % rs2.currency)
 	print("  rt upgrade_slots=%d (expect 2)" % rs2.squad[0].upgrade_slots)
 
 func _m29_smoke() -> void:
@@ -1328,6 +1334,7 @@ func _setup_terrain() -> void:
 		terrain.load_map(data)
 	else:
 		terrain.generate(seed_val)
+	terrain.scatter_minerals(seed_val)   # M42: pink ore veins over the built terrain
 	renderer.setup(terrain)
 
 func _m32_smoke() -> void:
@@ -1411,7 +1418,7 @@ func _m34_smoke() -> void:
 	print("  after drain: seen_set_reset=%s (expect true)" % str(Run.active.artifact_seen_set.size() < post_drain))
 	# Verify starting shards
 	Run.start_default_run()
-	print("  start_shards=%d (expect 25)" % Run.active.resources.get("shards", 0))
+	print("  start_shards=%d (expect 25)" % Run.active.currency)
 
 func _m35_smoke() -> void:
 	print("[smoke] -- M35 event nodes + extended map --")
@@ -1508,13 +1515,13 @@ func _m36_smoke() -> void:
 	if Run.active.squad.size() >= 2:
 		var src : RunUnitState = Run.active.squad[0]
 		src.equipped_essences = ["res://data/essences/resources/armor_primer.tres"]
-		var pre_shards : int = Run.active.resources.get("shards", 0)
+		var pre_shards : int = Run.active.currency
 		var ok := SquadOps.fuse_units(Run.active, 0, 1)
 		print("  fuse_ok=%s (expect true)" % str(ok))
 		print("  fuse_essence_transferred=%s (expect true)" % str(
 			Run.active.squad[0].equipped_essences.has("res://data/essences/resources/armor_primer.tres")))
 		print("  fuse_shards_granted=%d (expect %d)" % [
-			Run.active.resources.get("shards", 0) - pre_shards, SquadOps.FUSION_REFUND])
+			Run.active.currency - pre_shards, SquadOps.FUSION_REFUND])
 
 func _m37_smoke() -> void:
 	print("[smoke] -- M37 deck viewer + squad viewer --")
@@ -1732,6 +1739,107 @@ func _m41_smoke() -> void:
 
 	# Default zoom QoL constant.
 	print("  default zoom=%.2f (expect 0.83, < 1.0 = zoomed out)" % DEFAULT_ZOOM)
+
+func _m42_smoke() -> void:
+	print("[smoke] -- M42 currency rename --")
+	var rs := RunState.new()
+	rs.add_currency(10)
+	print("  add_currency=%d can_afford(4)=%s spend(4)=%s left=%d (expect 10, true, true, 6)" %
+			[10, str(rs.can_afford(4)), str(rs.spend_currency(4)), rs.currency])
+	print("  spend(99) blocked=%s left=%d (expect false, 6)" % [str(rs.spend_currency(99)), rs.currency])
+	var rt := RunState.from_dict(rs.to_dict())
+	print("  currency round-trip=%d (expect 6)" % rt.currency)
+	var legacy := RunState.from_dict({ "resources": { "shards": 7 } })
+	print("  legacy shards→currency=%d (expect 7)" % legacy.currency)
+
+	print("[smoke] -- M42 mineral tile + Ore drops --")
+	var mt := Tile.new().setup(Tile.TileType.MINERAL, 2, 0)
+	print("  mineral max_hp=%d collapsible=%s (expect 2, true)" % [mt.max_hp, str(mt.collapsible)])
+
+	# scatter_minerals() places mineral patches (earlier smokes regenerate `terrain`, so re-scatter
+	# here to test the function directly on the current terrain).
+	terrain.scatter_minerals(12345, 30)
+	var mineral_tiles := 0
+	for mc in range(terrain.map_width):
+		for mr in range(terrain.map_height):
+			var tt := terrain.get_tile(mc, mr)
+			if tt != null and tt.type == Tile.TileType.MINERAL:
+				mineral_tiles += 1
+	print("  scattered mineral tiles in terrain=%d (expect > 0)" % mineral_tiles)
+
+	var os := OreSystem.new()
+	var layer := Node2D.new()
+	add_child(layer)
+	os.setup(terrain, layer, false)   # no EventBus wiring — isolated
+	# Controlled shaft in column `col`: a floor at row 41, cleared above so Ore falls freely.
+	var col := 25
+	for r in range(30, 41):
+		terrain.set_tile(col, r, null)
+	terrain.set_tile(col, 41, Tile.new().setup(Tile.TileType.SOLID, 99, 0))
+	# Two Ore fall onto the floor and merge into one (values sum) at the resting row (40).
+	os.spawn_at(col, 32)
+	os.spawn_at(col, 35)
+	os.settle_all()
+	print("  fall+merge: ore_count=%d value=%d row=%d (expect 1, 2, 40)" %
+			[os.ore_count(), os._ores[0].value if os.ore_count() > 0 else -1,
+			os._ores[0].vox_position.y if os.ore_count() > 0 else -1])
+
+	# Buried Ore stays: floor below + ceiling above → it rests in its pocket, never rises to surface.
+	os.restore([])
+	terrain.set_tile(col, 44, Tile.new().setup(Tile.TileType.SOLID, 99, 0))   # floor
+	terrain.set_tile(col, 42, Tile.new().setup(Tile.TileType.SOLID, 99, 0))   # ceiling
+	terrain.set_tile(col, 43, null)                                            # pocket
+	os.spawn_at(col, 43)
+	os.settle_all()
+	print("  buried ore stays: row=%d (expect 43, rests on floor, does not rise)" %
+			os._ores[0].vox_position.y)
+	os.restore([])
+
+	# Collection by a player unit awards value × 2 currency.
+	os.spawn_at(col, 40)
+	var u : Unit = combat.player_units[0]
+	var ore_vox : Vector2i = os._ores[0].vox_position
+	var ore_val : int = os._ores[0].value
+	u.set_vox_position(ore_vox)
+	var before : int = Run.active.currency
+	os.try_collect(u)
+	print("  collect: currency +%d (expect %d) ore_count=%d (expect 0)" %
+			[Run.active.currency - before, ore_val * OreSystem.ORE_CURRENCY, os.ore_count()])
+
+	# Below-base rule: an Ore in the voxel directly under the unit's base is reachable.
+	var uh : int = u.definition.height_voxels
+	var pit_vox := Vector2i(u.vox_position.x, u.vox_position.y + uh)   # one row below the base
+	os.spawn_at(pit_vox.x, pit_vox.y)
+	var before2 : int = Run.active.currency
+	os.try_collect(u)
+	print("  below-base collect: currency +%d (expect 2) ore_count=%d (expect 0)" %
+			[Run.active.currency - before2, os.ore_count()])
+	# Two rows below the base is NOT reachable.
+	os.spawn_at(u.vox_position.x, u.vox_position.y + uh + 1)
+	var before3 : int = Run.active.currency
+	os.try_collect(u)
+	print("  two-below not collected: currency +%d (expect 0) ore_count=%d (expect 1)" %
+			[Run.active.currency - before3, os.ore_count()])
+	os.restore([])   # clear before the snapshot test below
+
+	# Snapshot → collect → restore round-trips Ore.
+	os.spawn_at(col, 5); os.settle_all()
+	var snap := os.snapshot()
+	u.set_vox_position(os._ores[0].vox_position)
+	os.try_collect(u)
+	os.restore(snap)
+	print("  snapshot/restore: ore_count=%d (expect 1)" % os.ore_count())
+
+	# Feature flag off disables collection.
+	Features.minerals_enabled = false
+	os.spawn_at(col, 5); os.settle_all()
+	u.set_vox_position(os._ores[os.ore_count() - 1].vox_position)
+	var cur2 : int = Run.active.currency
+	os.try_collect(u)
+	print("  flag off: currency delta=%d (expect 0)" % (Run.active.currency - cur2))
+	Features.minerals_enabled = true
+
+	layer.queue_free()
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

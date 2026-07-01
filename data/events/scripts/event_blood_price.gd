@@ -19,13 +19,13 @@ func choices(rs: RunState) -> Array[Dictionary]:
 
 func resolve(choice_index: int, rs: RunState) -> void:
 	if choice_index == 0:
-		rs.resources["shards"] = rs.resources.get("shards", 0) + 10
+		rs.add_currency(10)
 	else:
 		var target := _pick_sacrifice_target(rs)
 		if target == null or target.current_hp <= 3:
 			return
 		target.current_hp -= 3
-		rs.resources["shards"] = rs.resources.get("shards", 0) + 20
+		rs.add_currency(20)
 
 # Returns the alive unit with the highest current HP (not disabled).
 func _pick_sacrifice_target(rs: RunState) -> RunUnitState:

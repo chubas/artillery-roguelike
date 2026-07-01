@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-06-30 M41)
+## Current state (2026-06-30 M42)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -52,7 +52,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   **M38 (Unit Weight Classes: `UnitDefinition.weight` integer field replaces `climb_max` — 0=weightless, 1=light, 2=medium, 3=heavy; `UnitMovement.free_climb_for_weight()` and `max_climb_for_weight()` static helpers; `resolve_move()` extended to loop through 1..max_climb voxels finding lowest accessible ledge; `CombatManager._move_ap_cost()` helper computes 1 or 2 AP based on climb height vs free-climb threshold; `try_move()` refactored to separate AP calculation from token handling — token covers 1 AP, extended climbs still deduct remainder from action pool; all current units baked at weight=2 (medium) with light/heavy candidate comments; `Features.weight_mobility_enabled` kill switch)**,
   **M39 (Unified damage formula: `DamageResolver.compute_base(attacker, shot, context) -> float` is the single entry point — formula is `(attack + combat_flat + conditional_bonus) × permanent_mult × combat_mult`; single `floor()` at AoE application, no min-1; `ShotDefinition.strength` and `strength_mult` removed (shots carry AoE pattern + element only); `UnitDefinition.base_power` removed; `Unit.power` renamed `combat_mult`, `Unit.attack_modifier` renamed `combat_flat`; `RunUnitState.permanent_mult` field added with serialization; new `ShotContext` scaffolding class for future conditional bonuses; `ShotDefinition.conditional_bonus: Dictionary` empty on all current shots; `AoEResolver._zone_damage()` returns float (no rounding/min), `_calc_damage()` renamed `_calc_affinity()` returns mult only, final damage is `int(floor(zone_dmg × affinity))`; `Salvo.strength` changed to float; `player_split` baked at attack=1 (multishot unit); `★ N` attack display in UnitInspector HUD; `Features.power_formula_enabled` kill switch)**,
   **M40 (Source-attributed power modifiers: replaces M39's three-field scheme (`attack`/`combat_flat`/`combat_mult`) and `RunUnitState.permanent_mult`/`bonus_attack` with `base_power` + a list of `PowerMod` objects; new `systems/power_mod.gd` (`source`/`label`/`op` ADD|MULT/`value`/`tier` PERMANENT|COMBAT/optional `condition: Callable` compute-time predicate) and `systems/power_calculator.gd` (two-tier fold `permanent = max(0,(base+Σadd)×Πmult)` then `combat = max(0,(permanent+Σadd)×Πmult)`, clamped ≥0 at both tiers; `effective_attack`/`effective_attack_f`/`card_attack`/`breakdown`); `Unit.power_mods` with `add_power_mod`/`adjust_power_mod`/`remove_power_mod`/`attack_value`; permanent mods serialized on `RunUnitState.power_mods` (legacy `bonus_attack` migrated to a permanent ADD mod, `permanent_mult` dropped); `UnitDefinition.attack` removed (base_power is the printed number: 3 standard / 10 Drill / 1 Splitter); `DamageResolver.compute_base` reads `PowerCalculator.effective_attack_f`; `enemy_debuff` artifact migrated to an accumulating −3 COMBAT ADD mod; new `ArtifactLastStand` (×1.5 COMBAT MULT gated by a sole-survivor predicate) validates the conditional path; HUD inspector shows `★ N` plus a per-mod breakdown; flight-time `modify_projectile_strength` hook widened to float; `Features.power_mods_enabled` kill switch)**,
-  **M41 (Keyword system + hover tooltips: `KeywordDef` resource (`data/keyword_def.gd`) baked to `data/keywords/` — `boosted` real keyword + `unit`/`shot` test keywords; `KeywordRegistry` static lazy registry (`systems/keyword_registry.gd`) with collectors `for_unit`/`for_definition`/`for_run_unit`/`for_shot`/`for_card` and `tooltip(ids)` formatter; status→keyword link by shared id so the Boosted status surfaces the `boosted` keyword; `keywords: Array[String]` on UnitDefinition/ShotDefinition/CardDefinition, bake tags all units `["unit"]` + all shots `["shot"]` via `_tag_test_keywords()`, Overdrive card `["boosted"]`; built-in `tooltip_text` tooltips on combat hand cards, combat unit inspector (`_get_tooltip` live recompute), reward previews, and Deck/Squad viewer rows; shared `PatternGlyph` (`ui/pattern_glyph.gd`) extracted from UnitInspector; `Features.keywords_enabled` gate; QoL — combat `DEFAULT_ZOOM=0.83` set in `_ready`, unit reward preview shows shot pattern glyph + description)**.
+  **M41 (Keyword system + hover tooltips: `KeywordDef` resource (`data/keyword_def.gd`) baked to `data/keywords/` — `boosted` real keyword + `unit`/`shot` test keywords; `KeywordRegistry` static lazy registry (`systems/keyword_registry.gd`) with collectors `for_unit`/`for_definition`/`for_run_unit`/`for_shot`/`for_card` and `tooltip(ids)` formatter; status→keyword link by shared id so the Boosted status surfaces the `boosted` keyword; `keywords: Array[String]` on UnitDefinition/ShotDefinition/CardDefinition, bake tags all units `["unit"]` + all shots `["shot"]` via `_tag_test_keywords()`, Overdrive card `["boosted"]`; built-in `tooltip_text` tooltips on combat hand cards, combat unit inspector (`_get_tooltip` live recompute), reward previews, and Deck/Squad viewer rows; shared `PatternGlyph` (`ui/pattern_glyph.gd`) extracted from UnitInspector; `Features.keywords_enabled` gate; QoL — combat `DEFAULT_ZOOM=0.83` set in `_ready`, unit reward preview shows shot pattern glyph + description)**,
+  **M42 (Mineral terrain + Ore drops + currency rename: run currency moved from `RunState.resources["shards"]` to `RunState.currency` with `add_currency`/`spend_currency`/`can_afford` (UI keeps "◆ Shards", combat HUD readout added, `from_dict` migrates legacy saves); new `Tile.TileType.MINERAL` (durability 2, collapsible, standable via broadened `is_solid`), pink `COLOR_MINERAL` in `chunk.gd`; `TerrainManager.scatter_minerals(seed)` clustered patches (some surface-exposed) run in `_setup_terrain`, gated by `Features.minerals_enabled`; breaking a MINERAL emits `EventBus.mineral_destroyed` → `OreSystem` (`systems/ore_system.gd`) spawns an `Ore` (`world/ore.gd`, floating pink circle above units in a new OreLayer); on `aoe_resolved` ores settle to `topmost_blocking_row-1` and merge per column (values sum); player unit stepping onto an Ore collects `value×2` currency via `try_collect` in `try_move`, `EventBus.ore_collected`; move-undo snapshots ore set + currency and restores both; `ORE_CURRENCY=2`)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.
@@ -64,6 +65,24 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-06-30 — Milestone 42: Mineral Terrain + Ore Drops + Currency Rename
+
+Adds a mine-and-collect economy and renames the run currency. Full design in
+[docs/planning/milestone-42-plan.md](docs/planning/milestone-42-plan.md).
+
+- **Currency rename:** `RunState.currency: int` + `add_currency`/`spend_currency`/`can_afford`
+  replaces `resources["shards"]` at all ~15 sites (`from_dict` migrates legacy saves). UI keeps
+  "◆ Shards" wording; a live readout was added to the combat HUD.
+- **MINERAL terrain:** new `Tile.TileType.MINERAL` (durability 2, collapsible, standable), pink in
+  `chunk.gd`; `TerrainManager.scatter_minerals(seed)` places small clustered patches (some exposed)
+  after terrain build in `_setup_terrain`, gated by `Features.minerals_enabled`.
+- **Ore drops:** breaking a MINERAL vein emits `EventBus.mineral_destroyed` → `OreSystem` spawns an
+  `Ore` (floating pink circle, high z-index above units/deployables). On `aoe_resolved` (post-collapse)
+  ores settle to the surface and **merge per column** (values sum). A stepping player unit collects
+  (`try_collect` in `try_move`) for `value × 2` currency (`EventBus.ore_collected`). Move-undo
+  snapshots the ore set + currency and restores both.
+- **New files:** `world/ore.gd`, `systems/ore_system.gd`. **Smoke:** `_m42_smoke()`.
 
 ## 2026-06-30 — Milestone 41: Keyword System + Tooltips
 

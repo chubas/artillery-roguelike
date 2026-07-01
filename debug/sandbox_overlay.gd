@@ -296,7 +296,7 @@ func _build_panel() -> void:
 	give_btn.pressed.connect(func() -> void:
 		var amt := int(shards_field.text) if shards_field.text.is_valid_int() else 0
 		if amt > 0 and Run.active != null:
-			Run.active.resources["shards"] += amt)
+			Run.active.add_currency(amt))
 	shards_row.add_child(give_btn)
 
 	# ── Repair (M36) ──

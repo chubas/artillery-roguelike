@@ -58,6 +58,10 @@ var _checkpoint_actions_left : int = 0
 # M10: per-unit snapshot of consumed-by-move effect stacks (Boosted) so undo refunds them.
 # Unit -> { effect_id: { "def": StatusEffectDef, "stacks": int } }
 var _checkpoint_move_tokens : Dictionary = {}
+# M42: Ore snapshot + run currency at the checkpoint, so undoing a move that collected Ore
+# restores both the drop and the currency.
+var _checkpoint_ores : Array = []
+var _checkpoint_currency : int = 0
 # A free (Boosted) move spends no AP, so undo can't infer "something changed" from the action
 # count alone — this flag tracks any undoable move since the last checkpoint.
 var _dirty_since_checkpoint : bool = false
@@ -87,6 +91,7 @@ var _deployable_layer_back : Node2D
 var _deployable_layer_front : Node2D
 var _hud : HUD
 var _targeting : TargetingUI
+var _ore : OreSystem   # M42: collectible Ore drops
 
 # Placement drop queue (drop-queue redesign): units start invisible/unpositioned; the player
 # places them one at a time by hovering a column indicator and clicking.
@@ -97,7 +102,7 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 		unit_layer: Node2D, hud: HUD, targeting: TargetingUI,
 		deployable_layer_back: Node2D = null, deployable_layer_front: Node2D = null,
 		squad: Array = [], deck_source: Array = [], artifact_paths: Array = [],
-		stage: StageDescriptor = null) -> void:
+		stage: StageDescriptor = null, ore_layer: Node2D = null) -> void:
 	_terrain = terrain
 	_projectiles = projectiles
 	_unit_layer = unit_layer
@@ -106,6 +111,9 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	_deployable_layer_front = deployable_layer_front
 	_hud = hud
 	_targeting = targeting
+	# M42: Ore system settles/collects mineral drops; it self-subscribes to EventBus.
+	_ore = OreSystem.new()
+	_ore.setup(terrain, ore_layer)
 	_deck_source = deck_source        # RunState.deck (card paths); seeded into _deck below
 	_artifact_paths = artifact_paths  # RunState.artifacts (paths); loaded in _init_artifacts
 	_hud.end_turn_pressed.connect(end_player_turn)
@@ -754,6 +762,8 @@ func try_move(unit: Unit, direction: int) -> void:
 	if actions_left < ap_from_pool:
 		return
 	unit.set_vox_position(dest)
+	if _ore != null:
+		_ore.try_collect(unit)   # M42: stepping onto an Ore collects it
 	_recompute_stack_offsets()
 	unit.moved_this_turn = true
 	unit.actions_spent_moving += 1
@@ -794,6 +804,8 @@ func _save_checkpoint() -> void:
 	_checkpoint_positions.clear()
 	_checkpoint_move_tokens.clear()
 	_checkpoint_actions_left = actions_left
+	_checkpoint_ores = _ore.snapshot() if _ore != null else []   # M42
+	_checkpoint_currency = Run.active.currency if Run.active != null else 0
 	_dirty_since_checkpoint = false
 	for u in player_units:
 		if u.hp > 0 and not u.is_done:
@@ -819,6 +831,12 @@ func try_undo() -> void:
 			u.actions_spent_moving = 0
 			_restore_move_tokens(u)
 			_settle_unit(u)
+	# M42: restore any Ore collected since the checkpoint, and refund the currency.
+	if _ore != null:
+		_ore.restore(_checkpoint_ores)
+	if Run.active != null:
+		Run.active.currency = _checkpoint_currency
+	EventBus.ore_collected.emit(0)   # refresh HUD currency readout
 	actions_left = _checkpoint_actions_left
 	_dirty_since_checkpoint = false
 	action_bar_changed.emit(actions_left, _turn_max_actions)

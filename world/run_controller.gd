@@ -131,7 +131,7 @@ func _enter_combat(node: MapNode) -> void:
 func _on_combat_exited(outcome: String) -> void:
 	var any_alive := Run.active.squad.any(func(u): return not u.is_disabled)
 	if outcome == "cleared" and any_alive:
-		Run.active.resources["shards"] += 20
+		Run.active.add_currency(20)
 		_start_reward_sequence(true)   # rewards before advancing the map
 	else:
 		_show_map_end("RUN OVER")

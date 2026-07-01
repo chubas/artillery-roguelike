@@ -23,6 +23,7 @@ var _deck_btn : Button        # M11/M37: draw-pile/discard counts; clickable →
 var _inspector     : UnitInspector
 var _dep_inspector : DeployableInspector   # M28
 var _wind_indicator : WindIndicator
+var _currency_label : Label   # M42: in-combat "◆ Shards" readout
 var _artifact_bar : HBoxContainer
 var _placement_box : VBoxContainer   # M15: instruction + Start Battle, shown only in placement
 var _placement_hint : Label          # updated each frame with the current queue-front unit name
@@ -40,6 +41,12 @@ func _build_top_left() -> void:
 	box.position = Vector2(12, 10)
 	box.add_theme_constant_override("separation", 4)
 	add_child(box)
+	# M42: currency counter at the top of the bar, mirroring the world-map "◆ Shards" readout.
+	_currency_label = _make_label(14)
+	_currency_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.35))
+	box.add_child(_currency_label)
+	refresh_currency()
+	EventBus.ore_collected.connect(func(_v): refresh_currency())
 	_angle_label = _make_label(16)
 	box.add_child(_angle_label)
 	_power_label = _make_label(13)
@@ -121,6 +128,10 @@ func _build_top_right() -> void:
 	_wind_indicator = WindIndicator.new()
 	_wind_indicator.custom_minimum_size = Vector2(0, 34)
 	box.add_child(_wind_indicator)
+
+func refresh_currency() -> void:
+	if _currency_label != null:
+		_currency_label.text = "◆ Shards: %d" % (Run.active.currency if Run.active != null else 0)
 
 # Unit Inspector (M5 polish): bottom-right panel showing whichever unit (ally or enemy)
 # is currently inspected — name, HP/shield, active shot + description, status effects.

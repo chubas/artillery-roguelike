@@ -1,7 +1,7 @@
 # Per-voxel data object (terrain spec §4.1). VOID voxels are null in the grid — no Tile.
 class_name Tile
 
-enum TileType { SOLID, RUBBLE, LIQUID, LAVA }      # LAVA: visual-only, no mechanics (M33)
+enum TileType { SOLID, RUBBLE, LIQUID, LAVA, MINERAL }   # LAVA: visual-only (M33). MINERAL: breakable ore vein (M42)
 enum Element  { NONE, FIRE, ELECTRIC, EXPLOSIVE, CORROSIVE }  # schema only in M1
 
 # Flags bitmask (terrain spec §4.2) — none are set on any tile in M1.
@@ -57,6 +57,9 @@ func setup(t: TileType, hp_val: int, var_idx: int) -> Tile:
 	elif t == TileType.LAVA:
 		status_tags = ["LAVA"]
 		flags |= FLAG_PASSABLE   # no physics interaction; purely cosmetic
+	elif t == TileType.MINERAL:
+		status_tags = ["MINERAL"]   # M42: breakable ore vein; falls with terrain, drops Ore on destroy
+		collapsible = true
 	else:
 		status_tags = []
 	return self

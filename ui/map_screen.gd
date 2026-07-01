@@ -199,7 +199,7 @@ func _on_squad_viewer_pressed() -> void:
 	v.retired.connect(func() -> void: v.queue_free(); _refresh())
 
 func _refresh() -> void:
-	_shards_label.text = "◆ Shards: %d" % Run.active.resources.get("shards", 0)
+	_shards_label.text = "◆ Shards: %d" % Run.active.currency
 	_capacity_label.text = "Squad Capacity: %d / %d" % [
 			SquadOps.used_capacity(Run.active), RunState.MAX_SQUAD_CAPACITY]
 	if _deck_btn != null:

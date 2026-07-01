@@ -44,7 +44,8 @@ func get_tile(col: int, row: int) -> Tile:
 
 func is_solid(col: int, row: int) -> bool:
 	var t := get_tile(col, row)
-	return t != null and t.type == Tile.TileType.SOLID
+	# M42: MINERAL veins are standable/support ground like SOLID (they just drop Ore when broken).
+	return t != null and (t.type == Tile.TileType.SOLID or t.type == Tile.TileType.MINERAL)
 
 func is_blocked(col: int, row: int) -> bool:
 	# Blocked = exists and not passable. In M1 any tile blocks (no flags set).
@@ -77,6 +78,32 @@ func mark_tile_dirty(col: int, row: int) -> void:
 	if _in_bounds(col, row):
 		tile_changed.emit(col, row)
 
+## M42: convert small clustered blobs of destructible SOLID tiles into MINERAL veins (durability 2),
+## deterministic from `seed`. Prefers near-surface placement and guarantees a fraction are exposed on
+## the surface. Called once after terrain build in combat_scene._setup_terrain (both gen paths).
+func scatter_minerals(seed: int, patch_count: int = 10) -> void:
+	if not Features.minerals_enabled:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed ^ 0x0DE501   # distinct stream from terrain gen
+	for i in range(patch_count):
+		var col := rng.randi_range(2, map_width - 3)
+		var surf := get_surface_row(col)
+		if surf < 0:
+			continue
+		# Anchor: ~40% exposed at the surface, the rest buried 1–5 voxels down.
+		var anchor_row : int = surf if rng.randf() < 0.4 else clampi(surf + rng.randi_range(1, 5), 0, map_height - 1)
+		var blob := rng.randi_range(2, 4)
+		for _b in range(blob):
+			var c := col + rng.randi_range(-1, 1)
+			var r := anchor_row + rng.randi_range(-1, 1)
+			var t := get_tile(c, r)
+			# Only convert plain destructible SOLID ground — never platform/reinforced/void.
+			if t == null or t.type != Tile.TileType.SOLID or t.has_flag(Tile.FLAG_INDESTRUCTIBLE):
+				continue
+			_grid[_idx(c, r)] = Tile.new().setup(Tile.TileType.MINERAL, 2, 0)
+			tile_changed.emit(c, r)
+
 func damage_tile(col: int, row: int, dmg: int) -> void:
 	var tile := get_tile(col, row)
 	if tile == null:
@@ -97,6 +124,9 @@ func _destroy_tile(col: int, row: int, tile: Tile) -> void:
 	_grid[_idx(col, row)] = null
 	tile_destroyed.emit(col, row, tile.type)
 	EventBus.tile_destroyed.emit(col, row, tile.type)
+	# M42: a broken MINERAL vein drops a collectible Ore at this voxel (OreSystem listens).
+	if tile.type == Tile.TileType.MINERAL:
+		EventBus.mineral_destroyed.emit(col, row)
 	tile_changed.emit(col, row)
 	queue_collapse(col)
 

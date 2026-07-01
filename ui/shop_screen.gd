@@ -153,7 +153,7 @@ func _make_item_row(path: String, price: int, label_text: String) -> HBoxContain
 	var btn := Button.new()
 	btn.text = "Buy (%d ◆)" % price
 	btn.focus_mode = Control.FOCUS_NONE
-	btn.disabled = _bought.has(path) or Run.active.resources.get("shards", 0) < price
+	btn.disabled = _bought.has(path) or not Run.active.can_afford(price)
 	var p := path
 	var pr := price
 	btn.pressed.connect(func() -> void: _on_buy(p, pr, btn))
@@ -176,9 +176,9 @@ func _item_label_for(path: String) -> String:
 # ── Actions ────────────────────────────────────────────────────────────────────
 
 func _on_buy(path: String, price: int, btn: Button) -> void:
-	if Run.active.resources.get("shards", 0) < price or _bought.has(path):
+	if not Run.active.can_afford(price) or _bought.has(path):
 		return
-	Run.active.resources["shards"] -= price
+	Run.active.spend_currency(price)
 	_bought[path] = true
 
 	var res := load(path)
@@ -197,9 +197,9 @@ func _on_buy(path: String, price: int, btn: Button) -> void:
 
 func _on_reroll() -> void:
 	var cost := _reroll_cost
-	if Run.active.resources.get("shards", 0) < cost:
+	if not Run.active.can_afford(cost):
 		return
-	Run.active.resources["shards"] -= cost
+	Run.active.spend_currency(cost)
 	_reroll_cost += REROLL_BASE
 
 	# Re-sample: cards and unit allow repeats; artifacts respect cycling.
@@ -212,13 +212,13 @@ func _on_reroll() -> void:
 	_refresh_header()
 
 func _refresh_header() -> void:
-	_shards_label.text = "◆ Shards: %d" % Run.active.resources.get("shards", 0)
+	_shards_label.text = "◆ Shards: %d" % Run.active.currency
 	if _reroll_btn != null:
 		_reroll_btn.text = "Re-roll (%d ◆)" % _reroll_cost
-		_reroll_btn.disabled = Run.active.resources.get("shards", 0) < _reroll_cost
+		_reroll_btn.disabled = not Run.active.can_afford(_reroll_cost)
 
 func _refresh_buy_buttons() -> void:
-	var shards : int = Run.active.resources.get("shards", 0)
+	var shards : int = Run.active.currency
 	for col in _items_root.get_children():
 		for row in col.get_children():
 			if row.has_meta("buy_btn"):

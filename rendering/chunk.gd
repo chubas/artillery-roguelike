@@ -16,6 +16,7 @@ const COLOR_REINFORCED := [
 ]
 const COLOR_PLATFORM := Color8(70, 76, 88)
 const COLOR_LAVA     := Color8(220, 80, 20)
+const COLOR_MINERAL  := Color8(210, 110, 175)   # M42: pink ore vein
 
 var cx : int = 0
 var cy : int = 0
@@ -47,6 +48,13 @@ func _draw() -> void:
 				base = COLOR_LAVA
 				draw_rect(rect, base)
 				draw_rect(rect, base.darkened(0.3), false, 1.0)
+				continue
+			if tile.type == Tile.TileType.MINERAL:
+				base = COLOR_MINERAL
+				draw_rect(rect, base)
+				draw_rect(rect, base.darkened(0.3), false, 1.0)
+				_draw_cracks(rect, tile.damage_state())
+				_draw_hp_label(rect, tile)
 				continue
 			if tile.has_flag(Tile.FLAG_INDESTRUCTIBLE):
 				base = COLOR_PLATFORM

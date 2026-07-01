@@ -35,6 +35,9 @@ signal tile_status_applied(col: int, row: int, status_id: String)
 signal tile_status_removed(col: int, row: int, status_id: String)
 signal tile_status_ticked(col: int, row: int, status_id: String)
 signal terrain_crushed(col: int, row: int, damage: int, victims: Array)
+# ── Mineral / Ore signals (M42) ───────────────────────────────────────────────
+signal mineral_destroyed(col: int, row: int)   # a MINERAL vein broke → spawn an Ore here
+signal ore_collected(value: int)               # a unit collected an Ore worth `value` source voxels
 
 # ── Projectile signals ───────────────────────────────────────────────────────
 signal projectile_impact(world_pos: Vector2, impact_voxel: Vector2i, element: String)

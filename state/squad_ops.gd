@@ -15,7 +15,7 @@ static func used_capacity(rs: RunState) -> int:
 	return total
 
 static func can_repair(rs: RunState, unit: RunUnitState) -> bool:
-	return unit.is_disabled and rs.resources.get("shards", 0) >= REPAIR_COST
+	return unit.is_disabled and rs.can_afford(REPAIR_COST)
 
 static func can_retire(_unit: RunUnitState) -> bool:
 	return true
@@ -26,7 +26,7 @@ static func repair_unit(rs: RunState, index: int) -> bool:
 	var unit : RunUnitState = rs.squad[index]
 	if not can_repair(rs, unit):
 		return false
-	rs.resources["shards"] = rs.resources.get("shards", 0) - REPAIR_COST
+	rs.spend_currency(REPAIR_COST)
 	unit.is_disabled = false
 	unit.current_hp = unit.max_hp
 	return true
@@ -35,7 +35,7 @@ static func retire_unit(rs: RunState, index: int) -> bool:
 	if index < 0 or index >= rs.squad.size():
 		return false
 	rs.squad.remove_at(index)
-	rs.resources["shards"] = rs.resources.get("shards", 0) + RETIRE_REFUND
+	rs.add_currency(RETIRE_REFUND)
 	return true
 
 ## M36: fuse source unit into target — transfers equipped_essences, removes source, grants FUSION_REFUND shards.
@@ -48,5 +48,5 @@ static func fuse_units(rs: RunState, source_idx: int, target_idx: int) -> bool:
 	var tgt : RunUnitState = rs.squad[target_idx]
 	tgt.equipped_essences.append_array(src.equipped_essences)
 	rs.squad.remove_at(source_idx)
-	rs.resources["shards"] = rs.resources.get("shards", 0) + FUSION_REFUND
+	rs.add_currency(FUSION_REFUND)
 	return true
