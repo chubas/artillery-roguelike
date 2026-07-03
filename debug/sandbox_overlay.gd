@@ -37,6 +37,8 @@ var _tv_profile_option : OptionButton = null
 var _tv_minimap        : Control      = null
 var _tv_profiles       : Array        = []
 var _tv_preview_data   : MapData      = null
+var _tv_anchors_check  : CheckBox     = null
+var _tv_valid_lbl      : Label        = null
 
 # Rounds cheat control
 var _rounds_spin   : SpinBox = null
@@ -253,6 +255,17 @@ func _build_panel() -> void:
 	var regen_btn := _make_btn("Regenerate")
 	regen_btn.pressed.connect(_regenerate_terrain)
 	col.add_child(regen_btn)
+	_tv_anchors_check = CheckBox.new()
+	_tv_anchors_check.text = "Anchors"
+	_tv_anchors_check.button_pressed = true
+	_tv_anchors_check.add_theme_font_size_override("font_size", 10)
+	_tv_anchors_check.focus_mode = Control.FOCUS_NONE
+	_tv_anchors_check.toggled.connect(func(_on: bool) -> void:
+		if _tv_minimap != null:
+			_tv_minimap.queue_redraw())
+	col.add_child(_tv_anchors_check)
+	_tv_valid_lbl = _make_label("gen: —")
+	col.add_child(_tv_valid_lbl)
 	var repos_btn := _make_btn("Reposition Units")
 	repos_btn.pressed.connect(_reposition_units)
 	col.add_child(repos_btn)
@@ -393,6 +406,29 @@ class _TerrainMinimap extends Control:
 					Rect2(col * cw, row * ch, maxf(cw, 1.0), maxf(ch, 1.0)),
 					_origin_color(cell.get("gen_origin", 0))
 				)
+		if overlay._tv_anchors_check != null and overlay._tv_anchors_check.button_pressed:
+			_draw_anchors(data, cw, ch)
+
+	# M43: FeatureInstance overlay — footprint outlines, exact anchors as dots + labels,
+	# zone anchors as outlined rects.
+	func _draw_anchors(data: MapData, cw: float, ch: float) -> void:
+		var font := ThemeDB.fallback_font
+		for inst in data.features:
+			var f : Rect2i = inst.footprint
+			draw_rect(Rect2(f.position.x * cw, f.position.y * ch,
+					f.size.x * cw, f.size.y * ch), Color(1, 1, 1, 0.5), false, 1.0)
+			for name in inst.anchors:
+				var value = inst.anchors[name]
+				if value is Rect2i:
+					var z : Rect2i = value
+					draw_rect(Rect2(z.position.x * cw, z.position.y * ch,
+							z.size.x * cw, z.size.y * ch), Color(1.0, 0.6, 0.1, 0.9), false, 1.0)
+				else:
+					var v : Vector2i = value
+					var p := Vector2((v.x + 0.5) * cw, (v.y + 0.5) * ch)
+					draw_circle(p, 2.0, Color(1.0, 0.3, 0.3))
+					draw_string(font, p + Vector2(3, 2), String(name),
+							HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.85))
 
 	func _origin_color(origin: int) -> Color:
 		match origin:
@@ -402,6 +438,7 @@ class _TerrainMinimap extends Control:
 			MapData.GenOrigin.SLOT_RIGHT:     return Color(0.3,  0.85, 0.2)
 			MapData.GenOrigin.BACKGROUND:     return Color(0.55, 0.3,  0.85)
 			MapData.GenOrigin.CRYSTAL:        return Color(0.2,  0.95, 0.95)
+			MapData.GenOrigin.SEAM:           return Color(0.75, 0.55, 0.35)
 			_:                                return Color(0.35, 0.35, 0.35)
 
 # ── Terrain regeneration ─────────────────────────────────────────────────────
@@ -415,9 +452,18 @@ func _regenerate_terrain() -> void:
 		var data := TerrainGenerator.generate(profile, seed_val)
 		_tv_preview_data = data
 		_terrain.load_map(data)
+		if _tv_valid_lbl != null:
+			if data.validation_failure == "":
+				_tv_valid_lbl.text = "gen: attempt %d/%d OK" \
+						% [data.attempts_used, TerrainGenerator.MAX_ATTEMPTS]
+			else:
+				_tv_valid_lbl.text = "gen: FAILED (seed %d)\n%s" \
+						% [seed_val, data.validation_failure]
 	else:
 		_terrain.generate(seed_val)
 		_tv_preview_data = null
+		if _tv_valid_lbl != null:
+			_tv_valid_lbl.text = "gen: legacy noise"
 	_renderer.mark_all_dirty()
 	if _tv_minimap != null:
 		_tv_minimap.queue_redraw()

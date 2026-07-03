@@ -3,7 +3,7 @@ extends Resource
 
 enum GenOrigin {
 	NOISE_FILL = 0, SPAWN_PLATFORM,
-	SLOT_LEFT, SLOT_CENTER, SLOT_RIGHT, BACKGROUND, CRYSTAL
+	SLOT_LEFT, SLOT_CENTER, SLOT_RIGHT, BACKGROUND, CRYSTAL, SEAM
 }
 
 @export var width  : int = 120
@@ -12,6 +12,15 @@ enum GenOrigin {
 ## Dict keys: type(int), hp(int), max_hp(int), flags(int),
 ##             collapsible(bool), status_tags(Array), variant(int), gen_origin(int)
 @export var cells  : Array = []
+
+## FeatureInstance records exported by the placer pass (M43). Runtime-only — MapData is
+## never serialized to disk, so these plain RefCounted objects are safe to carry here.
+var features : Array = []
+
+## Generation diagnostics (M43 validation pass): which attempt produced this map and,
+## when reroll was exhausted, the last failure reason ("" = validated clean).
+var attempts_used      : int = 1
+var validation_failure : String = ""
 
 func idx(col: int, row: int) -> int:
 	return row * width + col

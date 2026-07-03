@@ -1,8 +1,43 @@
+# Profile-driven terrain generation (M32, rebuilt in M43 to the v0.2 pipeline):
+#   A  base fill + noise surface everywhere (spawn platform stamped over it)
+#   B  skeletal features via placer modules (terrain/placers/*), anchored to the REAL
+#      surface, each exporting a FeatureInstance (footprint / anchors / edge specs)
+#   C  seam pass — reconciles feature edges with the surrounding terrain (SeamPass)
+#   D  HP sprinkle + visual variants (never mutates feature-tile durability)
+#   E  validation + bounded seed-reroll (MapValidator)
+# Stages C and E are gated by Features.terrain_v2_enabled.
 class_name TerrainGenerator
+
+const MAX_ATTEMPTS := 5
+
+## FeatureType -> placer script. Adding a construct = new placer + one line here.
+const PLACERS := {
+	FeatureDefinition.FeatureType.RIDGE:           preload("res://terrain/placers/ridge_placer.gd"),
+	FeatureDefinition.FeatureType.BUNKER:          preload("res://terrain/placers/bunker_placer.gd"),
+	FeatureDefinition.FeatureType.PIT:             preload("res://terrain/placers/pit_placer.gd"),
+	FeatureDefinition.FeatureType.PILLAR:          preload("res://terrain/placers/pillar_placer.gd"),
+	FeatureDefinition.FeatureType.CRYSTAL_DEPOSIT: preload("res://terrain/placers/crystal_placer.gd"),
+}
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 static func generate(profile: TerrainProfile, seed: int) -> MapData:
+	var data : MapData = null
+	var max_attempts := MAX_ATTEMPTS if Features.terrain_v2_enabled else 1
+	for attempt in range(max_attempts):
+		var attempt_seed := seed if attempt == 0 else hash([seed, attempt])
+		data = _generate_once(profile, attempt_seed)
+		data.attempts_used = attempt + 1
+		if not Features.terrain_v2_enabled:
+			return data
+		data.validation_failure = MapValidator.validate(data, profile)
+		if data.validation_failure == "":
+			return data
+	push_warning("TerrainGenerator: validation exhausted after %d attempts (seed %d): %s"
+			% [data.attempts_used, seed, data.validation_failure])
+	return data
+
+static func _generate_once(profile: TerrainProfile, seed: int) -> MapData:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 
@@ -12,51 +47,38 @@ static func generate(profile: TerrainProfile, seed: int) -> MapData:
 	data.cells.resize(data.width * data.height)
 	data.cells.fill(null)
 
-	_pass1_features(data, profile, rng)
-	_pass1_spawn_platform(data)
-	_pass2_base_and_noise(data, profile, rng)
-	_pass3_hp(data, rng)
-	_pass4_variants(data, rng)
+	_pass_a_base_and_noise(data, profile, rng)
+	_pass_a_spawn_platform(data)
+	_pass_b_features(data, profile, rng)
+	if Features.terrain_v2_enabled:
+		SeamPass.apply(data)
+	_pass_d_hp(data, rng)
+	_pass_d_variants(data, rng)
 
 	return data
 
-# ── Pass 1 — skeletal features ────────────────────────────────────────────────
+# ── Stage A — base fill + noise surface (all columns) ────────────────────────
 
-static func _pass1_features(data: MapData, profile: TerrainProfile,
+static func _pass_a_base_and_noise(data: MapData, profile: TerrainProfile,
 		rng: RandomNumberGenerator) -> void:
-	var slots := [
-		[profile.left_slot,   MapData.GenOrigin.SLOT_LEFT,   int(0.25 * data.width)],
-		[profile.center_slot, MapData.GenOrigin.SLOT_CENTER, int(0.50 * data.width)],
-		[profile.right_slot,  MapData.GenOrigin.SLOT_RIGHT,  int(0.75 * data.width)],
-	]
-	for entry in slots:
-		var def : FeatureDefinition = entry[0]
-		var origin : int            = entry[1]
-		var slot_col : int          = entry[2]
-		if def == null:
-			continue
-		match def.type:
-			FeatureDefinition.FeatureType.RIDGE:
-				_place_ridge(data, slot_col, def, origin, rng)
-			FeatureDefinition.FeatureType.BUNKER:
-				_place_bunker(data, slot_col, def, origin, rng)
-			FeatureDefinition.FeatureType.PIT:
-				_place_pit(data, slot_col, def, origin, rng)
-			FeatureDefinition.FeatureType.PILLAR:
-				_place_pillar(data, slot_col, def, origin, rng)
+	var base_row := data.height - Const.BASE_FILL_ROWS
 
-	for bg_def in profile.background:
-		if bg_def == null:
-			continue
-		if bg_def.type == FeatureDefinition.FeatureType.CRYSTAL_DEPOSIT:
-			_place_crystal_deposit(data, bg_def, rng)
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.seed = rng.randi()
+	noise.frequency = Const.NOISE_FREQUENCY
+	var amp := profile.noise_max_amplitude
 
-static func _pass1_spawn_platform(data: MapData) -> void:
-	# Mirror of TerrainManager.generate() pass 4. Spawn platform is always at the
-	# leftmost column band, indestructible, with clear space above.
-	var base_row  := data.height - Const.BASE_FILL_ROWS
-	# Approximate surface row at spawn col: use base_row as the reference.
-	var prow := base_row
+	for col in range(data.width):
+		var offset   := int(noise.get_noise_1d(float(col)) * amp)
+		var surf_row := clampi(base_row - offset, 0, data.height - 1)
+		for row in range(surf_row, data.height):
+			data.place_solid(col, row, 3, 0, false, ["FLAMMABLE"],
+					MapData.GenOrigin.NOISE_FILL)
+
+static func _pass_a_spawn_platform(data: MapData) -> void:
+	# Spawn platform is always the leftmost column band, indestructible, clear above.
+	var prow := data.height - Const.BASE_FILL_ROWS
 	for col in range(Const.SPAWN_PLATFORM_COL,
 			Const.SPAWN_PLATFORM_COL + Const.SPAWN_PLATFORM_WIDTH):
 		if col >= data.width:
@@ -67,212 +89,50 @@ static func _pass1_spawn_platform(data: MapData) -> void:
 		for row in range(maxi(prow - 6, 0), prow):
 			data.set_cell(col, row, null)
 
-# ── Feature placers ────────────────────────────────────────────────────────────
+# ── Stage B — skeletal features via placers ───────────────────────────────────
 
-static func _surface_row(data: MapData, col: int) -> int:
-	for row in range(data.height):
-		if data.get_cell(col, row) != null:
-			return row
-	return data.height - 1
-
-static func _place_ridge(data: MapData, slot_col: int, def: FeatureDefinition,
-		origin: int, rng: RandomNumberGenerator) -> void:
-	var w := rng.randi_range(def.width_min, def.width_max)
-	var h := rng.randi_range(def.height_min, def.height_max)
-	var base_col := slot_col - w / 2
-	var surf     := _surface_row(data, slot_col)
-	var top_row  := maxi(surf - h, 0)
-	var base_row := top_row + int(h * 0.70)   # bottom 30% = indestructible base
-	var slope    : bool = def.special_params.get("slope_edges", false)
-
-	for col in range(base_col, base_col + w):
-		if col < 0 or col >= data.width:
-			continue
-		var col_top := top_row
-		if slope:
-			var dist_from_edge := mini(col - base_col, (base_col + w - 1) - col)
-			col_top += maxi(0, 2 - dist_from_edge)
-
-		for row in range(col_top, surf + 1):
-			if row < 0 or row >= data.height:
-				continue
-			if row >= base_row:
-				# Indestructible base
-				data.place_solid(col, row, 3, Tile.FLAG_INDESTRUCTIBLE,
-						false, [], origin)
-			else:
-				# Carveable fill
-				data.place_solid(col, row, 3, 0, true, ["FLAMMABLE"], origin)
-
-static func _place_pit(data: MapData, slot_col: int, def: FeatureDefinition,
-		origin: int, rng: RandomNumberGenerator) -> void:
-	var w     := rng.randi_range(def.width_min, def.width_max)
-	var depth := rng.randi_range(def.height_min, def.height_max)
-	var base_col := slot_col - w / 2
-	var surf  := _surface_row(data, slot_col)
-
-	for col in range(base_col, base_col + w):
-		if col < 0 or col >= data.width:
-			continue
-		for row in range(surf, mini(surf + depth, data.height)):
-			data.set_cell(col, row, null)
-		# Mark the walls at the pit edge with origin so visualizer shows the slot
-		if col == base_col or col == base_col + w - 1:
-			for row in range(maxi(surf - 2, 0), surf):
-				var cell = data.get_cell(col, row)
-				if cell != null:
-					cell["gen_origin"] = origin
-
-static func _place_pillar(data: MapData, slot_col: int, def: FeatureDefinition,
-		origin: int, rng: RandomNumberGenerator) -> void:
-	var pw   := rng.randi_range(def.width_min,  def.width_max)
-	var ph   := rng.randi_range(def.height_min, def.height_max)
-	var gap  : int = def.special_params.get("gap_from_terrain", 8)
-	var surf := _surface_row(data, slot_col)
-	var top_row  := maxi(surf - ph, 0)
-	var base_row := top_row + int(ph * 0.40)
-	var base_col := slot_col - pw / 2
-
-	# Carve gap on both sides
-	for col in range(base_col - gap, base_col):
-		if col < 0 or col >= data.width:
-			continue
-		for row in range(maxi(surf - ph - 2, 0), surf + 1):
-			if row >= 0 and row < data.height:
-				data.set_cell(col, row, null)
-	for col in range(base_col + pw, base_col + pw + gap):
-		if col < 0 or col >= data.width:
-			continue
-		for row in range(maxi(surf - ph - 2, 0), surf + 1):
-			if row >= 0 and row < data.height:
-				data.set_cell(col, row, null)
-
-	# Place pillar block
-	for col in range(base_col, base_col + pw):
-		if col < 0 or col >= data.width:
-			continue
-		for row in range(top_row, surf + 1):
-			if row < 0 or row >= data.height:
-				continue
-			if row >= base_row:
-				data.place_solid(col, row, 3, Tile.FLAG_INDESTRUCTIBLE,
-						false, [], origin)
-			else:
-				data.place_solid(col, row, 3, 0, true, ["FLAMMABLE"], origin)
-
-static func _place_bunker(data: MapData, slot_col: int, def: FeatureDefinition,
-		origin: int, rng: RandomNumberGenerator) -> void:
-	var bw        := rng.randi_range(def.width_min, def.width_max)
-	var bh        := rng.randi_range(def.height_min, def.height_max)
-	var apertures : int = def.special_params.get("aperture_count", 1)
-	var surf      := _surface_row(data, slot_col)
-	var top_row   := maxi(surf - bh, 0)
-	var base_col  := slot_col - bw / 2
-
-	# Place shell first (entire block)
-	for col in range(base_col, base_col + bw):
-		if col < 0 or col >= data.width:
-			continue
-		for row in range(top_row, surf + 1):
-			if row < 0 or row >= data.height:
-				continue
-			var shell_hp := rng.randi_range(8, 12)
-			data.set_cell(col, row, {
-				"type": 0,
-				"hp": shell_hp, "max_hp": shell_hp, "flags": 0,
-				"collapsible": true, "status_tags": ["FLAMMABLE"],
-				"variant": 0, "gen_origin": origin
-			})
-
-	# Hollow out interior (3-voxel inset)
-	for col in range(base_col + 3, base_col + bw - 3):
-		if col < 0 or col >= data.width:
-			continue
-		for row in range(top_row + 3, surf - 1):
-			if row >= 0 and row < data.height:
-				data.set_cell(col, row, null)
-
-	# Apertures in the facing (left) wall
-	var ap_spacing := bh / (apertures + 1)
-	for a in range(apertures):
-		var ap_row := top_row + ap_spacing * (a + 1)
-		if ap_row >= 0 and ap_row < data.height:
-			for c2 in range(base_col, base_col + 3):
-				if c2 >= 0 and c2 < data.width:
-					data.set_cell(c2, ap_row, null)
-
-static func _place_crystal_deposit(data: MapData, def: FeatureDefinition,
+static func _pass_b_features(data: MapData, profile: TerrainProfile,
 		rng: RandomNumberGenerator) -> void:
-	var depth_min := def.height_min
-	var depth_max := def.height_max
-	var tile_count := rng.randi_range(3, 8)
+	var counts : Dictionary = {}
+	var slots := [
+		[profile.left_slot,   MapData.GenOrigin.SLOT_LEFT,   int(0.25 * data.width)],
+		[profile.center_slot, MapData.GenOrigin.SLOT_CENTER, int(0.50 * data.width)],
+		[profile.right_slot,  MapData.GenOrigin.SLOT_RIGHT,  int(0.75 * data.width)],
+	]
+	for entry in slots:
+		_run_placer(data, entry[0], entry[2], entry[1], rng, counts)
+	for bg_def in profile.background:
+		_run_placer(data, bg_def, -1, MapData.GenOrigin.BACKGROUND, rng, counts)
 
-	# Place in left-center zone to be reachable from spawn side
-	var vein_col := rng.randi_range(int(data.width * 0.10), int(data.width * 0.40))
-	var vein_row := rng.randi_range(depth_min, mini(depth_max, data.height - 2))
+static func _run_placer(data: MapData, def: FeatureDefinition, slot_col: int,
+		origin: int, rng: RandomNumberGenerator, counts: Dictionary) -> void:
+	if def == null:
+		return
+	var placer_script = PLACERS.get(def.type)
+	if placer_script == null:
+		push_warning("TerrainGenerator: no placer for FeatureType %d" % def.type)
+		return
+	var type_name : String = FeatureDefinition.FeatureType.keys()[def.type].to_lower()
+	counts[type_name] = counts.get(type_name, 0) + 1
+	var instance_id := "%s_%d" % [type_name, counts[type_name]]
+	var inst : FeatureInstance = placer_script.new().place(
+			data, slot_col, def, rng, instance_id, origin)
+	if inst != null:
+		data.features.append(inst)
 
-	for _i in range(tile_count):
-		var col := vein_col + rng.randi_range(-2, 2)
-		var row := vein_row + rng.randi_range(-1, 1)
-		if col < 0 or col >= data.width or row < 0 or row >= data.height:
-			continue
-		data.set_cell(col, row, {
-			"type": 0,
-			"hp": 5, "max_hp": 5, "flags": 0,
-			"collapsible": true, "status_tags": ["CRYSTAL"],
-			"variant": 0, "gen_origin": MapData.GenOrigin.CRYSTAL
-		})
+# ── Stage D — HP sprinkle + visual variants ───────────────────────────────────
 
-# ── Pass 2 — base fill + noise ────────────────────────────────────────────────
-
-static func _pass2_base_and_noise(data: MapData, profile: TerrainProfile,
-		rng: RandomNumberGenerator) -> void:
-	var base_row := data.height - Const.BASE_FILL_ROWS
-
-	# Identify columns claimed by pass 1
-	var claimed : Array = []
-	claimed.resize(data.width)
-	claimed.fill(false)
-	for col in range(data.width):
-		for row in range(data.height):
-			if data.get_cell(col, row) != null:
-				claimed[col] = true
-				break
-
-	# Base fill for unclaimed columns
-	for col in range(data.width):
-		if claimed[col]:
-			continue
-		for row in range(base_row, data.height):
-			data.place_solid(col, row, 3, 0, false, ["FLAMMABLE"],
-					MapData.GenOrigin.NOISE_FILL)
-
-	# Noise surface pass for unclaimed columns
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	noise.seed = rng.randi()
-	noise.frequency = Const.NOISE_FREQUENCY
-	var amp := profile.noise_max_amplitude
-
-	for col in range(data.width):
-		if claimed[col]:
-			continue
-		var offset   := int(noise.get_noise_1d(float(col)) * amp)
-		var surf_row := clampi(base_row - offset, 0, data.height - 1)
-		for row in range(surf_row, base_row):
-			data.place_solid(col, row, 3, 0, false, ["FLAMMABLE"],
-					MapData.GenOrigin.NOISE_FILL)
-		for row in range(base_row, surf_row):
-			data.set_cell(col, row, null)
-
-# ── Pass 3 — HP assignment ────────────────────────────────────────────────────
-
-static func _pass3_hp(data: MapData, rng: RandomNumberGenerator) -> void:
+static func _pass_d_hp(data: MapData, rng: RandomNumberGenerator) -> void:
 	var hp_rng := RandomNumberGenerator.new()
 	hp_rng.seed = rng.randi()
 	for i in range(data.cells.size()):
 		var cell = data.cells[i]
 		if cell == null:
+			continue
+		# Only ambient terrain gets the reinforced sprinkle — feature tiles keep the
+		# durability their placer assigned (v0.2 rule: stage D never mutates features).
+		var origin : int = cell.get("gen_origin", MapData.GenOrigin.NOISE_FILL)
+		if origin != MapData.GenOrigin.NOISE_FILL and origin != MapData.GenOrigin.SEAM:
 			continue
 		if (cell["flags"] as int) & Tile.FLAG_INDESTRUCTIBLE:
 			continue
@@ -281,9 +141,7 @@ static func _pass3_hp(data: MapData, rng: RandomNumberGenerator) -> void:
 			cell["max_hp"] = 6
 			cell["status_tags"] = ["CONDUCTIVE"]
 
-# ── Pass 4 — visual variants ──────────────────────────────────────────────────
-
-static func _pass4_variants(data: MapData, rng: RandomNumberGenerator) -> void:
+static func _pass_d_variants(data: MapData, rng: RandomNumberGenerator) -> void:
 	var var_rng := RandomNumberGenerator.new()
 	var_rng.seed = rng.randi()
 	for i in range(data.cells.size()):

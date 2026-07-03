@@ -40,3 +40,4 @@ var weight_mobility_enabled  : bool = true  # M38: weight-based climb limits + A
 var power_formula_enabled    : bool = true  # M39: shot conditional_bonus in DamageResolver
 var power_mods_enabled       : bool = true  # M40: source-attributed power modifier system
 var minerals_enabled         : bool = true  # M42: mineral terrain + collectible Ore drops
+var terrain_v2_enabled       : bool = true  # M43: seam pass + validation/reroll in TerrainGenerator

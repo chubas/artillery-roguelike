@@ -255,6 +255,7 @@ func _smoke_test() -> void:
 	_m40_smoke()
 	_m41_smoke()
 	_m42_smoke()
+	_m43_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1840,6 +1841,102 @@ func _m42_smoke() -> void:
 	Features.minerals_enabled = true
 
 	layer.queue_free()
+
+# M43: terrain generation v2 — placer contract (FeatureInstance + anchors), seam pass,
+# validation + reroll. Pure MapData checks; live terrain is untouched.
+func _m43_smoke() -> void:
+	print("[smoke] -- M43 terrain gen v2 (placers/anchors/seams/validation) --")
+	var profiles := {
+		"open_field":     load("res://data/terrain/profiles/open_field.tres"),
+		"ridge_assault":  load("res://data/terrain/profiles/ridge_assault.tres"),
+		"fortress_siege": load("res://data/terrain/profiles/fortress_siege.tres"),
+		"pit_crossing":   load("res://data/terrain/profiles/pit_crossing.tres"),
+	}
+	# Every profile validates within the reroll budget across seeds, and exports one
+	# FeatureInstance per occupied slot/background entry.
+	for pname in profiles:
+		var profile : TerrainProfile = profiles[pname]
+		var expected := profile.background.size()
+		for slot in [profile.left_slot, profile.center_slot, profile.right_slot]:
+			if slot != null:
+				expected += 1
+		for seed_val in [42, 1337, 777]:
+			var d : MapData = TerrainGenerator.generate(profile, seed_val)
+			print("  %s seed=%d: features=%d (expect %d) attempts<=5=%s fail='%s' (expect '')"
+					% [pname, seed_val, d.features.size(), expected,
+					str(d.attempts_used <= 5), d.validation_failure])
+
+	# Ridge contract: anchors present, RAMP seams walkable (every step <= max climb 2).
+	var dr : MapData = TerrainGenerator.generate(profiles["ridge_assault"], 42)
+	var ridge : FeatureInstance = null
+	for f in dr.features:
+		if f.type == FeatureDefinition.FeatureType.RIDGE:
+			ridge = f
+	print("  ridge anchors: summit=%s reverse=%s feet=%s (expect true true true)"
+			% [str(ridge.anchor("summit_center") != null),
+			str(ridge.anchor("reverse_slope") != null),
+			str(ridge.anchor("foot_left") != null and ridge.anchor("foot_right") != null)])
+	var seam_tiles := 0
+	for c in dr.cells:
+		if c != null and c.get("gen_origin", 0) == MapData.GenOrigin.SEAM:
+			seam_tiles += 1
+	print("  ridge seam tiles=%d (expect >0)" % seam_tiles)
+	var max_step := 0
+	for side in [-1, 1]:
+		var edge_col : int = ridge.footprint.position.x if side == -1 else ridge.footprint.end.x - 1
+		var col := edge_col
+		while true:
+			var next : int = col + side
+			if next < 0 or next >= dr.width:
+				break
+			var s_prev := FeaturePlacer.surface_row(dr, col)
+			var s_next := FeaturePlacer.surface_row(dr, next)
+			max_step = maxi(max_step, absi(s_next - s_prev))
+			# Follow the ramp while the next surface tile is seam fill; stop one past it.
+			var top_cell = dr.get_cell(next, s_next)
+			col = next
+			if top_cell == null or top_cell.get("gen_origin", 0) != MapData.GenOrigin.SEAM:
+				break
+	print("  ramp max step=%d (expect <=2)" % max_step)
+
+	# Bunker contract: anchors, interior clearance, shell durability untouched by HP pass.
+	var db : MapData = TerrainGenerator.generate(profiles["fortress_siege"], 42)
+	var bunker : FeatureInstance = null
+	for f in db.features:
+		if f.type == FeatureDefinition.FeatureType.BUNKER:
+			bunker = f
+	print("  bunker anchors: core=%s aperture_1=%s interior_zone=%s (expect true true true)"
+			% [str(bunker.anchor("core") != null), str(bunker.anchor("aperture_1") != null),
+			str(bunker.anchor("interior") is Rect2i)])
+	var min_shell := 99
+	for c in db.cells:
+		if c != null and c.get("gen_origin", 0) == MapData.GenOrigin.SLOT_RIGHT:
+			min_shell = mini(min_shell, c.get("hp", 99) as int)
+	print("  bunker min shell hp=%d (expect >=8, HP pass skips features)" % min_shell)
+
+	# Pit contract: rim anchors + carved volume stays void (validated above via fail='').
+	var dp : MapData = TerrainGenerator.generate(profiles["pit_crossing"], 42)
+	var pit : FeatureInstance = null
+	for f in dp.features:
+		if f.type == FeatureDefinition.FeatureType.PIT:
+			pit = f
+	var mid_col : int = pit.footprint.position.x + pit.footprint.size.x / 2
+	var void_depth := 0
+	for row in range(pit.footprint.position.y, pit.footprint.end.y):
+		if dp.get_cell(mid_col, row) == null:
+			void_depth += 1
+	print("  pit rims=%s void_depth=%d (expect true, >=30)"
+			% [str(pit.anchor("rim_left") != null and pit.anchor("rim_right") != null), void_depth])
+
+	# Flag off: v1-style single attempt, no seams, no validation.
+	Features.terrain_v2_enabled = false
+	var d0 : MapData = TerrainGenerator.generate(profiles["ridge_assault"], 42)
+	var seams0 := 0
+	for c in d0.cells:
+		if c != null and c.get("gen_origin", 0) == MapData.GenOrigin.SEAM:
+			seams0 += 1
+	print("  flag off: attempts=%d seam_tiles=%d (expect 1, 0)" % [d0.attempts_used, seams0])
+	Features.terrain_v2_enabled = true
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:
