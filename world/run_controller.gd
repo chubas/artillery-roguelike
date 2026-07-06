@@ -125,6 +125,7 @@ func _enter_combat(node: MapNode) -> void:
 		cs.stage = node.stage()
 		cs.terrain_profile_path = node.terrain_profile_path
 		cs.active_stage_seed    = node.stage_seed
+		cs.custom_map_id        = node.custom_map_id
 	cs.combat_exited.connect(_on_combat_exited)
 	_swap(cs)
 

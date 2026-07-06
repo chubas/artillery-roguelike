@@ -15,6 +15,8 @@ var layer : int = 0
 ## M33: run-assigned terrain profile (empty = legacy generator) and per-stage RNG seed.
 var terrain_profile_path : String = ""
 var stage_seed           : int    = 0
+## M44: hand-authored map id from MapLibrary ("" = fall back to profile/legacy terrain).
+var custom_map_id : String = ""
 ## M35: resource path to an EventDef .tres (empty on non-EVENT nodes).
 var event_path : String = ""
 
@@ -40,6 +42,7 @@ func to_dict() -> Dictionary:
 		"layer": layer,
 		"terrain_profile_path": terrain_profile_path,
 		"stage_seed": stage_seed,
+		"custom_map_id": custom_map_id,
 		"event_path": event_path,
 	}
 
@@ -51,6 +54,7 @@ static func from_dict(d: Dictionary) -> MapNode:
 	n.layer = d.get("layer", 0)
 	n.terrain_profile_path = d.get("terrain_profile_path", "")
 	n.stage_seed           = d.get("stage_seed", 0)
+	n.custom_map_id        = d.get("custom_map_id", "")
 	n.event_path           = d.get("event_path", "")
 	return n
 

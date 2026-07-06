@@ -30,6 +30,9 @@ var stage : StageDescriptor = null
 # M33: run-controller sets these from MapNode before entering combat.
 var terrain_profile_path : String = ""
 var active_stage_seed    : int    = -1
+# M44: hand-authored map id ("" = profile/legacy terrain). Set by the run controller.
+var custom_map_id : String = ""
+var active_custom_map : CustomMap = null
 
 # Camera focus target (the selected ally). _focusing is a one-shot pan: it eases the camera
 # to the unit, then releases so WASD can free-pan without the camera snapping back.
@@ -63,6 +66,7 @@ func _ready() -> void:
 	ore_layer.name = "OreLayer"
 	add_child(ore_layer)
 	combat.combat_finished.connect(_on_combat_finished)
+	combat.set_custom_map(active_custom_map)   # M44: zones for placement/enemy spawns (null ok)
 	combat.setup(terrain, projectiles, unit_layer, hud, targeting,
 			deployable_layer_back, deployable_layer_front,
 			squad, Run.active.deck, Run.active.artifacts, stage, ore_layer)
@@ -256,6 +260,7 @@ func _smoke_test() -> void:
 	_m41_smoke()
 	_m42_smoke()
 	_m43_smoke()
+	_m44_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1325,6 +1330,16 @@ func _m31_smoke() -> void:
 
 func _setup_terrain() -> void:
 	var seed_val := active_stage_seed if active_stage_seed >= 0 else (stage.terrain_seed if stage != null else Const.NOISE_SEED)
+	# M44: hand-authored maps take priority. Minerals come only from the map's 'M' chars —
+	# the ambient scatter pass stays on the procedural paths below.
+	if Features.custom_maps_enabled and custom_map_id != "":
+		var cmap := MapLibrary.get_map(custom_map_id)
+		if cmap != null and cmap.error == "":
+			active_custom_map = cmap
+			terrain.load_map(cmap.to_map_data())
+			renderer.setup(terrain)
+			return
+		push_warning("combat_scene: custom map '%s' missing/broken — falling back" % custom_map_id)
 	var profile : TerrainProfile = null
 	if terrain_profile_path != "":
 		profile = load(terrain_profile_path) as TerrainProfile
@@ -1394,9 +1409,12 @@ func _m33_smoke() -> void:
 	var n1b : MapNode = Run.active.map.nodes[1]
 	var s2 : int = n1b.stage_seed
 	print("  determinism: s1=%d s2=%d match=%s (expect true)" % [s1, s2, str(s1 == s2)])
+	# M44: custom maps supersede terrain profiles — combat nodes carry a custom_map_id and
+	# an empty profile path. (With custom_maps_enabled=false the old profile checks apply.)
 	var n0 : MapNode = Run.active.map.nodes[0]
 	print("  node[0] profile='%s' (expect empty)" % n0.terrain_profile_path)
-	print("  node[1] profile='%s' (expect nonempty)" % p1)
+	print("  node[1] profile='%s' (expect empty since M44; map takes over)" % p1)
+	print("  node[1] custom_map='%s' (expect nonempty)" % Run.active.map.nodes[1].custom_map_id)
 
 func _m34_smoke() -> void:
 	print("[smoke] -- M34 shop node --")
@@ -1937,6 +1955,56 @@ func _m43_smoke() -> void:
 			seams0 += 1
 	print("  flag off: attempts=%d seam_tiles=%d (expect 1, 0)" % [d0.attempts_used, seams0])
 	Features.terrain_v2_enabled = true
+
+# M44: hand-authored ASCII maps — parser, library, zone placement/spawn helpers, assignment.
+func _m44_smoke() -> void:
+	print("[smoke] -- M44 custom ASCII maps --")
+	var ids := MapLibrary.map_ids()
+	print("  library ids=%s (expect contains test_flat)" % [str(ids)])
+	var cmap := MapLibrary.get_map("test_flat")
+	print("  parse: %dx%d spawn_zones=%d enemy_zones=%d err='%s' (expect 120x100, 1, 1, '')"
+			% [cmap.width, cmap.height, cmap.spawn_zones.size(), cmap.enemy_zones.size(), cmap.error])
+	print("  zone0=%s (expect (2, 20, 49, 51))" % str(cmap.spawn_zones[0]))
+
+	var data := cmap.to_map_data()
+	var c_solid = data.get_cell(10, 50)
+	var c_floor = data.get_cell(10, 98)
+	var c_ore   = data.get_cell(59, 45)
+	print("  tiles: solid_hp=%d floor_indestructible=%s ore_mineral=%s sky_null=%s (expect 3, true, true, true)"
+			% [c_solid.get("hp", -1),
+			str(((c_floor.get("flags", 0) as int) & Tile.FLAG_INDESTRUCTIBLE) != 0),
+			str(c_ore.get("type", -1) == Tile.TileType.MINERAL and (c_ore.get("status_tags", []) as Array).has("MINERAL")),
+			str(data.get_cell(10, 10) == null)])
+
+	# Zone helpers on a scratch terrain + combat manager (live combat untouched).
+	var tm := TerrainManager.new()
+	tm.load_map(data)
+	var cm := CombatManager.new()
+	cm._terrain = tm
+	cm.set_custom_map(cmap)
+	var drop := cm._zone_surface_top(10, cmap.spawn_zones[0], 2, 3)
+	print("  zone drop @col10=%s (expect (10, 39): stands on surface row 42)" % str(drop))
+	var edrop := cm._random_zone_drop(2, 3)
+	var ez : Rect2i = cmap.enemy_zones[0]
+	var in_zone := edrop.x >= ez.position.x and edrop.x < ez.end.x and edrop.y == 39
+	print("  enemy zone drop=%s in_zone=%s (expect true)" % [str(edrop), str(in_zone)])
+	cm.free()
+	tm.free()
+
+	# Bad file → loud parse error, never a usable map.
+	var bad := CustomMap.parse("id: bad\nwidth: 4\nheight: 2\ndata:\nX3\n33\n")
+	print("  bad parse err='%s' (expect non-empty)" % bad.error)
+
+	# Run assignment: every combat node draws from the library; flag off → legacy profiles.
+	Run.start_default_run()
+	var n0 : MapNode = Run.active.map.nodes[0]
+	print("  node[0] custom_map='%s' (expect test_flat)" % n0.custom_map_id)
+	Features.custom_maps_enabled = false
+	Run.start_default_run()
+	print("  flag off: node[0] custom_map='%s' profile='%s' (expect empty, empty)"
+			% [Run.active.map.nodes[0].custom_map_id, Run.active.map.nodes[0].terrain_profile_path])
+	Features.custom_maps_enabled = true
+	Run.start_default_run()
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:

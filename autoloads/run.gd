@@ -86,12 +86,19 @@ const _TERRAIN_PROFILES : Array[String] = [
 ]
 
 func _assign_terrain_variations(rs: RunState) -> void:
+	# M44: hand-authored maps take priority — every combat node (incl. the first) draws a
+	# random map from the library. Profiles/legacy remain only as a fallback when the
+	# library is empty or the flag is off.
+	var map_ids : Array = MapLibrary.map_ids() if Features.custom_maps_enabled else []
 	for i in range(rs.map.nodes.size()):
 		var node : MapNode = rs.map.nodes[i]
 		if node.type != MapNode.Type.COMBAT:
 			continue
 		node.stage_seed = run_rng.randi()
-		if i == 0:
+		if not map_ids.is_empty():
+			node.custom_map_id = map_ids[run_rng.randi() % map_ids.size()]
+			node.terrain_profile_path = ""
+		elif i == 0:
 			node.terrain_profile_path = ""
 		else:
 			node.terrain_profile_path = _TERRAIN_PROFILES[run_rng.randi() % _TERRAIN_PROFILES.size()]

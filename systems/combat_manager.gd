@@ -97,6 +97,7 @@ var _ore : OreSystem   # M42: collectible Ore drops
 # places them one at a time by hovering a column indicator and clicking.
 var _placement_queue : Array[Unit] = []
 var _placement_hover_col : int = -1   # column under the mouse, clamped to spawn zone
+var _custom_map : CustomMap = null    # M44: hand-authored map (zones); null = legacy col rules
 
 func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 		unit_layer: Node2D, hud: HUD, targeting: TargetingUI,
@@ -196,6 +197,44 @@ func _spawn_min_col() -> int:
 func _spawn_max_col() -> int:
 	return _stage.spawn_max_col if _stage != null else Const.MAP_WIDTH / 2 - 1
 
+# --- M44: hand-authored map zones ---------------------------------------------------
+
+## Set before setup() by combat_scene. When present, player placement uses the map's
+## spawn zone boxes and enemy/deployable spawns use its enemy zones (stage cols ignored).
+func set_custom_map(map: CustomMap) -> void:
+	_custom_map = map
+
+## Topmost standable top-left for a w×h unit at `col` WITHIN a zone box. Unlike the global
+## surface snap this finds floors inside caves and on floating islands: it scans the zone's
+## rows top-down for a solid tile with a clear w×h box above it.
+func _zone_surface_top(col: int, zone: Rect2i, w: int, h: int) -> Vector2i:
+	if col < zone.position.x or col + w > zone.end.x:
+		return Vector2i(-1, -1)
+	for row in range(zone.position.y, zone.end.y):
+		if not _terrain.is_solid(col, row):
+			continue
+		var top_left := Vector2i(col, row - h)
+		if top_left.y < 0:
+			continue
+		if UnitMovement.bbox_terrain_clear(_terrain, top_left, w, h):
+			return top_left
+	return Vector2i(-1, -1)
+
+## Seeded random standable spot inside the map's enemy zones (StageRng → deterministic per
+## stage). Falls back to a global surface snap so a spawn never fails outright.
+func _random_zone_drop(w: int, h: int) -> Vector2i:
+	var zones : Array[Rect2i] = _custom_map.enemy_zones
+	for _i in range(12):
+		var zone : Rect2i = zones[StageRng.rng.randi_range(0, zones.size() - 1)]
+		var col := StageRng.rng.randi_range(zone.position.x, maxi(zone.position.x, zone.end.x - w))
+		var pos := _zone_surface_top(col, zone, w, h)
+		if pos.x != -1:
+			return pos
+	var fb_zone : Rect2i = zones[StageRng.rng.randi_range(0, zones.size() - 1)]
+	var fb_col := StageRng.rng.randi_range(fb_zone.position.x, maxi(fb_zone.position.x, fb_zone.end.x - w))
+	var surface := _terrain.get_surface_row(fb_col)
+	return Vector2i(fb_col, (surface if surface != -1 else _terrain.map_height) - h)
+
 # --- Placement (M15): position the squad in the spawn zone before the turn loop ----
 func _start_placement() -> void:
 	game_state = GameState.PLACEMENT
@@ -215,6 +254,20 @@ func _placement_drop(unit: Unit, col: int) -> bool:
 	if unit == null:
 		return false
 	var def := unit.definition
+	# M44: zone-box placement — the click must land inside a spawn zone; the unit drops on
+	# the topmost floor within that zone box (caves/islands included).
+	if _custom_map != null:
+		for zone in _custom_map.spawn_zones:
+			var z : Rect2i = zone
+			if col < z.position.x or col >= z.end.x:
+				continue
+			var zcol := clampi(col, z.position.x, maxi(z.position.x, z.end.x - def.width_voxels))
+			var pos := _zone_surface_top(zcol, z, def.width_voxels, def.height_voxels)
+			if pos.x != -1:
+				unit.set_vox_position(pos)
+				unit.visible = true
+				return true
+		return false
 	var lo := _spawn_min_col()
 	var hi := maxi(lo, _spawn_max_col() - def.width_voxels + 1)
 	col = clampi(col, lo, hi)
@@ -233,18 +286,32 @@ func _placement_drop(unit: Unit, col: int) -> bool:
 # Smoke / auto-confirm helper: place every queued unit at the first valid column and confirm.
 func _drain_placement_queue() -> void:
 	for u in _placement_queue.duplicate():
-		for col in range(_spawn_min_col(), _spawn_max_col() + 1):
+		for col in _placement_candidate_cols():
 			if _placement_drop(u, col):
 				_placement_queue.erase(u)
 				break
 	_confirm_placement()
+
+func _placement_candidate_cols() -> Array:
+	var cols : Array = []
+	if _custom_map != null:
+		for zone in _custom_map.spawn_zones:
+			var z : Rect2i = zone
+			for c in range(z.position.x, z.end.x):
+				cols.append(c)
+	else:
+		for c in range(_spawn_min_col(), _spawn_max_col() + 1):
+			cols.append(c)
+	return cols
 
 # Placement-phase input: mouse move → update drop indicator column; left-click → drop the
 # queue-front unit; Tab → cycle the queue; Enter → confirm when queue is empty.
 func _placement_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var col := Const.world_to_voxel(get_global_mouse_position()).x
-		_placement_hover_col = clampi(col, _spawn_min_col(), _spawn_max_col())
+		# M44: with zone boxes the drop validates against zones — don't clamp to stage cols.
+		_placement_hover_col = col if _custom_map != null \
+				else clampi(col, _spawn_min_col(), _spawn_max_col())
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
@@ -268,13 +335,16 @@ func _spawn_enemies() -> void:
 		var def : UnitDefinition = load(e["unit"])
 		enemy_units.append(_spawn(def, e["name"], e["col"], false))
 
+# `col` is the stage's legacy hint; on custom maps (M44) enemy positions come from the
+# map's enemy zones instead (seeded random). Player/debug spawns keep the col behavior.
 func _spawn(def: UnitDefinition, unit_name: String, col: int, is_player: bool) -> Unit:
 	var u := Unit.new()
 	u.definition = def
 	u.is_player = is_player
 	u.display_name = unit_name
 	u.aim_angle_deg = 45.0 if is_player else 135.0   # face the opposing side
-	var pos := _find_valid_spawn(col, def)
+	var pos := _random_zone_drop(def.width_voxels, def.height_voxels) \
+			if (_custom_map != null and not is_player) else _find_valid_spawn(col, def)
 	u.set_vox_position(pos)
 	_unit_layer.add_child(u)
 	u.unit_died.connect(_on_unit_died)
@@ -318,9 +388,14 @@ func _spawn_deployables() -> void:
 			_:
 				push_error("Unknown deployable type: %s" % entry["type"])
 				continue
-		var col : int = entry["col"]
-		var surface := _terrain.get_surface_row(col)
-		var top_left := Vector2i(col, surface - d.height_voxels) if surface != -1 else Vector2i(col, 0)
+		var top_left : Vector2i
+		if _custom_map != null:
+			# M44: stage cols don't correspond to hand-authored geometry — drop in enemy zones.
+			top_left = _random_zone_drop(d.width_voxels, d.height_voxels)
+		else:
+			var col : int = entry["col"]
+			var surface := _terrain.get_surface_row(col)
+			top_left = Vector2i(col, surface - d.height_voxels) if surface != -1 else Vector2i(col, 0)
 		d.set_vox_position(top_left)
 		layer.add_child(d)
 		deployables.append(d)
@@ -386,9 +461,14 @@ func _spawn_reinforcement(wave: Dictionary) -> void:
 	u.is_player = false
 	u.display_name = wave["name"]
 	u.aim_angle_deg = 135.0
-	var col : int = wave["col"]
-	var surface := _terrain.get_surface_row(col)
-	var top_left := Vector2i(col, surface - def.height_voxels) if surface != -1 else Vector2i(col, 0)
+	var top_left : Vector2i
+	if _custom_map != null:
+		# M44: waves land at a seeded random spot in the map's enemy zones.
+		top_left = _random_zone_drop(def.width_voxels, def.height_voxels)
+	else:
+		var col : int = wave["col"]
+		var surface := _terrain.get_surface_row(col)
+		top_left = Vector2i(col, surface - def.height_voxels) if surface != -1 else Vector2i(col, 0)
 	u.set_vox_position(top_left)
 	_unit_layer.add_child(u)
 	u.unit_died.connect(_on_unit_died)
@@ -1132,7 +1212,8 @@ func _process(delta: float) -> void:
 	_targeting.set_card_state(_pending_card)
 	_targeting.set_reinforcement_state(_reinforcement_warnings())
 	_targeting.set_placement_state(game_state == GameState.PLACEMENT,
-			_spawn_min_col(), _spawn_max_col())
+			_spawn_min_col(), _spawn_max_col(),
+			_custom_map.spawn_zones if _custom_map != null else [])
 	if game_state == GameState.PLACEMENT:
 		var dname := _placement_queue[0].definition.display_name \
 				if not _placement_queue.is_empty() else ""

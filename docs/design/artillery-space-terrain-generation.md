@@ -1,6 +1,12 @@
 # Artillery Space — Terrain Generation
 **Design & Technical Specification · v0.2**
 
+> **STATUS (M44, 2026-07-06):** the procedural generator described here is **dormant**. Combat
+> maps are hand-authored ASCII text files (`data/maps/*.txt`, drop-in `user://maps/`) — see
+> `docs/planning/milestone-44-plan.md` for the format and pipeline. The generator, placer
+> contract, and visualizer remain implemented and smoke-tested for possible later use
+> (e.g. seed-varied hand maps or hybrid generation).
+
 > Defines the profile-driven terrain generation system: what strategic constructs must be producible, how they are placed and connected, how their purpose is guaranteed, and the authoring tools needed to iterate on them.
 >
 > **v0.2 changes:** the two-pass model becomes a five-stage pipeline (noise now runs *before* features so seams are well-defined); feature placers gain a formal **contract** (`FeatureInstance` with footprint, **anchor manifest**, and edge specs); a **seam pass** connects feature edges to the surrounding terrain; a **validation pass** with bounded reroll guarantees each stage's mechanical preconditions. The slot system, constructs catalogue, durability tiers, and profile schema carry over from v0.1. The v0.1 two-pass generator, profile/feature resources, and sandbox visualizer are implemented (M32); v0.2 describes their evolution.

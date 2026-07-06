@@ -20,6 +20,8 @@ var pending_reinforcements : Array = []   # [{ "col": int, "turns_left": int }]
 var placement_active : bool = false
 var placement_min_col : int = 0
 var placement_max_col : int = 0
+# M44: zone boxes from the custom map; when non-empty they replace the column band.
+var placement_zones : Array = []   # Array[Rect2i]
 # Drop indicator: vertical line + unit name, shown while the player hovers to place a unit.
 var drop_indicator_col : int = -1
 var drop_indicator_name : String = ""
@@ -54,7 +56,17 @@ func _draw() -> void:
 		_draw_charge_preview(barrel)
 
 # M15: translucent band over the placement spawn zone (full map height), with a top edge line.
+# M44: with a custom map, draw its spawn zone BOXES instead of the column band.
 func _draw_spawn_zone() -> void:
+	if not placement_zones.is_empty():
+		for zone in placement_zones:
+			var z : Rect2i = zone
+			var p0 := Const.voxel_to_world(z.position)
+			var p1 := Const.voxel_to_world(z.end)
+			var rect := Rect2(p0, p1 - p0)
+			draw_rect(rect, Color(0.3, 0.7, 1.0, 0.10))
+			draw_rect(rect, Color(0.4, 0.75, 1.0, 0.45), false, 2.0)
+		return
 	var x0 := Const.voxel_to_world(Vector2i(placement_min_col, 0)).x
 	var x1 := Const.voxel_to_world(Vector2i(placement_max_col + 1, 0)).x
 	var h := float(Const.MAP_HEIGHT * Const.VOXEL_SIZE)

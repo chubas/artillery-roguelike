@@ -39,6 +39,7 @@ var _tv_profiles       : Array        = []
 var _tv_preview_data   : MapData      = null
 var _tv_anchors_check  : CheckBox     = null
 var _tv_valid_lbl      : Label        = null
+var _tv_map_option     : OptionButton = null   # M44: custom map files
 
 # Rounds cheat control
 var _rounds_spin   : SpinBox = null
@@ -233,6 +234,19 @@ func _build_panel() -> void:
 
 	# ── Terrain ──
 	_add_section(col, "TERRAIN")
+	# M44: hand-authored map files (res://data/maps + user://maps)
+	col.add_child(_make_label("Map:"))
+	_tv_map_option = OptionButton.new()
+	_tv_map_option.add_theme_font_size_override("font_size", 10)
+	_tv_map_option.focus_mode = Control.FOCUS_NONE
+	_tv_map_option.add_item("(none)")
+	MapLibrary.reload()
+	for map_id in MapLibrary.map_ids():
+		_tv_map_option.add_item(map_id)
+	col.add_child(_tv_map_option)
+	var load_map_btn := _make_btn("Load Map")
+	load_map_btn.pressed.connect(_load_custom_map)
+	col.add_child(load_map_btn)
 	col.add_child(_make_label("Profile:"))
 	_tv_profile_option = OptionButton.new()
 	_tv_profile_option.add_theme_font_size_override("font_size", 10)
@@ -442,6 +456,29 @@ class _TerrainMinimap extends Control:
 			_:                                return Color(0.35, 0.35, 0.35)
 
 # ── Terrain regeneration ─────────────────────────────────────────────────────
+
+# M44: load a hand-authored map from the dropdown into the live terrain + minimap.
+func _load_custom_map() -> void:
+	if _tv_map_option == null or _tv_map_option.selected <= 0:
+		return
+	var map_id := _tv_map_option.get_item_text(_tv_map_option.selected)
+	MapLibrary.reload()   # pick up freshly dropped files without reopening the panel
+	var cmap := MapLibrary.get_map(map_id)
+	if cmap == null or cmap.error != "":
+		if _tv_valid_lbl != null:
+			_tv_valid_lbl.text = "map: FAILED\n%s" % (cmap.error if cmap != null else "not found")
+		return
+	var data := cmap.to_map_data()
+	_tv_preview_data = data
+	_terrain.load_map(data)
+	if _combat != null:
+		_combat.set_custom_map(cmap)
+	if _tv_valid_lbl != null:
+		_tv_valid_lbl.text = "map: %s (%dx%d)" % [cmap.id, cmap.width, cmap.height]
+	_renderer.mark_all_dirty()
+	if _tv_minimap != null:
+		_tv_minimap.queue_redraw()
+	_snap_all_entities()
 
 func _regenerate_terrain() -> void:
 	var seed_val := int(_seed_field.text) if _seed_field.text.is_valid_int() else 12345
