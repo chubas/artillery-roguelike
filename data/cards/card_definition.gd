@@ -13,7 +13,8 @@ extends Resource
 enum TargetType { ALLY, ENEMY, TILE, NONE }
 enum EffectType { SHIELD_BUFF, ARMOR_BUFF, DIRECT_DAMAGE, ADD_BOOSTED, DEPLOY_MINE, HALVE_WIND,
 				  PRIME_FIRE, PRIME_ELECTRIC,   # M30: elemental prime cards
-				  HEAL }                         # M36: restore HP to an ally unit
+				  HEAL,                          # M36: restore HP to an ally unit
+				  TAUNT }                        # M45: all enemies target this ally this round
 
 @export var target_type : TargetType = TargetType.ALLY
 @export var effect_type : EffectType = EffectType.SHIELD_BUFF

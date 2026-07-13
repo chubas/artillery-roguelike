@@ -355,7 +355,7 @@ func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 	for i in range(0, 21):
 		var off := (i + 1) / 2 * (1 if i % 2 == 1 else -1) if i > 0 else 0
 		var col := preferred_col + off
-		if col < 0 or col + def.width_voxels > Const.MAP_WIDTH:
+		if col < 0 or col + def.width_voxels > _terrain.map_width:
 			continue
 		var surface := _terrain.get_surface_row(col)
 		if surface == -1:
@@ -507,14 +507,14 @@ func _wind_spread_fire() -> void:
 	var burning_def : TileStatusDef = load("res://data/tile_statuses/burning.tres")
 	# Snapshot burning tiles first — avoid spreading to tiles ignited during this same pass.
 	var burning : Array[Vector2i] = []
-	for col in range(Const.MAP_WIDTH):
-		for row in range(Const.MAP_HEIGHT):
+	for col in range(_terrain.map_width):
+		for row in range(_terrain.map_height):
 			var tile := _terrain.get_tile(col, row)
 			if tile != null and tile.tile_statuses.has("burning"):
 				burning.append(Vector2i(col, row))
 	for pos in burning:
 		var target_col := pos.x + wind_dir
-		if target_col < 0 or target_col >= Const.MAP_WIDTH:
+		if target_col < 0 or target_col >= _terrain.map_width:
 			continue
 		var target_surface := _terrain.get_surface_row(target_col)
 		if target_surface == -1:
@@ -552,6 +552,12 @@ func _begin_round() -> void:
 	_wind_spread_fire()
 	if _is_terminal():
 		return
+	# M45: deterministic enemy targeting — lock each enemy's target + committed firing solution
+	# now (after reinforcements + wind are set) so the player sees the full incoming picture on
+	# hover during their turn. Wind is forecast here; changing it later deflects committed shots.
+	if Features.enemy_targeting_enabled:
+		EnemyTargeting.assign_all(enemy_units, player_units, _terrain,
+				_projectiles.current_wind_force)
 	_start_player_turn()
 
 func _start_player_turn() -> void:
@@ -626,7 +632,10 @@ func _run_enemy_turn() -> void:
 		if _is_terminal():
 			return
 		_last_firing_unit = e
-		EnemySystem.fire_enemy(e, player_units, _projectiles)
+		if Features.enemy_targeting_enabled:
+			_fire_committed(e)
+		else:
+			EnemySystem.fire_enemy(e, player_units, _projectiles, _projectiles.current_wind_force)
 		# Wait for the shot to fully resolve (flight + resolution routine + settle beat).
 		while _projectiles.is_busy():
 			await get_tree().create_timer(0.1).timeout
@@ -635,6 +644,33 @@ func _run_enemy_turn() -> void:
 	if _is_terminal():
 		return
 	_begin_round()
+
+# M45: fire an enemy's committed (telegraphed) solution. An alive target uses the solution
+# locked at round start — so wind changed since then (Halve Wind) deflects the shot (defensive
+# counter). If the target died since telegraph: SPECIFIC enemies fire at the corpse; rule-based
+# enemies recompute a fresh living target with current wind. Null target → skip (fallback).
+func _fire_committed(e: Unit) -> void:
+	var target : Unit = e.intended_target
+	if target == null:
+		return
+	var sol : Dictionary = e.intended_solution
+	if not is_instance_valid(target) or target.hp <= 0:
+		if e.targeting_rule == UnitDefinition.TargetingRule.SPECIFIC:
+			if not is_instance_valid(target):
+				return
+			sol = EnemySystem.solution_to_point(e, target.center_world(),
+					_projectiles.current_wind_force)
+		else:
+			var reachable := EnemyTargeting.reachable_players(e, player_units, _terrain)
+			target = EnemyTargeting.pick_target(e, reachable, player_units)
+			if target == null:
+				return
+			e.intended_target = target
+			sol = EnemySystem.firing_solution(e, target, _projectiles.current_wind_force)
+	if sol.is_empty():
+		return
+	_projectiles.fire(e.barrel_origin_world(), sol["direction"], sol["speed"],
+			e.definition.default_shot, true, e)
 
 func _is_terminal() -> bool:
 	return game_state == GameState.STAGE_CLEAR or game_state == GameState.GAME_OVER
@@ -665,6 +701,11 @@ func _on_unit_died(unit: Unit) -> void:
 			_essence_ctx.unit = pu
 			EssenceSystem.call_unit_died(pu.essences, _essence_ctx, unit)
 	_recompute_stack_offsets()
+	# M45: a player unit died — rule-based enemies aiming at it retarget (SPECIFIC keeps the
+	# corpse), so the hover telegraph stays live during the player turn.
+	if unit.is_player and Features.enemy_targeting_enabled:
+		EnemyTargeting.reassign_for_dead(enemy_units, unit, player_units, _terrain,
+				_projectiles.current_wind_force)
 	_check_objective()
 
 # Run the stage's objective against current combat state; transition + announce on a result.
@@ -1055,7 +1096,7 @@ func _try_click_target_card(world_pos: Vector2) -> void:
 					return
 		CardDefinition.TargetType.TILE:
 			var col := Const.world_to_voxel(world_pos).x
-			if col >= 0 and col < Const.MAP_WIDTH and _terrain.get_surface_row(col) != -1:
+			if col >= 0 and col < _terrain.map_width and _terrain.get_surface_row(col) != -1:
 				_apply_card(_pending_card, null, Vector2i(col, 0))
 
 # Dispatch a card's effect. `target` is the unit for ALLY/ENEMY cards; `vox` carries the chosen
@@ -1090,6 +1131,8 @@ func _apply_card(card: CardDefinition, target: Unit, vox: Vector2i) -> void:
 		CardDefinition.EffectType.HEAL:
 			target.hp = mini(target.hp + mag, target.definition.max_hp)
 			target.queue_redraw()
+		CardDefinition.EffectType.TAUNT:
+			_apply_taunt(target)
 	_hand.erase(card)
 	_discard.append(card)
 	# M36: consumable cards purge themselves from the run deck after a single use.
@@ -1116,6 +1159,19 @@ func _halve_wind() -> void:
 	wind_strength *= 0.5
 	_projectiles.current_wind_force = wind_strength * Const.MAX_WIND_FORCE
 	EventBus.wind_changed.emit(wind_strength)
+
+# M45 Taunt: force every living enemy to target `ally` this round (SPECIFIC rule, ignores cover).
+# The override is flagged so _begin_round's reset keeps it this round; next round restores each
+# enemy's definition rule. Re-runs assignment so the telegraph + committed solutions update now.
+func _apply_taunt(ally: Unit) -> void:
+	for e in enemy_units:
+		if e.hp <= 0:
+			continue
+		e.targeting_rule = UnitDefinition.TargetingRule.SPECIFIC
+		e.forced_target = ally
+	# reset_rules = false: keep the SPECIFIC override we just set; only recompute targets/solutions.
+	EnemyTargeting.assign_all(enemy_units, player_units, _terrain,
+			_projectiles.current_wind_force, false)
 
 # --- Settling: units fall when terrain under them is destroyed --------------------
 # (Not in the spec; without it units hover over craters. No fall damage in M2.)

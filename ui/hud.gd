@@ -426,7 +426,14 @@ class UnitInspector:
 		if unit == null or not is_instance_valid(unit):
 			return ""
 		var kw := KeywordRegistry.tooltip(KeywordRegistry.for_unit(unit))
-		return "%s\n\n%s" % [unit.display_name, kw] if kw != "" else ""
+		# M45: enemy targeting telegraph — show who this enemy will shoot this round.
+		var tgt := unit.targeting_summary() if not unit.is_player else ""
+		var body := ""
+		if tgt != "":
+			body = "Targeting: %s" % tgt
+		if kw != "":
+			body = "%s\n\n%s" % [body, kw] if body != "" else kw
+		return "%s\n\n%s" % [unit.display_name, body] if body != "" else ""
 
 	func _draw() -> void:
 		if unit == null or not is_instance_valid(unit):
@@ -488,6 +495,13 @@ class UnitInspector:
 			draw_string(font, Vector2(10, y), "Effects: " + ", ".join(parts),
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 0.85, 0.4))
 		y += 18
+		# M45: enemy targeting telegraph line.
+		if not unit.is_player:
+			var tgt_sum := unit.targeting_summary()
+			var tgt_txt := "Targeting: %s" % tgt_sum if tgt_sum != "" else "Targeting: —"
+			draw_string(font, Vector2(10, y), tgt_txt,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1.0, 0.55, 0.35))
+			y += 16
 		if not unit.primed_elements.is_empty():
 			var font_size := 11
 			var line_h := 14.0

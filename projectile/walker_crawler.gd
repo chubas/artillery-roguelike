@@ -87,11 +87,11 @@ func _on_reached_waypoint() -> void:
 
 func _crawl_step(from: Vector2i, direction: int) -> Vector2i:
 	var new_x := from.x + direction
-	if new_x < 0 or new_x >= Const.MAP_WIDTH:
+	if new_x < 0 or new_x >= _terrain.map_width:
 		return UnitMovement.NO_MOVE
 	if UnitMovement.bbox_terrain_clear(_terrain, Vector2i(new_x, from.y), 1, 1):
 		var foot := from.y
-		while foot < Const.MAP_HEIGHT - 1 \
+		while foot < _terrain.map_height - 1 \
 				and not UnitMovement.grounded(_terrain, new_x, foot, 1):
 			foot += 1
 		return Vector2i(new_x, foot)

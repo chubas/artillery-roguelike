@@ -47,6 +47,17 @@ var debug_invulnerable : bool = false   # M24: set by sandbox overlay; blocks al
 var stack_visual_offset : Vector2 = Vector2.ZERO   # M29: 2.5D draw-only depth cue; does not affect vox_position or hitbox
 var _dying : bool = false   # M31: true while death_fade plays; blocks click/hover interaction
 
+# --- Deterministic targeting (M45, enemy units) ------------------------------------
+# targeting_rule is a runtime, overridable copy of definition.targeting_rule (effects/cards may
+# change it — e.g. Taunt sets SPECIFIC; restored from the definition each round). intended_target +
+# intended_solution are the telegraphed pick and its committed firing solution, computed at round
+# start and shown on hover; the enemy fires the committed solution on its turn (so later wind
+# changes deflect it). forced_target holds the SPECIFIC target.
+var targeting_rule    : int = UnitDefinition.TargetingRule.NEAREST
+var forced_target     : Unit = null
+var intended_target   : Unit = null
+var intended_solution : Dictionary = {}
+
 ## Active status instances (M3 §4.4). Key = status id, value = StatusInstance.
 var active_statuses : Dictionary = {}
 
@@ -55,6 +66,13 @@ var selected_shot : ShotDefinition = null
 
 func get_active_shot() -> ShotDefinition:
 	return selected_shot if selected_shot != null else definition.default_shot
+
+## M45: one-line telegraph for the hover tooltip, e.g. "WEAKEST → Vanguard". "" if no target.
+func targeting_summary() -> String:
+	if intended_target == null or not is_instance_valid(intended_target):
+		return ""
+	var rule_name : String = UnitDefinition.TargetingRule.keys()[targeting_rule]
+	return "%s → %s" % [rule_name, intended_target.display_name]
 
 ## Shots the player may pick from; falls back to [default_shot] if none authored.
 func available_shots() -> Array:

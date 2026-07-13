@@ -31,40 +31,58 @@ static func nearest_living_player(enemy: Unit, players: Array) -> Unit:
 			nearest = unit
 	return nearest
 
-# Computes the IK firing solution for enemy → target.
+# Computes the deterministic IK firing solution for enemy → a world point, accounting for the
+# forecast wind (M45). The projectile integrates constant accel (ax, g): ax = wind_force_x
+# (px/s², projectile.gd), g = GRAVITY * gravity_scale. At a fixed launch angle `a` with
+# side = sign(dx), cx = cos(a)*side, sy = -sin(a), X = dx, Yd = dy (screen y-down):
+#   t² = 2·(Yd − (sy/cx)·X) / (g − (sy/cx)·ax);  v = (X − 0.5·ax·t²) / (cx·t)
+# accepted when t² > 0 and v > 0. Reduces to the no-wind ballistic solve when ax = 0.
 # Returns {} if no solution at either angle.
-static func firing_solution(enemy: Unit, target: Unit) -> Dictionary:
+static func firing_solution(enemy: Unit, target: Unit, wind_force_x: float = 0.0) -> Dictionary:
+	return solution_to_point(enemy, target.center_world(), wind_force_x)
+
+static func solution_to_point(enemy: Unit, tgt: Vector2, wind_force_x: float = 0.0) -> Dictionary:
 	var barrel := enemy.barrel_origin_world()
-	var tgt := target.center_world()
-	var dx := absf(tgt.x - barrel.x)
-	var dy_up := barrel.y - tgt.y   # positive = target above barrel
-	var side := -1.0 if tgt.x < barrel.x else 1.0
+	var x_signed := tgt.x - barrel.x
+	var yd := tgt.y - barrel.y            # screen y-down: positive = target below barrel
+	var side := -1.0 if x_signed < 0.0 else 1.0
 	var g := Const.GRAVITY * enemy.definition.default_shot.gravity_scale
 	for angle_deg in [Const.ENEMY_LAUNCH_ANGLE_DEG, Const.ENEMY_ALT_ANGLE_DEG]:
 		var a := deg_to_rad(angle_deg)
-		var speed := solve_launch_speed(dx, dy_up, a, g)
-		if speed > 0.0:
-			return {
-				"speed": speed,
-				"direction": Vector2(cos(a) * side, -sin(a)),
-				"angle_deg": angle_deg,
-			}
+		var cx := cos(a) * side
+		var sy := -sin(a)
+		if absf(cx) < 0.0001:
+			continue
+		var ratio := sy / cx
+		var denom := g - ratio * wind_force_x
+		if absf(denom) < 0.0001:
+			continue
+		var t_sq := 2.0 * (yd - ratio * x_signed) / denom
+		if t_sq <= 0.0:
+			continue
+		var t := sqrt(t_sq)
+		var v := (x_signed - 0.5 * wind_force_x * t_sq) / (cx * t)
+		if v <= 0.0:
+			continue
+		v = clampf(v, Const.ENEMY_SPEED_MIN, Const.ENEMY_SPEED_MAX)
+		return {
+			"speed": v,
+			"direction": Vector2(cx, sy),
+			"angle_deg": angle_deg,
+		}
 	return {}
 
-# Fires one enemy at the nearest player. Returns true if a shot was fired.
+# Legacy flag-off path (Features.enemy_targeting_enabled = false): fire deterministically at the
+# nearest player, no accuracy RNG. The telegraphed pipeline in EnemyTargeting supersedes this.
 static func fire_enemy(enemy: Unit, players: Array, projectiles: ProjectileManager,
-		with_error: bool = true) -> bool:
+		wind_force_x: float = 0.0) -> bool:
 	var target := nearest_living_player(enemy, players)
 	if target == null:
 		return false
-	var sol := firing_solution(enemy, target)
+	var sol := firing_solution(enemy, target, wind_force_x)
 	if sol.is_empty():
 		push_warning("Enemy %s: no firing solution" % enemy.display_name)
 		return false
-	var speed : float = sol["speed"]
-	if with_error:
-		speed *= 1.0 + (CombatRng.rng.randf_range(-Const.ENEMY_ERROR_PCT, Const.ENEMY_ERROR_PCT) if Features.stage_rng_enabled else randf_range(-Const.ENEMY_ERROR_PCT, Const.ENEMY_ERROR_PCT))
-	speed = clampf(speed, Const.ENEMY_SPEED_MIN, Const.ENEMY_SPEED_MAX)
-	projectiles.fire(enemy.barrel_origin_world(), sol["direction"], speed,
+	projectiles.fire(enemy.barrel_origin_world(), sol["direction"], sol["speed"],
 			enemy.definition.default_shot, true, enemy)
 	return true

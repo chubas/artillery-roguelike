@@ -12,6 +12,7 @@ faction = "army"
 move_range = 0
 base_power = 3.0
 default_shot = ExtResource("2_jhtk4")
+targeting_rule = 3
 tags = Array[String](["MECHANICAL"])
 keywords = Array[String](["unit"])
 element_affinities = {

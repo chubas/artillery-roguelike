@@ -28,13 +28,13 @@ static func resolve_move(unit: Unit, direction: int,
 	var w := unit.definition.width_voxels
 	var h := unit.definition.height_voxels
 	var new_x := unit.vox_position.x + direction
-	if new_x < 0 or new_x + w > Const.MAP_WIDTH:
+	if new_x < 0 or new_x + w > terrain.map_width:
 		return NO_MOVE
 	var foot := unit.vox_position.y + h - 1
 	# Flat / fall candidate.
 	if bbox_terrain_clear(terrain, Vector2i(new_x, foot - h + 1), w, h):
 		var f := foot
-		while f < Const.MAP_HEIGHT - 1 and not grounded(terrain, new_x, f, w):
+		while f < terrain.map_height - 1 and not grounded(terrain, new_x, f, w):
 			f += 1
 		return Vector2i(new_x, f - h + 1)
 	# Climb candidates: try ascending 1..max_climb voxels, lowest accessible wins.
@@ -58,7 +58,7 @@ static func settle(unit: Unit, terrain: TerrainManager) -> Vector2i:
 # can fall using the same rules without needing a UnitDefinition.
 static func settle_at(pos: Vector2i, w: int, h: int, terrain: TerrainManager) -> Vector2i:
 	var foot := pos.y + h - 1
-	while foot < Const.MAP_HEIGHT - 1 and not grounded(terrain, pos.x, foot, w):
+	while foot < terrain.map_height - 1 and not grounded(terrain, pos.x, foot, w):
 		foot += 1
 	return Vector2i(pos.x, foot - h + 1)
 
@@ -72,7 +72,7 @@ static func bbox_terrain_clear(terrain: TerrainManager, top_left: Vector2i,
 	return true
 
 static func grounded(terrain: TerrainManager, x: int, foot: int, w: int) -> bool:
-	if foot >= Const.MAP_HEIGHT - 1:
+	if foot >= terrain.map_height - 1:
 		return true   # map bottom counts as support
 	for col in range(x, x + w):
 		if terrain.is_solid(col, foot + 1):

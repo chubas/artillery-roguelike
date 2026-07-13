@@ -63,7 +63,6 @@ const SHOT_RESOLVE_DELAY : float = 0.45
 # The spec's -45°/-60° (Godot y-down convention) map to +45/+60 here.
 const ENEMY_LAUNCH_ANGLE_DEG : float = 45.0
 const ENEMY_ALT_ANGLE_DEG    : float = 60.0
-const ENEMY_ERROR_PCT : float = 0.05   # ±5% launch speed variance
 const ENEMY_SPEED_MIN : float = 100.0  # IK result clamp
 const ENEMY_SPEED_MAX : float = 2500.0 # cross-map shots need ~2000 px/s
 

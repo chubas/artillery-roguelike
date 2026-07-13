@@ -26,8 +26,8 @@ static func tick_all(terrain: TerrainManager, units: Array) -> void:
 		return
 	# Snapshot first: spreads applied during the tick must NOT be processed this round.
 	var active : Array = []
-	for col in range(Const.MAP_WIDTH):
-		for row in range(Const.MAP_HEIGHT):
+	for col in range(terrain.map_width):
+		for row in range(terrain.map_height):
 			var tile := terrain.get_tile(col, row)
 			if tile != null and not tile.tile_statuses.is_empty():
 				active.append([Vector2i(col, row), tile])

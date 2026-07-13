@@ -147,7 +147,7 @@ func _try_teleport(salvo: Salvo, impact_voxel: Vector2i) -> bool:
 	var h := def.height_voxels
 	var top_left := Vector2i(impact_voxel.x - w / 2, impact_voxel.y - h)
 	top_left = UnitMovement.settle_at(top_left, w, h, _terrain)
-	if top_left.x < 0 or top_left.x + w > Const.MAP_WIDTH:
+	if top_left.x < 0 or top_left.x + w > _terrain.map_width:
 		print("[teleport] failed: out of bounds at %s" % impact_voxel)
 		return false
 	if not UnitMovement.bbox_terrain_clear(_terrain, top_left, w, h):

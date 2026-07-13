@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-07-06 M44)
+## Current state (2026-07-09 M45)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -55,7 +55,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   **M41 (Keyword system + hover tooltips: `KeywordDef` resource (`data/keyword_def.gd`) baked to `data/keywords/` — `boosted` real keyword + `unit`/`shot` test keywords; `KeywordRegistry` static lazy registry (`systems/keyword_registry.gd`) with collectors `for_unit`/`for_definition`/`for_run_unit`/`for_shot`/`for_card` and `tooltip(ids)` formatter; status→keyword link by shared id so the Boosted status surfaces the `boosted` keyword; `keywords: Array[String]` on UnitDefinition/ShotDefinition/CardDefinition, bake tags all units `["unit"]` + all shots `["shot"]` via `_tag_test_keywords()`, Overdrive card `["boosted"]`; built-in `tooltip_text` tooltips on combat hand cards, combat unit inspector (`_get_tooltip` live recompute), reward previews, and Deck/Squad viewer rows; shared `PatternGlyph` (`ui/pattern_glyph.gd`) extracted from UnitInspector; `Features.keywords_enabled` gate; QoL — combat `DEFAULT_ZOOM=0.83` set in `_ready`, unit reward preview shows shot pattern glyph + description)**,
   **M42 (Mineral terrain + Ore drops + currency rename: run currency moved from `RunState.resources["shards"]` to `RunState.currency` with `add_currency`/`spend_currency`/`can_afford` (UI keeps "◆ Shards", combat HUD readout added, `from_dict` migrates legacy saves); new `Tile.TileType.MINERAL` (durability 2, collapsible, standable via broadened `is_solid`), pink `COLOR_MINERAL` in `chunk.gd`; `TerrainManager.scatter_minerals(seed)` clustered patches (some surface-exposed) run in `_setup_terrain`, gated by `Features.minerals_enabled`; breaking a MINERAL emits `EventBus.mineral_destroyed` → `OreSystem` (`systems/ore_system.gd`) spawns an `Ore` (`world/ore.gd`, floating pink circle above units in a new OreLayer); on `aoe_resolved` ores fall under gravity one voxel at a time until blocked by terrain/map floor, merging only when landing on another Ore (buried ore never rises); Ore shows its currency value in purple; a player unit collects an Ore inside its footprint or one voxel below its base via `try_collect` in `try_move` for `value×2` currency (`EventBus.ore_collected`); move-undo snapshots ore set + currency and restores both; `ORE_CURRENCY=2`)**,
   **M43 (Terrain generation v2 — placer contract + anchors + seams + validation: pipeline reordered to noise-first (A base+noise everywhere → B features → C seams → D HP/variants → E validation) so features anchor to the real surface; per-feature placer modules in `terrain/placers/` registered in `TerrainGenerator.PLACERS`, each returning a `FeatureInstance` (`terrain/feature_instance.gd`: id, footprint, named anchors — exact `Vector2i` or zone `Rect2i` — edge specs, gap rects) carried on `MapData.features`; anchors exported per construct (bunker `core`/`aperture_n`/`interior`, ridge `summit_center`/`reverse_slope`, pit rims, pillar top, crystal vein); `terrain/seam_pass.gd` reconciles edges (RAMP staircase 2 voxels/column until ground, GAP re-carve, FLUSH foundations, CLIFF no-op) with new `GenOrigin.SEAM`; `terrain/map_validator.gd` checks dig-cost-weighted reachability to the enemy zone (budget 40), zone clearance (2×3), and per-placer validators, with reroll `hash([seed, attempt])` ≤5 attempts then loud warning; HP sprinkle now skips feature tiles (was silently downgrading bunker shells); sandbox minimap gains anchors overlay + toggle, SEAM color, and a validation readout; `Features.terrain_v2_enabled` gates seams+validation; design doc updated to v0.2)**,
-  **M44 (Hand-authored ASCII maps — procedural generation deactivated: maps are plain-text files (`data/maps/*.txt` + drop-in `user://maps/*.txt`) with `key: value` metadata (id/title/description/notes/width/height + `spawn_zones`/`enemy_zones` as `[x0,y0,x1,y1]` boxes) and an ASCII grid (`'.'` void, `1`–`9` SOLID hp N, `0` indestructible, `M` MINERAL); `terrain/custom_map.gd` parses + builds MapData, `terrain/map_library.gd` scans/caches both dirs; `MapNode.custom_map_id` assigned randomly per combat node from the pool (run-seeded, node 0 included), profiles/legacy only as fallback; `combat_scene._setup_terrain` loads the map and skips `scatter_minerals` (M chars are the only minerals); `CombatManager._zone_surface_top` finds the topmost floor WITHIN a zone box (caves/islands) for placement, `_random_zone_drop` (StageRng) places initial enemies/reinforcements/deployables in enemy zones ignoring stage cols; placement overlay draws zone boxes; sandbox Map dropdown + Load Map; `Features.custom_maps_enabled`; generator classes remain dormant + smoke-tested; test map `test_flat`)**.
+  **M44 (Hand-authored ASCII maps — procedural generation deactivated: maps are plain-text files (`data/maps/*.txt` + drop-in `user://maps/*.txt`) with `key: value` metadata (id/title/description/notes/width/height + `spawn_zones`/`enemy_zones` as `[x0,y0,x1,y1]` boxes) and an ASCII grid (`'.'` void, `1`–`9` SOLID hp N, `0` indestructible, `M` MINERAL); `terrain/custom_map.gd` parses + builds MapData, `terrain/map_library.gd` scans/caches both dirs; `MapNode.custom_map_id` assigned randomly per combat node from the pool (run-seeded, node 0 included), profiles/legacy only as fallback; `combat_scene._setup_terrain` loads the map and skips `scatter_minerals` (M chars are the only minerals); `CombatManager._zone_surface_top` finds the topmost floor WITHIN a zone box (caves/islands) for placement, `_random_zone_drop` (StageRng) places initial enemies/reinforcements/deployables in enemy zones ignoring stage cols; placement overlay draws zone boxes; sandbox Map dropdown + Load Map; `Features.custom_maps_enabled`; generator classes remain dormant + smoke-tested; test map `test_flat`)**,
+  **M45 (Deterministic enemy targeting + Taunt — replaces accuracy RNG: enemies lock a target + committed firing solution at round start (telegraphed, shown on hover), execute it on their turn; ±5% `ENEMY_ERROR_PCT` speed variance deleted; `UnitDefinition.TargetingRule` {NEAREST/FARTHEST/WEAKEST/STRONGEST/FIXED_LANE/SPECIFIC} + runtime overridable copy on `Unit` (`intended_target`/`intended_solution`/`forced_target`); `systems/enemy_targeting.gd` composes reachable-set (LOS via `terrain/los.gd`, `bypass_terrain` ignores cover) with the rule; wind-aware closed-form solver in `EnemySystem.firing_solution(enemy,target,wind_force_x)` so enemies account for forecast wind — changing wind after telegraph (Halve Wind) deflects the committed shot (defensive counter); dead target → rule-based recompute, SPECIFIC fires at corpse; no reachable target → skip; new **Taunt** card (`EffectType.TAUNT`, ALLY, in default deck + pool) forces all enemies SPECIFIC→ally for the round; enemy defs baked organic=WEAKEST/mechanical=STRONGEST; hover tooltip + inspector show `Targeting: <rule> → <unit>`; `Features.enemy_targeting_enabled`)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.
@@ -67,6 +68,56 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-07-10 — Hotfix: terrain crash on non-standard map sizes
+
+**Crash:** `Invalid assignment of index N (on base: 'Array')` when a projectile destroyed terrain
+on a small custom map (M44). Root cause: the terrain-collapse code (`_collapse_column`,
+`_is_unsupported`, `_fall_tile`, `_move_tile`/`_crush`) and several sibling systems hardcoded
+`Const.MAP_WIDTH`/`Const.MAP_HEIGHT` (120×100) instead of reading the terrain's actual loaded
+`map_width`/`map_height`. On a smaller map (e.g. 89×35), a falling tile's landing search walked
+rows past the real `_grid` size and wrote out of bounds.
+
+- **Fixed writers (the crash):** `terrain/terrain_manager.gd` — `get_surface_row`,
+  `queue_collapse`, `resolve_all_collapses`, `_collapse_column`, `_is_unsupported`, `_fall_tile`,
+  `debug_stats` now use the instance's `map_width`/`map_height`.
+- **Fixed a related reuse bug:** the legacy `generate()` never reset `map_width`/`map_height` or
+  resized `_grid` — reusing a `TerrainManager` that had previously `load_map()`'d a differently-sized
+  map (e.g. switching back to "(legacy noise)" in the sandbox) would crash the same way. `generate()`
+  now resets dimensions + reallocates the grid at the top.
+- **Fixed the same defect class in movement/spread/spawn code** (bounds-checked reads, so these
+  didn't crash but silently misbehaved near map edges on non-standard sizes):
+  `systems/unit_movement.gd` (`resolve_move`, `settle_at`, `grounded` — now use `terrain.map_width`/
+  `map_height`), `systems/tile_status_system.gd` (`tick_all` fire/electric spread scan),
+  `systems/combat_manager.gd` (`_find_valid_spawn`, `_wind_spread_fire`, TILE card placement),
+  `projectile/projectile_manager.gd` (`_try_teleport` bounds check),
+  `projectile/walker_crawler.gd` (`_crawl_step`).
+- **Regression test:** appended to `_m44_smoke()` — builds a scratch 30×15 `TerrainManager` with a
+  floating unsupported tile, triggers `resolve_collapses()` (previously crashed), confirms the tile
+  lands correctly; then calls `generate()` on the same instance and confirms it resets to 120×100.
+- Smoke-test code paths (`world/combat_scene.gd` `_mN_smoke`, `scripts/bake_resources.gd`) and
+  `StageDescriptor`/`CombatManager` fallback defaults still reference `Const.MAP_WIDTH/HEIGHT`
+  intentionally — they always run against the standard map or are just default values, not bugs.
+
+## 2026-07-09 — Milestone 45: Deterministic Enemy Targeting + Taunt
+
+Removes enemy accuracy RNG in favor of **telegraphed, deterministic** targeting so the turn's
+outcome is legible before the player commits. Full design in
+[docs/planning/milestone-45-plan.md](docs/planning/milestone-45-plan.md).
+
+- **Telegraph:** at round start (after reinforcements + wind, before the player turn) each enemy
+  locks a target and a committed firing solution; both are shown on hover; the enemy fires that
+  exact solution on its turn. The ±5% `ENEMY_ERROR_PCT` speed variance is deleted outright.
+- **Two composing layers:** reachable set (straight-line LOS; `bypass_terrain` ignores cover) →
+  targeting rule picks among the reachable. Rules: NEAREST, FARTHEST, WEAKEST (current HP),
+  STRONGEST (max HP), FIXED_LANE (column alignment), SPECIFIC (forced, e.g. Taunt).
+- **Wind-aware solver:** enemies solve for the forecast wind, so shots land — but changing wind
+  after the telegraph (Halve Wind) deflects the committed shot, making wind a defensive counter.
+- **Dead target:** rule-based enemies recompute; SPECIFIC enemies fire at the corpse. No reachable
+  target → skip the shot.
+- **Taunt card** (ALLY, 1 AP; default deck + pool): forces every enemy to target the chosen ally
+  for the round. Enemy defs baked with starter rules (organic WEAKEST, mechanical STRONGEST).
+- **New file:** `systems/enemy_targeting.gd`. **Smoke:** `_m45_smoke()`. `Features.enemy_targeting_enabled`.
 
 ## 2026-07-06 — Milestone 44: Hand-Authored ASCII Maps (generator deactivated)
 

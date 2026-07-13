@@ -184,6 +184,7 @@ func _ready() -> void:
 	organic.move_range = 0; organic.weight = 2
 	organic.default_shot = basic_ref
 	organic.tags = ["ORGANIC"]
+	organic.targeting_rule = UnitDefinition.TargetingRule.WEAKEST   # M45: finisher (tunable)
 	organic.element_affinities = { "fire": 1.5, "electric": 0.75 }
 	organic.faction = Faction.ARMY
 	organic.rarity = Rarity.COMMON
@@ -198,6 +199,7 @@ func _ready() -> void:
 	mechanical.move_range = 0; mechanical.weight = 2
 	mechanical.default_shot = basic_ref
 	mechanical.tags = ["MECHANICAL"]
+	mechanical.targeting_rule = UnitDefinition.TargetingRule.STRONGEST   # M45: counters tanks (tunable)
 	mechanical.element_affinities = { "fire": 0.75, "electric": 1.5 }
 	mechanical.faction = Faction.ARMY
 	mechanical.rarity = Rarity.COMMON
@@ -498,6 +500,19 @@ func _ready() -> void:
 	heal_vial.rarity       = Rarity.COMMON
 	heal_vial.color        = Color(0.2, 0.8, 0.4, 1.0)
 	_save(heal_vial, "res://data/cards/heal_vial.tres")
+
+	# M45: Taunt — all enemies target the chosen ally this round.
+	var taunt := CardDefinition.new()
+	taunt.id           = "taunt"
+	taunt.display_name = "Taunt"
+	taunt.faction      = Faction.NEUTRAL
+	taunt.target_type  = CardDefinition.TargetType.ALLY
+	taunt.effect_type  = CardDefinition.EffectType.TAUNT
+	taunt.description_template = "All enemies target this ally this round."
+	taunt.action_cost  = 1
+	taunt.rarity       = Rarity.COMMON
+	taunt.color        = Color(0.9, 0.55, 0.15, 1.0)
+	_save(taunt, "res://data/cards/taunt.tres")
 
 	# ── M32: Terrain feature definitions ────────────────────────────────────────
 	var fd_ridge := FeatureDefinition.new()

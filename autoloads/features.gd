@@ -42,3 +42,4 @@ var power_mods_enabled       : bool = true  # M40: source-attributed power modif
 var minerals_enabled         : bool = true  # M42: mineral terrain + collectible Ore drops
 var terrain_v2_enabled       : bool = true  # M43: seam pass + validation/reroll in TerrainGenerator
 var custom_maps_enabled      : bool = true  # M44: hand-authored ASCII maps (generator dormant)
+var enemy_targeting_enabled  : bool = true  # M45: deterministic telegraphed enemy targeting

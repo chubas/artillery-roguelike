@@ -53,7 +53,7 @@ func is_blocked(col: int, row: int) -> bool:
 	return t != null and not t.has_flag(Tile.FLAG_PASSABLE)
 
 func get_surface_row(col: int) -> int:
-	for row in range(Const.MAP_HEIGHT):
+	for row in range(map_height):
 		if is_solid(col, row):
 			return row
 	return -1
@@ -134,7 +134,7 @@ func _destroy_tile(col: int, row: int, tile: Tile) -> void:
 
 ## Mark a column for the next `resolve_collapses()` call (e.g. after manual tile removal).
 func queue_collapse(col: int) -> void:
-	if col >= 0 and col < Const.MAP_WIDTH:
+	if col >= 0 and col < map_width:
 		_pending_collapse_cols[col] = true
 
 ## Process columns queued by recent destroys until stable. Pass living units/deployables so
@@ -155,7 +155,7 @@ func resolve_all_collapses(units: Array = [], deployables: Array = []) -> void:
 	if not Features.collapse_enabled:
 		return
 	var cols : Array = []
-	for c in range(Const.MAP_WIDTH):
+	for c in range(map_width):
 		cols.append(c)
 	_run_collapse_until_stable(cols, units, deployables)
 
@@ -175,7 +175,7 @@ func _run_collapse_until_stable(cols: Array, units: Array, deployables: Array) -
 func _collapse_column(col: int, units: Array, deployables: Array) -> bool:
 	# Bottom-up: lower rows (higher index) settle before tiles above them are checked.
 	var changed := false
-	for row in range(Const.MAP_HEIGHT - 2, -1, -1):
+	for row in range(map_height - 2, -1, -1):
 		var tile := get_tile(col, row)
 		if tile == null:
 			continue
@@ -191,7 +191,7 @@ func _collapse_column(col: int, units: Array, deployables: Array) -> bool:
 
 func _is_unsupported(col: int, row: int) -> bool:
 	# Cannot fall past the bottom row.
-	if row >= Const.MAP_HEIGHT - 1:
+	if row >= map_height - 1:
 		return false
 	var below := get_tile(col, row + 1)
 	if below != null and _blocks_collapse(below):
@@ -206,12 +206,12 @@ func _fall_tile(col: int, from_row: int, units: Array, deployables: Array) -> bo
 	if tile == null:
 		return false
 	var crush_dmg := tile.max_hp
-	for r in range(from_row + 1, Const.MAP_HEIGHT):
+	for r in range(from_row + 1, map_height):
 		var victims := _occupants_at(col, r, units, deployables)
 		if not victims.is_empty():
 			_crush(col, from_row, r, crush_dmg, tile, victims)
 			return true
-		if r < Const.MAP_HEIGHT - 1:
+		if r < map_height - 1:
 			var below := get_tile(col, r + 1)
 			if below != null and _blocks_collapse(below):
 				if r == from_row:
@@ -296,11 +296,19 @@ func load_map(data: MapData) -> void:
 # `seed` drives the surface noise + the derived cave/HP/variant RNGs, so each stage descriptor
 # (M13) gets its own reproducible terrain. Defaults to Const.NOISE_SEED (the historical map).
 func generate(seed: int = Const.NOISE_SEED) -> void:
-	var base_row := Const.MAP_HEIGHT - Const.BASE_FILL_ROWS
+	# Reset to the fixed legacy dimensions and reallocate — this instance may have previously
+	# loaded a differently-sized MapData (custom map / profile) via load_map(), and every pass
+	# below indexes _grid assuming the classic 120x100 layout.
+	map_width  = Const.MAP_WIDTH
+	map_height = Const.MAP_HEIGHT
+	_grid.resize(map_width * map_height)
+	_grid.fill(null)
+
+	var base_row := map_height - Const.BASE_FILL_ROWS
 
 	# Pass 1 — base fill.
-	for col in range(Const.MAP_WIDTH):
-		for row in range(base_row, Const.MAP_HEIGHT):
+	for col in range(map_width):
+		for row in range(base_row, map_height):
 			_grid[_idx(col, row)] = Tile.new().setup(Tile.TileType.SOLID, 3, 0)
 
 	# Pass 2 — surface noise. Positive noise raises the surface (lower row index).
@@ -308,9 +316,9 @@ func generate(seed: int = Const.NOISE_SEED) -> void:
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	noise.seed = seed
 	noise.frequency = Const.NOISE_FREQUENCY
-	for col in range(Const.MAP_WIDTH):
+	for col in range(map_width):
 		var offset := int(noise.get_noise_1d(float(col)) * Const.SURFACE_VARIATION)
-		var surface : int = clampi(base_row - offset, 0, Const.MAP_HEIGHT - 1)
+		var surface : int = clampi(base_row - offset, 0, map_height - 1)
 		for row in range(surface, base_row):
 			_grid[_idx(col, row)] = Tile.new().setup(Tile.TileType.SOLID, 3, 0)
 		for row in range(base_row, surface):
@@ -320,9 +328,9 @@ func generate(seed: int = Const.NOISE_SEED) -> void:
 	var cave_rng := RandomNumberGenerator.new()
 	cave_rng.seed = seed + 1
 	for _i in range(Const.CAVE_COUNT):
-		var ccol := cave_rng.randi_range(15, Const.MAP_WIDTH - 16)
+		var ccol := cave_rng.randi_range(15, map_width - 16)
 		var min_row := get_surface_row(ccol) + 10
-		var crow := cave_rng.randi_range(min_row, Const.MAP_HEIGHT - 11)
+		var crow := cave_rng.randi_range(min_row, map_height - 11)
 		var rw := cave_rng.randi_range(Const.CAVE_WIDTH_MIN, Const.CAVE_WIDTH_MAX)
 		var rh := cave_rng.randi_range(Const.CAVE_HEIGHT_MIN, Const.CAVE_HEIGHT_MAX)
 		for col in range(ccol - rw, ccol + rw + 1):
@@ -349,8 +357,8 @@ func generate(seed: int = Const.NOISE_SEED) -> void:
 	# Pass 5 — HP assignment: 10% reinforced (HP 6), separately seeded.
 	var hp_rng := RandomNumberGenerator.new()
 	hp_rng.seed = seed + 99
-	for row in range(Const.MAP_HEIGHT):
-		for col in range(Const.MAP_WIDTH):
+	for row in range(map_height):
+		for col in range(map_width):
 			var t := get_tile(col, row)
 			if t == null or t.has_flag(Tile.FLAG_INDESTRUCTIBLE):
 				continue
@@ -364,8 +372,8 @@ func generate(seed: int = Const.NOISE_SEED) -> void:
 	# specific tiles opt in via content/transmutation later.
 	var var_rng := RandomNumberGenerator.new()
 	var_rng.seed = seed + 7
-	for row in range(Const.MAP_HEIGHT):
-		for col in range(Const.MAP_WIDTH):
+	for row in range(map_height):
+		for col in range(map_width):
 			var t := get_tile(col, row)
 			if t != null:
 				t.variant = var_rng.randi_range(0, 3)
@@ -377,6 +385,6 @@ func debug_stats() -> String:
 		if cell != null:
 			solid += 1
 	var checksum := 0
-	for col in range(Const.MAP_WIDTH):
+	for col in range(map_width):
 		checksum = (checksum * 31 + get_surface_row(col) + 1) % 1000000007
 	return "solid=%d surface_checksum=%d" % [solid, checksum]

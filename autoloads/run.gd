@@ -26,6 +26,7 @@ const _DEFAULT_DECK : Array = [   # [path, copies]
 	["res://data/cards/halve_wind.tres",        1],
 	["res://data/cards/fire_prime.tres",        2],
 	["res://data/cards/electric_prime.tres",    2],
+	["res://data/cards/taunt.tres",             1],
 ]
 
 func start_default_run() -> void:
@@ -65,6 +66,7 @@ func start_default_run() -> void:
 		"res://data/cards/halve_wind.tres",
 		"res://data/cards/fire_prime.tres",
 		"res://data/cards/electric_prime.tres",
+		"res://data/cards/taunt.tres",
 	]
 	rs.map = MapState.build_run_map(_DEFAULT_MAP, _EVENT_PATHS)
 	var _run_seed : int = Features.run_seed if Features.run_seed != 0 else randi()

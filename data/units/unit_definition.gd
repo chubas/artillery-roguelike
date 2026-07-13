@@ -2,6 +2,12 @@
 class_name UnitDefinition
 extends Resource
 
+## Deterministic enemy targeting (M45): which reachable player an enemy picks each round.
+## NEAREST/FARTHEST by distance · WEAKEST (lowest current HP) · STRONGEST (highest max HP) ·
+## FIXED_LANE (most aligned with the enemy's column) · SPECIFIC (externally-forced, e.g. Taunt).
+## Property of the enemy type but copied to a runtime, overridable field on the Unit.
+enum TargetingRule { NEAREST, FARTHEST, WEAKEST, STRONGEST, FIXED_LANE, SPECIFIC }
+
 @export var id : String = ""
 @export var display_name : String = "Unit"
 
@@ -40,6 +46,9 @@ extends Resource
 @export var available_shots : Array[ShotDefinition] = []
 @export var barrel_offset : Vector2i = Vector2i(0, -1)
 	# offset in voxels from unit top-center to barrel origin
+
+## Deterministic targeting rule (M45), used by enemy units. Ignored for player units.
+@export var targeting_rule : TargetingRule = TargetingRule.NEAREST
 
 ## Structural tags used by element and keyword systems (M3 §3.3).
 ## Valid values: ORGANIC, MECHANICAL, SHIELDED, HEAVY, FLYING

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://data/cards/card_definition.gd" id="1_j5xsx"]
+
+[resource]
+script = ExtResource("1_j5xsx")
+id = "taunt"
+display_name = "Taunt"
+effect_type = 9
+description_template = "All enemies target this ally this round."
+color = Color(0.9, 0.55, 0.15, 1)

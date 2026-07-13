@@ -94,14 +94,27 @@ func _on_combat_finished(outcome: String) -> void:
 	combat_exited.emit(outcome)   # M14: hand control back to the run controller
 
 func _setup_camera() -> void:
-	var w := Const.world_pixel_size()
+	# Use the terrain's ACTUAL dimensions, not the fixed Const.MAP_WIDTH/HEIGHT — custom maps
+	# (M44) can be any size, and framing against the wrong size is what made small maps look
+	# broken (camera centered on row 50 of a 35-row map, well past the bottom edge).
+	var map_w := maxi(terrain.map_width, 1)
+	var map_h := maxi(terrain.map_height, 1)
+	var w := Vector2(map_w, map_h) * Const.VOXEL_SIZE
 	camera.limit_left = 0
 	camera.limit_top = 0
 	camera.limit_right = int(w.x)
 	camera.limit_bottom = int(w.y)
-	# During placement units are hidden/unpositioned, so center on the spawn zone's midpoint.
-	var mid_col := (combat._spawn_min_col() + combat._spawn_max_col()) / 2
-	var mid_row := Const.MAP_HEIGHT / 2
+	# Small maps: zoom in just enough that the whole map fits the viewport, so it doesn't float
+	# in a sea of void at the default zoom. "Contain" (min, not max) so nothing gets cropped.
+	# Larger maps are unaffected — DEFAULT_ZOOM already shows less than a full 120x100 map, so
+	# fit_zoom < DEFAULT_ZOOM there and max() keeps today's behavior.
+	var viewport_size := get_viewport().get_visible_rect().size
+	var fit_zoom := minf(viewport_size.x / w.x, viewport_size.y / w.y)
+	camera.zoom = Vector2.ONE * clampf(maxf(DEFAULT_ZOOM, fit_zoom), ZOOM_MIN, ZOOM_MAX)
+	# During placement units are hidden/unpositioned, so center horizontally on the spawn zone's
+	# midpoint (gameplay convenience); vertically center on the map's true height.
+	var mid_col := clampi((combat._spawn_min_col() + combat._spawn_max_col()) / 2, 0, map_w - 1)
+	var mid_row := map_h / 2
 	camera.position = Const.voxel_to_world(Vector2i(mid_col, mid_row))
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -261,6 +274,7 @@ func _smoke_test() -> void:
 	_m42_smoke()
 	_m43_smoke()
 	_m44_smoke()
+	_m45_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -2005,6 +2019,134 @@ func _m44_smoke() -> void:
 			% [Run.active.map.nodes[0].custom_map_id, Run.active.map.nodes[0].terrain_profile_path])
 	Features.custom_maps_enabled = true
 	Run.start_default_run()
+
+	# Regression: TerrainManager collapse/movement/spread code used to hardcode
+	# Const.MAP_WIDTH/HEIGHT (120x100) instead of the loaded map's actual dimensions, so a
+	# collapsing tile on a smaller map would search for a landing row past the real grid size
+	# and crash with "Invalid assignment of index N (on base: 'Array')" on _grid write. Small
+	# custom map (30x15) with a floating collapsible tile above a void, floor at the bottom row.
+	var small := MapData.new()
+	small.width = 30; small.height = 15
+	small.cells.resize(small.width * small.height)
+	small.cells.fill(null)
+	for c in range(small.width):
+		small.place_solid(c, 14, 3, Tile.FLAG_INDESTRUCTIBLE, false, [], MapData.GenOrigin.NOISE_FILL)
+	small.place_solid(10, 5, 3, 0, true, [], MapData.GenOrigin.NOISE_FILL)   # floating, unsupported
+	var tm2 := TerrainManager.new()
+	tm2.load_map(small)
+	tm2.queue_collapse(10)
+	tm2.resolve_collapses([], [])   # used to crash here on non-standard map sizes
+	var landed_tile := tm2.get_tile(10, 13)
+	print("  small-map collapse: landed_at_13=%s (expect true, tile fell onto the floor)"
+			% str(landed_tile != null))
+	# Reuse regression: switching the same instance back to legacy generate() must reset
+	# dimensions + reallocate the grid, not keep writing at the small map's old array size.
+	tm2.generate(12345)
+	print("  generate() after load_map: dims=%dx%d (expect 120x100)" % [tm2.map_width, tm2.map_height])
+	tm2.free()
+
+# M45: deterministic enemy targeting + Taunt. Pure logic checks on scratch units/terrain.
+func _m45_smoke() -> void:
+	print("[smoke] -- M45 deterministic enemy targeting --")
+	var org : UnitDefinition = load("res://data/units/enemy_organic.tres")
+	var mech : UnitDefinition = load("res://data/units/enemy_mechanical.tres")
+	print("  baked rules: organic=%s mechanical=%s (expect WEAKEST, STRONGEST)"
+			% [UnitDefinition.TargetingRule.keys()[org.targeting_rule],
+			UnitDefinition.TargetingRule.keys()[mech.targeting_rule]])
+
+	# Scratch players: A near+high-hp, B far+low-hp, C mid.
+	var pa := _mk_test_unit(org, "PlayerA", Vector2i(30, 10), 10, 12, true)
+	var pb := _mk_test_unit(org, "PlayerB", Vector2i(5, 10), 3, 6, true)
+	var pc := _mk_test_unit(org, "PlayerC", Vector2i(18, 10), 6, 8, true)
+	var players : Array = [pa, pb, pc]
+	var enemy := _mk_test_unit(org, "Enemy", Vector2i(40, 10), 8, 8, false)
+
+	# Rule picks (no terrain → everyone reachable).
+	var reach := EnemyTargeting.reachable_players(enemy, players, null)
+	enemy.targeting_rule = UnitDefinition.TargetingRule.NEAREST
+	print("  NEAREST=%s (expect PlayerA)" % EnemyTargeting.pick_target(enemy, reach, players).display_name)
+	enemy.targeting_rule = UnitDefinition.TargetingRule.FARTHEST
+	print("  FARTHEST=%s (expect PlayerB)" % EnemyTargeting.pick_target(enemy, reach, players).display_name)
+	enemy.targeting_rule = UnitDefinition.TargetingRule.WEAKEST
+	print("  WEAKEST=%s (expect PlayerB)" % EnemyTargeting.pick_target(enemy, reach, players).display_name)
+	enemy.targeting_rule = UnitDefinition.TargetingRule.STRONGEST
+	print("  STRONGEST=%s (expect PlayerA)" % EnemyTargeting.pick_target(enemy, reach, players).display_name)
+	# FIXED_LANE: put a unit directly in the enemy's column.
+	pc.vox_position = Vector2i(40, 20)
+	enemy.targeting_rule = UnitDefinition.TargetingRule.FIXED_LANE
+	print("  FIXED_LANE=%s (expect PlayerC, same column)"
+			% EnemyTargeting.pick_target(enemy, [pa, pb, pc], players).display_name)
+	pc.vox_position = Vector2i(18, 10)
+
+	# LOS reachability: wall between enemy and PlayerB.
+	var tm := TerrainManager.new()
+	tm.load_map(_wall_map(25, 11))
+	var e2 := _mk_test_unit(org.duplicate(), "E2", Vector2i(40, 10), 8, 8, false)
+	e2.definition.default_shot = org.default_shot.duplicate()
+	var pnear := _mk_test_unit(org, "PNear", Vector2i(30, 10), 6, 6, true)   # right of wall
+	var pfar := _mk_test_unit(org, "PFar", Vector2i(5, 10), 6, 6, true)      # left of wall
+	var r_los := EnemyTargeting.reachable_players(e2, [pnear, pfar], tm)
+	print("  LOS reachable=%d (expect 1: only PNear, PFar behind wall)" % r_los.size())
+	e2.definition.default_shot.bypass_terrain = true
+	var r_bypass := EnemyTargeting.reachable_players(e2, [pnear, pfar], tm)
+	print("  bypass reachable=%d (expect 2: cover ignored)" % r_bypass.size())
+	tm.free()
+
+	# SPECIFIC / Taunt: forced target ignores the reachable filter (empty set).
+	enemy.targeting_rule = UnitDefinition.TargetingRule.SPECIFIC
+	enemy.forced_target = pb
+	print("  SPECIFIC forced=%s (expect PlayerB, even from empty reachable)"
+			% EnemyTargeting.pick_target(enemy, [], players).display_name)
+
+	# Dead-target handling: WEAKEST target dies → recompute; SPECIFIC keeps corpse.
+	enemy.targeting_rule = UnitDefinition.TargetingRule.WEAKEST
+	enemy.forced_target = null
+	EnemyTargeting.assign_all([enemy], players, null, 0.0)
+	var first_target : Unit = enemy.intended_target
+	pb.hp = 0   # kill the weakest
+	EnemyTargeting.reassign_for_dead([enemy], pb, players, null, 0.0)
+	print("  dead retarget: first=%s now=%s (expect PlayerB, PlayerC next-weakest)"
+			% [first_target.display_name, enemy.intended_target.display_name])
+	pb.hp = 3
+
+	# Wind-aware solution: deterministic, wind-sensitive, valid with and without wind.
+	var s0 := EnemySystem.firing_solution(enemy, pa, 0.0)
+	var s0b := EnemySystem.firing_solution(enemy, pa, 0.0)
+	var sw := EnemySystem.firing_solution(enemy, pa, 250.0)
+	print("  solver: no-wind valid=%s deterministic=%s wind valid=%s wind!=nowind=%s"
+			% [str(not s0.is_empty()), str(s0.get("speed", -1) == s0b.get("speed", -2)),
+			str(not sw.is_empty()), str(s0.get("speed", 0) != sw.get("speed", 0))])
+
+	# Taunt card data.
+	var taunt : CardDefinition = load("res://data/cards/taunt.tres")
+	print("  taunt: effect=%s target=%s in_deck=%s (expect TAUNT, ALLY, true)"
+			% [CardDefinition.EffectType.keys()[taunt.effect_type],
+			CardDefinition.TargetType.keys()[taunt.target_type],
+			str(Run.active.deck.has("res://data/cards/taunt.tres"))])
+
+	for u in [pa, pb, pc, enemy, pnear, pfar, e2]:
+		u.free()
+
+func _mk_test_unit(def: UnitDefinition, dname: String, vox: Vector2i, hp: int, _maxhp: int,
+		is_player: bool) -> Unit:
+	var u := Unit.new()
+	u.definition = def
+	u.is_player = is_player
+	u.display_name = dname
+	u.vox_position = vox
+	u.hp = hp
+	u.targeting_rule = def.targeting_rule
+	return u
+
+# Small MapData with a 3-tall solid wall column, everything else void (LOS test).
+func _wall_map(col: int, row_center: int) -> MapData:
+	var d := MapData.new()
+	d.width = 60; d.height = 30
+	d.cells.resize(d.width * d.height)
+	d.cells.fill(null)
+	for r in range(row_center - 1, row_center + 2):
+		d.place_solid(col, r, 3, 0, false, [], MapData.GenOrigin.NOISE_FILL)
+	return d
 
 func _find_unit(dname: String) -> Unit:
 	for u in combat.all_units:
