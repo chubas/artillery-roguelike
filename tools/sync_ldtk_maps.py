@@ -36,6 +36,19 @@ class ConvertedMap:
     height: int
 
 
+@dataclass(frozen=True)
+class LevelMetadata:
+    map_id: str
+    title: str
+    description: str
+    notes: str
+    auto_fill_terrain: bool | None
+    auto_fill_values: str | None
+    pixel_width: int
+    pixel_height: int
+    entities: tuple[tuple[str, int, int], ...]
+
+
 def load_terrain_mapping(path: Path) -> dict[int, str]:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -192,9 +205,7 @@ def _normalize_fill_values(raw_value: object) -> str | None:
     return json.dumps(values, separators=(", ", ": "))
 
 
-def _load_metadata(
-    path: Path,
-) -> tuple[str, str, str, str, bool | None, str | None]:
+def _load_metadata(path: Path) -> LevelMetadata:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except OSError as error:
@@ -232,7 +243,64 @@ def _load_metadata(
             "autoFillTerrain is true but autoFillTerrainValues is missing or empty"
         )
 
-    return (*values, auto_fill_terrain, auto_fill_values)  # type: ignore[return-value]
+    pixel_width = document.get("width")
+    pixel_height = document.get("height")
+    if (
+        not isinstance(pixel_width, int)
+        or isinstance(pixel_width, bool)
+        or pixel_width <= 0
+        or not isinstance(pixel_height, int)
+        or isinstance(pixel_height, bool)
+        or pixel_height <= 0
+    ):
+        raise MapSyncError("data.json width and height must be positive integers")
+
+    raw_entities = document.get("entities", {})
+    if not isinstance(raw_entities, dict):
+        raise MapSyncError("data.json entities must be an object")
+    entities: list[tuple[str, int, int]] = []
+    for entity_name, instances in sorted(raw_entities.items()):
+        if (
+            not isinstance(entity_name, str)
+            or not entity_name
+            or ":" in entity_name
+            or "\n" in entity_name
+        ):
+            raise MapSyncError(f"invalid entity name: {entity_name!r}")
+        if not isinstance(instances, list):
+            raise MapSyncError(f"entity {entity_name!r} must contain an array")
+        if len(instances) > 1:
+            raise MapSyncError(
+                f"entity {entity_name!r} has multiple instances; "
+                "the target format supports one coordinate per entity name"
+            )
+        for instance in instances:
+            if not isinstance(instance, dict):
+                raise MapSyncError(f"entity {entity_name!r} instance must be an object")
+            x = instance.get("x")
+            y = instance.get("y")
+            if (
+                not isinstance(x, int)
+                or isinstance(x, bool)
+                or not isinstance(y, int)
+                or isinstance(y, bool)
+            ):
+                raise MapSyncError(
+                    f"entity {entity_name!r} coordinates must be integers"
+                )
+            entities.append((entity_name, x, y))
+
+    return LevelMetadata(
+        map_id=values[0],
+        title=values[1],
+        description=values[2],
+        notes=values[3],
+        auto_fill_terrain=auto_fill_terrain,
+        auto_fill_values=auto_fill_values,
+        pixel_width=pixel_width,
+        pixel_height=pixel_height,
+        entities=tuple(entities),
+    )
 
 
 def _format_rectangles(rectangles: Iterable[tuple[int, int, int, int]]) -> str:
@@ -244,14 +312,7 @@ def convert_level(level_dir: Path, terrain_mapping: dict[int, str]) -> Converted
     if missing:
         raise MapSyncError(f"missing required file(s): {', '.join(missing)}")
 
-    (
-        map_id,
-        title,
-        description,
-        notes,
-        auto_fill_terrain,
-        auto_fill_values,
-    ) = _load_metadata(level_dir / "data.json")
+    metadata = _load_metadata(level_dir / "data.json")
     terrain = read_csv_grid(level_dir / "Terrain.csv")
     spawn_zones = read_csv_grid(level_dir / "SpawnZones.csv")
 
@@ -297,28 +358,52 @@ def convert_level(level_dir: Path, terrain_mapping: dict[int, str]) -> Converted
         raise MapSyncError("SpawnZones.csv contains no enemy zones (values 3 or 4)")
 
     width, height = terrain_size
+    if metadata.pixel_width % width != 0 or metadata.pixel_height % height != 0:
+        raise MapSyncError(
+            "data.json pixel dimensions are not evenly divisible by the CSV grid"
+        )
+    cell_width = metadata.pixel_width // width
+    cell_height = metadata.pixel_height // height
+    entity_positions: list[tuple[str, int, int]] = []
+    for entity_name, pixel_x, pixel_y in metadata.entities:
+        x = pixel_x // cell_width
+        y = pixel_y // cell_height
+        if not 0 <= x < width or not 0 <= y < height:
+            raise MapSyncError(
+                f"entity {entity_name!r} at [{x}, {y}] is outside "
+                f"the {width}x{height} grid"
+            )
+        entity_positions.append((entity_name, x, y))
+
     terrain_rows = [
         "".join(terrain_mapping[cell] for cell in row) for row in terrain
     ]
     metadata_lines = [
-        f"id: {map_id}",
-        f"title: {title}",
-        f"description: {description}",
-        f"notes: {notes}",
+        f"id: {metadata.map_id}",
+        f"title: {metadata.title}",
+        f"description: {metadata.description}",
+        f"notes: {metadata.notes}",
         f"width: {width}",
         f"height: {height}",
         f"spawn_zones: {_format_rectangles(player_rectangles)}",
         f"enemy_zones: {_format_rectangles(enemy_rectangles)}",
     ]
-    if auto_fill_terrain is not None:
+    if metadata.auto_fill_terrain is not None:
         metadata_lines.append(
-            f"autoFillTerrain: {'true' if auto_fill_terrain else 'false'}"
+            f"autoFillTerrain: {'true' if metadata.auto_fill_terrain else 'false'}"
         )
-    if auto_fill_values is not None:
-        metadata_lines.append(f"autoFillTerrainValues: {auto_fill_values}")
+    if metadata.auto_fill_values is not None:
+        metadata_lines.append(
+            f"autoFillTerrainValues: {metadata.auto_fill_values}"
+        )
+    metadata_lines.extend(
+        f"Entity_{name}: [{x}, {y}]" for name, x, y in entity_positions
+    )
     metadata_lines.append("data:")
     text = "\n".join(metadata_lines + terrain_rows) + "\n"
-    return ConvertedMap(map_id=map_id, text=text, width=width, height=height)
+    return ConvertedMap(
+        map_id=metadata.map_id, text=text, width=width, height=height
+    )
 
 
 def _atomic_write(path: Path, text: str) -> None:

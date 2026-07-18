@@ -8,6 +8,11 @@ extends Resource
 ## Property of the enemy type but copied to a runtime, overridable field on the Unit.
 enum TargetingRule { NEAREST, FARTHEST, WEAKEST, STRONGEST, FIXED_LANE, SPECIFIC }
 
+## How this unit acts on its turn (M47). PROJECTILE = the normal fire-a-shot behavior. NONE =
+## no-op: the unit ends its turn immediately (used by Boss1 until its special attack is authored).
+## Extension point for future special boss attacks.
+enum AttackBehavior { PROJECTILE, NONE }
+
 @export var id : String = ""
 @export var display_name : String = "Unit"
 
@@ -25,6 +30,13 @@ enum TargetingRule { NEAREST, FARTHEST, WEAKEST, STRONGEST, FIXED_LANE, SPECIFIC
 @export var base_armor : int = 0
 @export var move_range : int = 99  # max moves per activation (use 99 = unlimited for now)
 @export var weight : int = 2       # 0=weightless, 1=light, 2=medium, 3=heavy
+
+## M47: position is fixed — the unit never falls (settles) when the terrain beneath it is
+## destroyed. Used for immobile fortress bosses. weight only limits climbing; this stops gravity.
+@export var anchored : bool = false
+
+## M47: turn behavior. NONE = no-op (ends turn immediately). See AttackBehavior.
+@export var attack_behavior : AttackBehavior = AttackBehavior.PROJECTILE
 
 ## Card base power (M39/M40): the unit's printed damage output, shown on the card / logbook.
 ## The base that PowerCalculator folds source-attributed PowerMods over — there is no separate

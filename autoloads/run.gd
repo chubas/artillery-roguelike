@@ -91,7 +91,9 @@ func _assign_terrain_variations(rs: RunState) -> void:
 	# M44: hand-authored maps take priority — every combat node (incl. the first) draws a
 	# random map from the library. Profiles/legacy remain only as a fallback when the
 	# library is empty or the flag is off.
-	var map_ids : Array = MapLibrary.map_ids() if Features.custom_maps_enabled else []
+	# M47: the random pool excludes `pool: false` maps (boss arenas) so they never appear on a
+	# normal node — they're only reachable via the boss node / manual playtest toggle below.
+	var map_ids : Array = MapLibrary.pool_map_ids() if Features.custom_maps_enabled else []
 	for i in range(rs.map.nodes.size()):
 		var node : MapNode = rs.map.nodes[i]
 		if node.type != MapNode.Type.COMBAT:
@@ -104,6 +106,13 @@ func _assign_terrain_variations(rs: RunState) -> void:
 			node.terrain_profile_path = ""
 		else:
 			node.terrain_profile_path = _TERRAIN_PROFILES[run_rng.randi() % _TERRAIN_PROFILES.size()]
+	# M47: manual playtest — drop the player straight into the boss arena on node 0.
+	if Features.boss_test_stage and not rs.map.nodes.is_empty():
+		var n0 : MapNode = rs.map.nodes[0]
+		n0.type = MapNode.Type.COMBAT
+		n0.custom_map_id = "boss1"
+		n0.terrain_profile_path = ""
+		n0.stage_path = "res://data/stages/stage_boss1.tres"
 
 ## Sample n artifacts for a reward or shop offer, respecting the seen-set cycle.
 ## Artifacts already offered (but not bought) won't appear again until all have been offered.

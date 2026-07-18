@@ -7,7 +7,7 @@ class_name ObjectiveEvaluator
 enum Result { ONGOING, WON, LOST }
 
 static func evaluate(obj: ObjectiveDescriptor, enemies_alive: bool, players_alive: bool,
-		round_index: int, all_waves_spawned: bool) -> Result:
+		round_index: int, all_waves_spawned: bool, boss_alive: bool = true) -> Result:
 	if not players_alive:
 		return Result.LOST   # shared loss across all objective types
 	if obj == null:
@@ -19,5 +19,9 @@ static func evaluate(obj: ObjectiveDescriptor, enemies_alive: bool, players_aliv
 				return Result.WON
 		ObjectiveDescriptor.Type.SURVIVE_N:
 			if round_index >= obj.survive_rounds:
+				return Result.WON
+		ObjectiveDescriptor.Type.DEFEAT_BOSS:
+			# M47: the boss dying ends the stage regardless of minions/waves still on the field.
+			if not boss_alive:
 				return Result.WON
 	return Result.ONGOING

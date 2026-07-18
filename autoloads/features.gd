@@ -43,3 +43,5 @@ var minerals_enabled         : bool = true  # M42: mineral terrain + collectible
 var terrain_v2_enabled       : bool = true  # M43: seam pass + validation/reroll in TerrainGenerator
 var custom_maps_enabled      : bool = true  # M44: hand-authored ASCII maps (generator dormant)
 var enemy_targeting_enabled  : bool = true  # M45: deterministic telegraphed enemy targeting
+var boss_enabled             : bool = true  # M47: spawn map entities (bosses) at authored coords
+var boss_test_stage          : bool = true # M47: force run node 0 → boss1 arena for manual playtest

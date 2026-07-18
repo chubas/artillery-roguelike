@@ -76,6 +76,11 @@ static func assign_all(enemies: Array, players: Array, terrain: TerrainManager,
 	for e in enemies:
 		if e.hp <= 0:
 			continue
+		# M47: no-op attackers (bosses without a shot yet) get no telegraph — they never fire.
+		if e.definition.attack_behavior == UnitDefinition.AttackBehavior.NONE:
+			e.intended_target = null
+			e.intended_solution = {}
+			continue
 		if reset_rules:
 			e.targeting_rule = e.definition.targeting_rule
 			e.forced_target = null

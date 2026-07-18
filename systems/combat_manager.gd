@@ -132,6 +132,7 @@ func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 	EventBus.mine_detonated.connect(_on_mine_detonated)
 	_place_player_squad(squad)
 	_spawn_enemies()
+	_spawn_map_entities()   # M47: bosses / entities placed at authored map coordinates
 	all_units = player_units + enemy_units
 	if Features.deployables_enabled:
 		_spawn_deployables()
@@ -368,6 +369,33 @@ func _spawn(def: UnitDefinition, unit_name: String, col: int, is_player: bool) -
 	_unit_layer.add_child(u)
 	u.unit_died.connect(_on_unit_died)
 	return u
+
+# M47: spawn map-defined entities (e.g. a fortress boss) at their AUTHORED coordinates. An entity
+# whose name resolves to a baked unit definition (id == name lower-cased) spawns as an enemy at its
+# exact top-left coordinate — no zone-random, no surface snap; the author placed it deliberately.
+# Entities that don't resolve to a unit are left in the map for other systems (future).
+func _spawn_map_entities() -> void:
+	if not Features.boss_enabled or _custom_map == null:
+		return
+	for entity_name in _custom_map.entities:
+		var ent : MapEntity = _custom_map.entities[entity_name]
+		var path := "res://data/units/%s.tres" % entity_name.to_lower()
+		if not ResourceLoader.exists(path):
+			continue
+		var def := load(path) as UnitDefinition
+		if def == null:
+			continue
+		var u := Unit.new()
+		u.definition = def
+		u.is_player = false
+		u.display_name = def.display_name
+		u.aim_angle_deg = 135.0
+		u.set_vox_position(ent.coordinates)
+		_unit_layer.add_child(u)   # Unit._ready() sets hp = def.max_hp (no run_state)
+		u.unit_died.connect(_on_unit_died)
+		enemy_units.append(u)
+		print("[entity] spawned '%s' (%s) at %s hp=%d" % [
+				entity_name, def.id, str(ent.coordinates), def.max_hp])
 
 func _find_valid_spawn(preferred_col: int, def: UnitDefinition) -> Vector2i:
 	# Try the preferred column, then alternate outward (+1, -1, +2, -2, ...).
@@ -647,6 +675,10 @@ func _run_enemy_turn() -> void:
 			return
 		if e.hp <= 0 or debug_enemies_passive:
 			continue
+		# M47: no-op attackers (e.g. Boss1 until its special rule lands) end their turn immediately.
+		if e.definition.attack_behavior == UnitDefinition.AttackBehavior.NONE:
+			print("[entity] %s holds (no attack)" % e.display_name)
+			continue
 		await get_tree().create_timer(Const.ENEMY_FIRE_DELAY).timeout
 		if _is_terminal():
 			return
@@ -734,8 +766,10 @@ func _check_objective() -> void:
 		return
 	var enemies_alive := enemy_units.any(func(u): return u.hp > 0)
 	var players_alive := player_units.any(func(u): return u.hp > 0)
+	# M47: DEFEAT_BOSS wins when no living enemy carries the BOSS tag (minions/waves don't count).
+	var boss_alive := enemy_units.any(func(u): return u.hp > 0 and "BOSS" in u.definition.tags)
 	var result := ObjectiveEvaluator.evaluate(_stage.objective, enemies_alive, players_alive,
-			round_index, _all_waves_spawned())
+			round_index, _all_waves_spawned(), boss_alive)
 	if result == ObjectiveEvaluator.Result.WON:
 		print("[STAGE CLEAR] Objective met.")
 		game_state = GameState.STAGE_CLEAR
@@ -1201,6 +1235,8 @@ func _on_aoe_resolved(_center: Vector2i, _radius: int, _affected: Array) -> void
 		_settle_deployable(d)
 
 func _settle_unit(u: Unit) -> void:
+	if u.definition.anchored:
+		return   # M47: anchored units (bosses) hold position even with terrain destroyed beneath
 	var new_pos := UnitMovement.settle(u, _terrain)
 	if new_pos != u.vox_position:
 		u.set_vox_position(new_pos)

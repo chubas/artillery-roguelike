@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="StageDescriptor" format=3]
+
+[ext_resource type="Script" path="res://data/stages/objective_descriptor.gd" id="1_ss62s"]
+[ext_resource type="Script" path="res://data/stages/stage_descriptor.gd" id="2_yc775"]
+
+[sub_resource type="Resource" id="Resource_5iiul"]
+script = ExtResource("1_ss62s")
+type = 2
+
+[resource]
+script = ExtResource("2_yc775")
+id = "stage_boss1"
+terrain_seed = 4771
+wind_enabled = false
+objective = SubResource("Resource_5iiul")
+threat_tags = Array[String](["boss"])

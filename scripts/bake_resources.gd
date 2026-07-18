@@ -206,6 +206,26 @@ func _ready() -> void:
 	mechanical.color = Color(0.7, 0.55, 0.85)
 	_save(mechanical, "res://data/units/enemy_mechanical.tres")
 
+	# ── M47: Act 1 boss (Boss1) ──────────────────────────────────────────────
+	# 5×5 immobile fortress boss. No attack yet (attack_behavior = NONE = no-op turn); its special
+	# rule is a future milestone. anchored = never falls when terrain beneath it is destroyed.
+	# The "BOSS" tag is what the DEFEAT_BOSS objective watches. base_power is set > 0 only to pass
+	# the bake guard (_validate_unit_definitions); it is never read because the boss never fires.
+	var boss1 := UnitDefinition.new()
+	boss1.id = "boss1"; boss1.display_name = "Boss"
+	boss1.width_voxels = 5; boss1.height_voxels = 5; boss1.max_hp = 100
+	boss1.base_power = 1.0            # unused — boss never fires (attack_behavior NONE)
+	boss1.dig = 0
+	boss1.move_range = 0; boss1.weight = 3
+	boss1.anchored = true
+	boss1.attack_behavior = UnitDefinition.AttackBehavior.NONE
+	boss1.default_shot = null         # never fires
+	boss1.tags = ["BOSS", "MECHANICAL"]
+	boss1.faction = Faction.ARMY
+	boss1.rarity = Rarity.BOSS
+	boss1.color = Color(0.72, 0.22, 0.28)   # menacing crimson
+	_save(boss1, "res://data/units/boss1.tres")
+
 	# ── M4 player squad: one unit per shot family ─────────────────────────────
 	# M10: attack value is the source of projectile strength (× shot.strength_mult × power).
 	# Values mirror the old per-shot strengths so balance is unchanged: drill is the heavy hitter.
@@ -471,6 +491,24 @@ func _ready() -> void:
 	s3.threat_tags = ["fire", "electric", "swarm"]
 	s3.act_tags = ["act_1"]
 	_save(s3, "res://data/stages/stage_03.tres")
+
+	# ── M47: Act 1 boss stage ────────────────────────────────────────────────────
+	# The boss itself is spawned from the map's Entity_Boss1 (data/maps/boss1.txt), not from
+	# initial_enemies. Objective is DEFEAT_BOSS — clears the instant the boss dies. Wind off.
+	var sb_obj := ObjectiveDescriptor.new()
+	sb_obj.type = ObjectiveDescriptor.Type.DEFEAT_BOSS
+	var sb := StageDescriptor.new()
+	sb.id = "stage_boss1"
+	sb.terrain_seed = 4771
+	sb.initial_enemies = []           # boss comes from the map entity; waves/minions added later
+	sb.reinforcements = []
+	sb.deployables = []
+	sb.wind_enabled = false
+	sb.spawn_min_col = 0; sb.spawn_max_col = W / 2 - 1   # overridden by the custom map's zones
+	sb.objective = sb_obj
+	sb.threat_tags = ["boss"]
+	sb.act_tags = ["act_1"]
+	_save(sb, "res://data/stages/stage_boss1.tres")
 
 	# ── M35: event resources ─────────────────────────────────────────────────────
 	var ev_triage := EventTriage.new()

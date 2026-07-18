@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-07-18 M46)
+## Current state (2026-07-18 M47)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -56,7 +56,8 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   **M42 (Mineral terrain + Ore drops + currency rename: run currency moved from `RunState.resources["shards"]` to `RunState.currency` with `add_currency`/`spend_currency`/`can_afford` (UI keeps "◆ Shards", combat HUD readout added, `from_dict` migrates legacy saves); new `Tile.TileType.MINERAL` (durability 2, collapsible, standable via broadened `is_solid`), pink `COLOR_MINERAL` in `chunk.gd`; `TerrainManager.scatter_minerals(seed)` clustered patches (some surface-exposed) run in `_setup_terrain`, gated by `Features.minerals_enabled`; breaking a MINERAL emits `EventBus.mineral_destroyed` → `OreSystem` (`systems/ore_system.gd`) spawns an `Ore` (`world/ore.gd`, floating pink circle above units in a new OreLayer); on `aoe_resolved` ores fall under gravity one voxel at a time until blocked by terrain/map floor, merging only when landing on another Ore (buried ore never rises); Ore shows its currency value in purple; a player unit collects an Ore inside its footprint or one voxel below its base via `try_collect` in `try_move` for `value×2` currency (`EventBus.ore_collected`); move-undo snapshots ore set + currency and restores both; `ORE_CURRENCY=2`)**,
   **M43 (Terrain generation v2 — placer contract + anchors + seams + validation: pipeline reordered to noise-first (A base+noise everywhere → B features → C seams → D HP/variants → E validation) so features anchor to the real surface; per-feature placer modules in `terrain/placers/` registered in `TerrainGenerator.PLACERS`, each returning a `FeatureInstance` (`terrain/feature_instance.gd`: id, footprint, named anchors — exact `Vector2i` or zone `Rect2i` — edge specs, gap rects) carried on `MapData.features`; anchors exported per construct (bunker `core`/`aperture_n`/`interior`, ridge `summit_center`/`reverse_slope`, pit rims, pillar top, crystal vein); `terrain/seam_pass.gd` reconciles edges (RAMP staircase 2 voxels/column until ground, GAP re-carve, FLUSH foundations, CLIFF no-op) with new `GenOrigin.SEAM`; `terrain/map_validator.gd` checks dig-cost-weighted reachability to the enemy zone (budget 40), zone clearance (2×3), and per-placer validators, with reroll `hash([seed, attempt])` ≤5 attempts then loud warning; HP sprinkle now skips feature tiles (was silently downgrading bunker shells); sandbox minimap gains anchors overlay + toggle, SEAM color, and a validation readout; `Features.terrain_v2_enabled` gates seams+validation; design doc updated to v0.2)**,
   **M44 (Hand-authored ASCII maps — procedural generation deactivated: maps are plain-text files (`data/maps/*.txt` + drop-in `user://maps/*.txt`) with `key: value` metadata (id/title/description/notes/width/height + `spawn_zones`/`enemy_zones` as `[x0,y0,x1,y1]` boxes) and an ASCII grid (`'.'` void, `1`–`9` SOLID hp N, `0` indestructible, `M` MINERAL); `terrain/custom_map.gd` parses + builds MapData, `terrain/map_library.gd` scans/caches both dirs; `MapNode.custom_map_id` assigned randomly per combat node from the pool (run-seeded, node 0 included), profiles/legacy only as fallback; `combat_scene._setup_terrain` loads the map and skips `scatter_minerals` (M chars are the only minerals); `CombatManager._zone_surface_top` finds the topmost floor WITHIN a zone box (caves/islands) for placement, `_random_zone_drop` (StageRng) places initial enemies/reinforcements/deployables in enemy zones ignoring stage cols; placement overlay draws zone boxes; sandbox Map dropdown + Load Map; `Features.custom_maps_enabled`; generator classes remain dormant + smoke-tested; test map `test_flat`)**,
-  **M45 (Deterministic enemy targeting + Taunt — replaces accuracy RNG: enemies lock a target + committed firing solution at round start (telegraphed, shown on hover), execute it on their turn; ±5% `ENEMY_ERROR_PCT` speed variance deleted; `UnitDefinition.TargetingRule` {NEAREST/FARTHEST/WEAKEST/STRONGEST/FIXED_LANE/SPECIFIC} + runtime overridable copy on `Unit` (`intended_target`/`intended_solution`/`forced_target`); `systems/enemy_targeting.gd` composes reachable-set (LOS via `terrain/los.gd`, `bypass_terrain` ignores cover) with the rule; wind-aware closed-form solver in `EnemySystem.firing_solution(enemy,target,wind_force_x)` so enemies account for forecast wind — changing wind after telegraph (Halve Wind) deflects the committed shot (defensive counter); dead target → rule-based recompute, SPECIFIC fires at corpse; no reachable target → skip; new **Taunt** card (`EffectType.TAUNT`, ALLY, in default deck + pool) forces all enemies SPECIFIC→ally for the round; enemy defs baked organic=WEAKEST/mechanical=STRONGEST; hover tooltip + inspector show `Targeting: <rule> → <unit>`; `Features.enemy_targeting_enabled`)**.
+  **M45 (Deterministic enemy targeting + Taunt — replaces accuracy RNG: enemies lock a target + committed firing solution at round start (telegraphed, shown on hover), execute it on their turn; ±5% `ENEMY_ERROR_PCT` speed variance deleted; `UnitDefinition.TargetingRule` {NEAREST/FARTHEST/WEAKEST/STRONGEST/FIXED_LANE/SPECIFIC} + runtime overridable copy on `Unit` (`intended_target`/`intended_solution`/`forced_target`); `systems/enemy_targeting.gd` composes reachable-set (LOS via `terrain/los.gd`, `bypass_terrain` ignores cover) with the rule; wind-aware closed-form solver in `EnemySystem.firing_solution(enemy,target,wind_force_x)` so enemies account for forecast wind — changing wind after telegraph (Halve Wind) deflects the committed shot (defensive counter); dead target → rule-based recompute, SPECIFIC fires at corpse; no reachable target → skip; new **Taunt** card (`EffectType.TAUNT`, ALLY, in default deck + pool) forces all enemies SPECIFIC→ally for the round; enemy defs baked organic=WEAKEST/mechanical=STRONGEST; hover tooltip + inspector show `Targeting: <rule> → <unit>`; `Features.enemy_targeting_enabled`)**,
+  **M47 (First boss + map-entity spawning engine: map `entities` become `MapEntity` objects (`terrain/map_entity.gd`: `name`/`coordinates`/open `props`) — `Entity_<name>: [x,y]` shorthand unchanged; new `pool: true|false` map metadata keeps boss/special maps out of the random run pool via `MapLibrary.pool_map_ids()`; `UnitDefinition.anchored` (never settles under gravity — skipped in `CombatManager._settle_unit`) + `AttackBehavior {PROJECTILE, NONE}` (NONE = no-op turn, no telegraph); baked `boss1.tres` 5×5/100HP/anchored/NONE/`tags=["BOSS"]`; `CombatManager._spawn_map_entities()` spawns a unit per map entity whose name resolves to a baked def id at its exact coordinate, gated by `Features.boss_enabled`; `EnemyTargeting.assign_all` + `_run_enemy_turn` skip NONE attackers; new `ObjectiveDescriptor.Type.DEFEAT_BOSS` (won when no living `BOSS`-tagged enemy; ignores waves) + `ObjectiveEvaluator.evaluate` `boss_alive` param; baked `stage_boss1.tres`; `data/maps/boss1.txt` marked `pool: false`; `Features.boss_test_stage` forces run node 0 into the boss arena for manual playtest; `_m47_smoke`)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.
@@ -68,6 +69,42 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-07-18 — Milestone 47: First Boss (Boss1) + map-entity spawning engine
+
+Phase 2 is paused for a few gameplay mechanics first — the Act 1 boss and its waves. Full design in
+[docs/planning/milestone-47-plan.md](docs/planning/milestone-47-plan.md).
+
+- **Map entities are now objects.** `CustomMap.entities` maps `name -> MapEntity`
+  (`terrain/map_entity.gd`: `name`, `coordinates`, open `props`). The `Entity_<name>: [x, y]` line
+  syntax is unchanged (`[x,y]` = coordinates); richer JSON-object values are a future extension in
+  `CustomMap._parse_entity`. New `pool: true|false` map metadata (default true) — `pool: false` keeps
+  a map out of the random run pool (`MapLibrary.pool_map_ids()`; `map_ids()` still lists all).
+- **Boss1 unit.** Baked `data/units/boss1.tres`: 5×5, 100 HP, `UnitDefinition.anchored=true` (never
+  falls when terrain beneath it is destroyed — `_settle_unit` early-returns), `attack_behavior=NONE`
+  (new `AttackBehavior` enum: no-op turn, ends immediately, no targeting telegraph), `default_shot=null`,
+  `tags=["BOSS","MECHANICAL"]`, `Rarity.BOSS`. Its real attack is a future milestone.
+- **Spawning.** `CombatManager._spawn_map_entities()` (in `setup()`, gated by `Features.boss_enabled`)
+  spawns a unit for each map entity whose **name resolves to a baked unit def id** (`Boss1` →
+  `boss1.tres`) at its exact top-left coordinate as an enemy. Unresolved entities are left for future
+  systems. `EnemyTargeting.assign_all` + `_run_enemy_turn` skip `NONE` attackers.
+- **Win condition.** New `ObjectiveDescriptor.Type.DEFEAT_BOSS` — won when no living enemy carries the
+  `BOSS` tag (ignores minions/waves, unlike DEFEAT_ALL). `ObjectiveEvaluator.evaluate` gains a
+  `boss_alive` param; `_check_objective` computes it. Baked `data/stages/stage_boss1.tres` (no
+  `initial_enemies` — boss comes from the map entity, wind off). `data/maps/boss1.txt` (the existing
+  fortress arena, `Entity_Boss1: [61,22]`) marked `pool: false`.
+- **Manual playtest.** `Features.boss_test_stage` (default false) forces run node 0 → `boss1` map +
+  `stage_boss1`. `Features.boss_enabled` is the entity-spawn kill switch.
+- **Collapse is opt-in again (importer fix).** The ASCII importer (`CustomMap.to_map_data`) was
+  tagging every destructible `1`–`9` SOLID and `M` MINERAL as `collapsible: true`, so shooting a
+  floating platform made its columns rain down. Flipped both to `collapsible: false` — matching
+  M17's original opt-in design (the dormant generator already defaults false). Floating platforms
+  now stay put when partly destroyed; nothing falls under gravity. The collapse *rule* was always
+  correct (`_collapse_column` gates on `tile.collapsible`); only the importer default was wrong.
+  No per-tile opt-in to collapse yet (add a tag in `custom_map.gd` if undermine-and-drop is wanted).
+- **Smoke:** `_m47_smoke()` (all pass). Note: two SCRIPT ERRORs during the smoke run (`_m6_smoke`
+  index-2, `_m19_smoke` `select_next` illegal pick 0) are **pre-existing** on the clean baseline, not
+  from M47.
 
 ## 2026-07-18 — Milestone 46: Auto-Fill Terrain Durability + Durability Shading
 

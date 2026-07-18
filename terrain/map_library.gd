@@ -35,6 +35,16 @@ static func map_ids() -> Array:
 	ids.sort()
 	return ids
 
+## M47: ids eligible for the random run pool (excludes `pool: false` maps, e.g. boss arenas).
+## The sandbox dropdown still uses map_ids() so every authored map remains loadable there.
+static func pool_map_ids() -> Array:
+	var ids : Array = []
+	for id in map_ids():
+		var m : CustomMap = _cache[id]
+		if m.pool:
+			ids.append(id)
+	return ids
+
 static func get_map(id: String) -> CustomMap:
 	if not _loaded:
 		reload()

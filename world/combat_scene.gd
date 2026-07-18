@@ -292,6 +292,7 @@ func _smoke_test() -> void:
 	_m44_smoke()
 	_m45_smoke()
 	_m46_smoke()
+	_m47_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -2019,6 +2020,9 @@ func _m44_smoke() -> void:
 			str(((c_floor.get("flags", 0) as int) & Tile.FLAG_INDESTRUCTIBLE) != 0),
 			str(c_ore.get("type", -1) == Tile.TileType.MINERAL and (c_ore.get("status_tags", []) as Array).has("MINERAL")),
 			str(data.get_cell(10, 5) == null)])
+	# Imported tiles are NON-collapsible (floating platforms stay put when shot) — see custom_map.gd.
+	print("  collapsible default: solid=%s mineral=%s (expect false, false)"
+			% [str(c_solid.get("collapsible", true)), str(c_ore.get("collapsible", true))])
 
 	# Zone helpers on a scratch terrain + combat manager (live combat untouched).
 	var tm := TerrainManager.new()
@@ -2205,6 +2209,77 @@ func _m46_smoke() -> void:
 	var bad2 := CustomMap.parse(header.replace("[2, 5]", "[5, 2]") + grid)
 	print("  missing values err set=%s reversed err set=%s (expect true, true)"
 			% [str(bad1.error != ""), str(bad2.error != "")])
+
+# M47: first boss — 5x5 anchored Boss1 spawned from a map entity, no-op attack, DEFEAT_BOSS clear.
+func _m47_smoke() -> void:
+	print("[smoke] -- M47 first boss (Boss1) --")
+	var bdef : UnitDefinition = load("res://data/units/boss1.tres")
+	print("  boss def: %dx%d hp=%d anchored=%s attack=%s has_BOSS=%s (expect 5x5, 100, true, NONE, true)"
+			% [bdef.width_voxels, bdef.height_voxels, bdef.max_hp, str(bdef.anchored),
+			UnitDefinition.AttackBehavior.keys()[bdef.attack_behavior], str("BOSS" in bdef.tags)])
+
+	# Entity parse: the shipped boss map carries Entity_Boss1 as a MapEntity + is out of the pool.
+	var cmap := MapLibrary.get_map("boss1")
+	var ent : MapEntity = cmap.entities.get("Boss1")
+	print("  entity parse: err='%s' Boss1_present=%s coords=%s pool=%s (expect '', true, (61, 22), false)"
+			% [cmap.error, str(ent != null),
+			str(ent.coordinates if ent else Vector2i.ZERO), str(cmap.pool)])
+
+	# Spawn the entity into a scratch combat on a scratch terrain (live combat untouched).
+	var tm := TerrainManager.new()
+	tm.load_map(cmap.to_map_data(1))
+	var layer := Node2D.new()
+	add_child(layer)   # in-tree so Unit._ready runs and sets hp from def.max_hp
+	var cm := CombatManager.new()
+	cm._terrain = tm
+	cm._unit_layer = layer
+	cm.set_custom_map(cmap)
+	cm._spawn_map_entities()
+	var boss : Unit = cm.enemy_units[0] if not cm.enemy_units.is_empty() else null
+	print("  spawn: count=%d pos=%s hp=%d (expect 1, (61, 22), 100)"
+			% [cm.enemy_units.size(),
+			str(boss.vox_position if boss else Vector2i.ZERO), boss.hp if boss else -1])
+
+	# Anchored: carve every tile under the boss footprint, settle → position must NOT change.
+	for c in range(boss.vox_position.x, boss.vox_position.x + bdef.width_voxels):
+		for r in range(boss.vox_position.y, tm.map_height):
+			tm.clear_tile(c, r)
+	var before : Vector2i = boss.vox_position
+	cm._settle_unit(boss)
+	print("  anchored: before=%s after_settle=%s unchanged=%s (expect true)"
+			% [str(before), str(boss.vox_position), str(before == boss.vox_position)])
+
+	# No-op attack: telegraph assignment leaves the boss with no target/solution (it never fires).
+	EnemyTargeting.assign_all([boss], [], tm, 0.0)
+	print("  no telegraph: target_null=%s solution_empty=%s (expect true, true)"
+			% [str(boss.intended_target == null), str(boss.intended_solution.is_empty())])
+
+	# DEFEAT_BOSS objective: ongoing while boss alive, WON once no BOSS-tagged enemy lives, LOST on wipe.
+	var obj := load("res://data/stages/stage_boss1.tres").objective as ObjectiveDescriptor
+	var r_alive := ObjectiveEvaluator.evaluate(obj, true, true, 1, true, true)
+	var r_dead := ObjectiveEvaluator.evaluate(obj, false, true, 1, true, false)
+	var r_wipe := ObjectiveEvaluator.evaluate(obj, false, false, 1, true, false)
+	print("  objective: alive=%s dead=%s wipe=%s (expect ONGOING, WON, LOST)"
+			% [ObjectiveEvaluator.Result.keys()[r_alive],
+			ObjectiveEvaluator.Result.keys()[r_dead],
+			ObjectiveEvaluator.Result.keys()[r_wipe]])
+
+	# Pool exclusion: boss1 is loadable but never in the random run pool.
+	print("  pool: in_all=%s in_pool=%s (expect true, false)"
+			% [str(MapLibrary.map_ids().has("boss1")), str(MapLibrary.pool_map_ids().has("boss1"))])
+
+	# Manual-playtest toggle wires node 0 to the boss arena.
+	Features.boss_test_stage = true
+	Run.start_default_run()
+	var n0 : MapNode = Run.active.map.nodes[0]
+	print("  boss_test_stage: node0 map='%s' stage_ends_boss1=%s (expect boss1, true)"
+			% [n0.custom_map_id, str(n0.stage_path.ends_with("stage_boss1.tres"))])
+	Features.boss_test_stage = false
+	Run.start_default_run()
+
+	layer.queue_free()
+	tm.free()
+	cm.free()
 
 func _mk_test_unit(def: UnitDefinition, dname: String, vox: Vector2i, hp: int, _maxhp: int,
 		is_player: bool) -> Unit:

@@ -38,12 +38,15 @@ class LdtkMapSyncTests(unittest.TestCase):
         spawn_zones: str = "1,1,3,\n2,2,4,\n",
     ) -> None:
         metadata = {
+            "width": 48,
+            "height": 32,
             "customFields": {
                 "rl_id": "test_map",
                 "rl_name": "Test Map",
                 "rl_description": "A test",
                 "rl_notes": "First line\nSecond line",
-            }
+            },
+            "entities": {},
         }
         (directory / "data.json").write_text(
             json.dumps(metadata), encoding="utf-8"
@@ -121,6 +124,29 @@ class LdtkMapSyncTests(unittest.TestCase):
 
             self.assertIn("autoFillTerrain: true\n", converted.text)
             self.assertIn("autoFillTerrainValues: [3, 6]\n", converted.text)
+
+    def test_conversion_syncs_entities_as_grid_coordinates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            level_dir = Path(temporary)
+            self._write_level(level_dir)
+            metadata_path = level_dir / "data.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["entities"] = {
+                "Boss1": [
+                    {
+                        "id": "Boss1",
+                        "x": 24,
+                        "y": 8,
+                        "width": 16,
+                        "height": 16,
+                    }
+                ]
+            }
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+            converted = convert_level(level_dir, self.terrain_mapping)
+
+            self.assertIn("Entity_Boss1: [1, 0]\n", converted.text)
 
     def test_conversion_rejects_enabled_auto_fill_without_values(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
