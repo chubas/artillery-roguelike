@@ -468,7 +468,9 @@ func _load_custom_map() -> void:
 		if _tv_valid_lbl != null:
 			_tv_valid_lbl.text = "map: FAILED\n%s" % (cmap.error if cmap != null else "not found")
 		return
-	var data := cmap.to_map_data()
+	# M46: the seed field drives the auto-fill noise, so Regenerate-style iteration works.
+	var seed_val := int(_seed_field.text) if _seed_field.text.is_valid_int() else 12345
+	var data := cmap.to_map_data(seed_val)
 	_tv_preview_data = data
 	_terrain.load_map(data)
 	if _combat != null:

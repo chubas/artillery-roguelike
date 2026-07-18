@@ -25,6 +25,11 @@ var placement_zones : Array = []   # Array[Rect2i]
 # Drop indicator: vertical line + unit name, shown while the player hovers to place a unit.
 var drop_indicator_col : int = -1
 var drop_indicator_name : String = ""
+# QoL: unit-sized ghost at the landing spot; red tint when the drop would be rejected.
+var drop_preview_pos   : Vector2i = Vector2i(-1, -1)   # top-left voxel; (-1,-1) = hidden
+var drop_preview_size  : Vector2i = Vector2i.ZERO      # unit footprint in voxels
+var drop_preview_color : Color = Color.WHITE
+var drop_preview_valid : bool = false
 
 var _wind_force_x : float = 0.0   # M8: cached from EventBus.wind_changed; applied to arc preview
 
@@ -40,6 +45,7 @@ func _draw() -> void:
 		_draw_spawn_zone()
 		if drop_indicator_col >= 0:
 			_draw_drop_indicator()
+		_draw_drop_preview()
 	# Hover hitbox outline on any unit (terrain spec §11.4).
 	var mouse := get_global_mouse_position()
 	for u in units:
@@ -77,6 +83,20 @@ func _draw_spawn_zone() -> void:
 func set_drop_indicator(col: int, name: String) -> void:
 	drop_indicator_col = col
 	drop_indicator_name = name
+
+# QoL: translucent unit-sized ghost at the landing spot. Valid = the unit's own color;
+# invalid = red tint (and the caller has it tracking the cursor instead of a landing spot).
+func _draw_drop_preview() -> void:
+	if drop_preview_pos == Vector2i(-1, -1) or drop_preview_size.x <= 0:
+		return
+	var rect := Rect2(Const.voxel_to_world(drop_preview_pos),
+			Vector2(drop_preview_size) * Const.VOXEL_SIZE)
+	var fill := drop_preview_color if drop_preview_valid else Color(1.0, 0.2, 0.2)
+	fill.a = 0.35
+	var line := fill
+	line.a = 0.8
+	draw_rect(rect, fill)
+	draw_rect(rect, line, false, 1.5)
 
 func _draw_drop_indicator() -> void:
 	var x := Const.voxel_to_world(Vector2i(drop_indicator_col, 0)).x + Const.VOXEL_SIZE * 0.5

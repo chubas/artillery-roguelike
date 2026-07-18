@@ -370,6 +370,57 @@ class MapGraphView:
 				var tw := font.get_string_size(", ".join(tags), HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
 				draw_string(font, Vector2(c.x - tw * 0.5, c.y + NODE_R + 14.0), ", ".join(tags),
 						HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1, 1, 1, 0.55))
+			# Debug QoL: which custom map this node plays, so testing a specific map is easy.
+			if node.custom_map_id != "":
+				var mw := font.get_string_size(node.custom_map_id, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+				draw_string(font, Vector2(c.x - mw * 0.5, c.y + NODE_R + 25.0), node.custom_map_id,
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.95, 0.82, 0.35, 0.8))
+
+	# Debug QoL: hover tooltip with per-node info (extend freely — this is the seam for
+	# whatever stage metadata we want visible during testing).
+	func _get_tooltip(at_position: Vector2) -> String:
+		if map == null or map.nodes.is_empty():
+			return ""
+		if _positions.is_empty():
+			_compute_positions()
+		for idx in _positions:
+			if at_position.distance_to(_positions[idx]) <= NODE_R + 6.0:
+				return _node_tooltip(idx)
+		return ""
+
+	func _node_tooltip(index: int) -> String:
+		var node : MapNode = map.nodes[index]
+		var lines : Array = ["Node %d — %s" % [index + 1, MapNode.Type.keys()[node.type]]]
+		match node.type:
+			MapNode.Type.SHOP:
+				lines.append("Buy cards, artifacts, or units")
+			MapNode.Type.EVENT:
+				var ev := node.event()
+				lines.append("Event: %s" % (ev.title if ev != null else "unknown"))
+			MapNode.Type.REPAIR:
+				lines.append("Heal units or add a Heal Vial")
+			MapNode.Type.UPGRADE:
+				lines.append("Upgrade / fuse units, remove cards")
+			_:
+				var s := node.stage()
+				if s != null:
+					lines.append("Stage: %s" % s.id)
+					var obj := "Defeat all" if s.objective.type == ObjectiveDescriptor.Type.DEFEAT_ALL \
+							else "Survive %d rounds" % s.objective.survive_rounds
+					lines.append("Objective: %s" % obj)
+					if not s.threat_tags.is_empty():
+						lines.append("Threats: %s" % ", ".join(s.threat_tags))
+					lines.append("Enemies: %d + %d waves" % [s.initial_enemies.size(), s.reinforcements.size()])
+				if node.custom_map_id != "":
+					var cmap := MapLibrary.get_map(node.custom_map_id)
+					lines.append("Map: %s%s" % [node.custom_map_id,
+							" — %s (%dx%d)" % [cmap.title, cmap.width, cmap.height] if cmap != null else ""])
+				elif node.terrain_profile_path != "":
+					lines.append("Terrain: %s" % node.terrain_profile_path.get_file().get_basename())
+				else:
+					lines.append("Terrain: legacy noise")
+				lines.append("Seed: %d" % node.stage_seed)
+		return "\n".join(lines)
 
 	func _gui_input(event: InputEvent) -> void:
 		if map == null or map.nodes.is_empty():

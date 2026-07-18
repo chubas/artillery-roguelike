@@ -163,7 +163,38 @@ def _flatten_metadata(value: object, field_name: str) -> str:
     return " ".join(value.split())
 
 
-def _load_metadata(path: Path) -> tuple[str, str, str, str]:
+def _normalize_fill_values(raw_value: object) -> str | None:
+    if raw_value in (None, ""):
+        return None
+    if isinstance(raw_value, str):
+        try:
+            values = json.loads(raw_value)
+        except json.JSONDecodeError as error:
+            raise MapSyncError(
+                "custom field 'autoFillTerrainValues' must contain a JSON array"
+            ) from error
+    elif isinstance(raw_value, list):
+        values = raw_value
+    else:
+        raise MapSyncError(
+            "custom field 'autoFillTerrainValues' must be a JSON array string"
+        )
+
+    if (
+        not isinstance(values, list)
+        or len(values) != 2
+        or any(not isinstance(value, int) or isinstance(value, bool) for value in values)
+        or not 1 <= values[0] <= values[1] <= 9
+    ):
+        raise MapSyncError(
+            "autoFillTerrainValues must be [N, M] with 1 <= N <= M <= 9"
+        )
+    return json.dumps(values, separators=(", ", ": "))
+
+
+def _load_metadata(
+    path: Path,
+) -> tuple[str, str, str, str, bool | None, str | None]:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except OSError as error:
@@ -188,7 +219,20 @@ def _load_metadata(path: Path) -> tuple[str, str, str, str]:
         raise MapSyncError(
             "rl_id must contain only letters, numbers, underscores, and hyphens"
         )
-    return values  # type: ignore[return-value]
+
+    auto_fill_terrain = custom_fields.get("autoFillTerrain")
+    if auto_fill_terrain is not None and not isinstance(auto_fill_terrain, bool):
+        raise MapSyncError("custom field 'autoFillTerrain' must be a boolean")
+
+    auto_fill_values = _normalize_fill_values(
+        custom_fields.get("autoFillTerrainValues")
+    )
+    if auto_fill_terrain is True and auto_fill_values is None:
+        raise MapSyncError(
+            "autoFillTerrain is true but autoFillTerrainValues is missing or empty"
+        )
+
+    return (*values, auto_fill_terrain, auto_fill_values)  # type: ignore[return-value]
 
 
 def _format_rectangles(rectangles: Iterable[tuple[int, int, int, int]]) -> str:
@@ -200,7 +244,14 @@ def convert_level(level_dir: Path, terrain_mapping: dict[int, str]) -> Converted
     if missing:
         raise MapSyncError(f"missing required file(s): {', '.join(missing)}")
 
-    map_id, title, description, notes = _load_metadata(level_dir / "data.json")
+    (
+        map_id,
+        title,
+        description,
+        notes,
+        auto_fill_terrain,
+        auto_fill_values,
+    ) = _load_metadata(level_dir / "data.json")
     terrain = read_csv_grid(level_dir / "Terrain.csv")
     spawn_zones = read_csv_grid(level_dir / "SpawnZones.csv")
 
@@ -258,8 +309,14 @@ def convert_level(level_dir: Path, terrain_mapping: dict[int, str]) -> Converted
         f"height: {height}",
         f"spawn_zones: {_format_rectangles(player_rectangles)}",
         f"enemy_zones: {_format_rectangles(enemy_rectangles)}",
-        "data:",
     ]
+    if auto_fill_terrain is not None:
+        metadata_lines.append(
+            f"autoFillTerrain: {'true' if auto_fill_terrain else 'false'}"
+        )
+    if auto_fill_values is not None:
+        metadata_lines.append(f"autoFillTerrainValues: {auto_fill_values}")
+    metadata_lines.append("data:")
     text = "\n".join(metadata_lines + terrain_rows) + "\n"
     return ConvertedMap(map_id=map_id, text=text, width=width, height=height)
 

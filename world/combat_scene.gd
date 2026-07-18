@@ -38,6 +38,10 @@ var active_custom_map : CustomMap = null
 # to the unit, then releases so WASD can free-pan without the camera snapping back.
 var _focus_target : Unit = null
 var _focusing : bool = false
+# Middle-mouse drag pan (QoL): world moves with the mouse, in whole-voxel steps (the game is
+# voxel-based, so the camera pans discretely). _drag_accum banks sub-voxel mouse movement.
+var _mmb_dragging : bool = false
+var _drag_accum : Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color8(24, 26, 34))
@@ -123,6 +127,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			_zoom_camera(1.1)
 		elif event.physical_keycode == KEY_MINUS:
 			_zoom_camera(1.0 / 1.1)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		_mmb_dragging = event.pressed
+		_drag_accum = Vector2.ZERO
+	elif event is InputEventMouseMotion and _mmb_dragging:
+		_focusing = false   # manual pan cancels an in-progress focus (same as WASD)
+		# Drag the WORLD with the mouse: camera moves opposite the mouse delta, scaled by zoom.
+		_drag_accum -= event.relative / camera.zoom.x
+		# Consume whole-voxel steps; keep the sub-voxel remainder banked for the next motion.
+		var step := (_drag_accum / Const.VOXEL_SIZE).floor() * Const.VOXEL_SIZE
+		if step != Vector2.ZERO:
+			camera.position += step
+			_drag_accum -= step
 
 func _zoom_camera(factor: float) -> void:
 	var z : float = clampf(camera.zoom.x * factor, ZOOM_MIN, ZOOM_MAX)
@@ -275,6 +291,7 @@ func _smoke_test() -> void:
 	_m43_smoke()
 	_m44_smoke()
 	_m45_smoke()
+	_m46_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1350,7 +1367,7 @@ func _setup_terrain() -> void:
 		var cmap := MapLibrary.get_map(custom_map_id)
 		if cmap != null and cmap.error == "":
 			active_custom_map = cmap
-			terrain.load_map(cmap.to_map_data())
+			terrain.load_map(cmap.to_map_data(seed_val))   # M46: seed drives auto-fill noise
 			renderer.setup(terrain)
 			return
 		push_warning("combat_scene: custom map '%s' missing/broken — falling back" % custom_map_id)
@@ -1973,22 +1990,35 @@ func _m43_smoke() -> void:
 # M44: hand-authored ASCII maps — parser, library, zone placement/spawn helpers, assignment.
 func _m44_smoke() -> void:
 	print("[smoke] -- M44 custom ASCII maps --")
-	var ids := MapLibrary.map_ids()
-	print("  library ids=%s (expect contains test_flat)" % [str(ids)])
-	var cmap := MapLibrary.get_map("test_flat")
-	print("  parse: %dx%d spawn_zones=%d enemy_zones=%d err='%s' (expect 120x100, 1, 1, '')"
+	# Self-contained inline map (no shipped test map since the plain test_flat was removed):
+	# 40x30, sky rows 0-11, hp-3 ground 12-27, indestructible floor 28-29, M cluster at (20,14).
+	var mrows : Array = []
+	for r in range(30):
+		if r < 12:
+			mrows.append(".".repeat(40))
+		elif r < 28:
+			mrows.append("3".repeat(40))
+		else:
+			mrows.append("0".repeat(40))
+	mrows[14] = (mrows[14] as String).substr(0, 20) + "MM" + (mrows[14] as String).substr(22)
+	mrows[15] = (mrows[15] as String).substr(0, 20) + "M" + (mrows[15] as String).substr(21)
+	var mtext := "id: m44_inline\ntitle: Inline\nwidth: 40\nheight: 30\n" \
+			+ "spawn_zones: [[2, 4, 18, 20]]\nenemy_zones: [[22, 4, 38, 20]]\ndata:\n" \
+			+ "\n".join(mrows) + "\n"
+	var cmap := CustomMap.parse(mtext)
+	print("  parse: %dx%d spawn_zones=%d enemy_zones=%d err='%s' (expect 40x30, 1, 1, '')"
 			% [cmap.width, cmap.height, cmap.spawn_zones.size(), cmap.enemy_zones.size(), cmap.error])
-	print("  zone0=%s (expect (2, 20, 49, 51))" % str(cmap.spawn_zones[0]))
+	print("  zone0=%s (expect (2, 4, 17, 17))" % str(cmap.spawn_zones[0]))
 
 	var data := cmap.to_map_data()
-	var c_solid = data.get_cell(10, 50)
-	var c_floor = data.get_cell(10, 98)
-	var c_ore   = data.get_cell(59, 45)
+	var c_solid = data.get_cell(10, 15)
+	var c_floor = data.get_cell(10, 28)
+	var c_ore   = data.get_cell(20, 14)
 	print("  tiles: solid_hp=%d floor_indestructible=%s ore_mineral=%s sky_null=%s (expect 3, true, true, true)"
 			% [c_solid.get("hp", -1),
 			str(((c_floor.get("flags", 0) as int) & Tile.FLAG_INDESTRUCTIBLE) != 0),
 			str(c_ore.get("type", -1) == Tile.TileType.MINERAL and (c_ore.get("status_tags", []) as Array).has("MINERAL")),
-			str(data.get_cell(10, 10) == null)])
+			str(data.get_cell(10, 5) == null)])
 
 	# Zone helpers on a scratch terrain + combat manager (live combat untouched).
 	var tm := TerrainManager.new()
@@ -1997,10 +2027,10 @@ func _m44_smoke() -> void:
 	cm._terrain = tm
 	cm.set_custom_map(cmap)
 	var drop := cm._zone_surface_top(10, cmap.spawn_zones[0], 2, 3)
-	print("  zone drop @col10=%s (expect (10, 39): stands on surface row 42)" % str(drop))
+	print("  zone drop @col10=%s (expect (10, 9): stands on surface row 12)" % str(drop))
 	var edrop := cm._random_zone_drop(2, 3)
 	var ez : Rect2i = cmap.enemy_zones[0]
-	var in_zone := edrop.x >= ez.position.x and edrop.x < ez.end.x and edrop.y == 39
+	var in_zone := edrop.x >= ez.position.x and edrop.x < ez.end.x and edrop.y == 9
 	print("  enemy zone drop=%s in_zone=%s (expect true)" % [str(edrop), str(in_zone)])
 	cm.free()
 	tm.free()
@@ -2009,10 +2039,13 @@ func _m44_smoke() -> void:
 	var bad := CustomMap.parse("id: bad\nwidth: 4\nheight: 2\ndata:\nX3\n33\n")
 	print("  bad parse err='%s' (expect non-empty)" % bad.error)
 
-	# Run assignment: every combat node draws from the library; flag off → legacy profiles.
+	# Run assignment: every combat node draws from the library pool; flag off → legacy profiles.
+	var ids := MapLibrary.map_ids()
+	print("  library ids=%s (expect non-empty)" % [str(ids)])
 	Run.start_default_run()
 	var n0 : MapNode = Run.active.map.nodes[0]
-	print("  node[0] custom_map='%s' (expect test_flat)" % n0.custom_map_id)
+	print("  node[0] custom_map='%s' in_library=%s (expect nonempty, true)"
+			% [n0.custom_map_id, str(ids.has(n0.custom_map_id))])
 	Features.custom_maps_enabled = false
 	Run.start_default_run()
 	print("  flag off: node[0] custom_map='%s' profile='%s' (expect empty, empty)"
@@ -2126,6 +2159,52 @@ func _m45_smoke() -> void:
 
 	for u in [pa, pb, pc, enemy, pnear, pfar, e2]:
 		u.free()
+
+# M46: autoFillTerrain — '1' tiles get noise-sampled durability N..M; explicit digits stay.
+func _m46_smoke() -> void:
+	print("[smoke] -- M46 auto-fill terrain durability --")
+	var header := "id: fill_test\nwidth: 12\nheight: 6\n" \
+			+ "spawn_zones: [[0, 0, 5, 5]]\nenemy_zones: [[6, 0, 11, 5]]\n" \
+			+ "autoFillTerrain: true\nautoFillTerrainValues: [2, 5]\n" \
+			+ "data:\n"
+	var grid := "............\n............\n............\n" \
+			+ "111111111111\n111311111M11\n000000000000\n"
+	var map := CustomMap.parse(header + grid)
+	print("  parse err='%s' (expect '')" % map.error)
+	var d1 := map.to_map_data(42)
+	var in_range := true
+	var distinct : Dictionary = {}
+	for c in range(12):
+		for r in [3, 4]:
+			if (c == 3 or c == 9) and r == 4:
+				continue   # the literal '3' and 'M' cells
+			var hp : int = d1.get_cell(c, r).get("hp", -1)
+			distinct[hp] = true
+			if hp < 2 or hp > 5:
+				in_range = false
+	print("  filled range ok=%s distinct_values=%d (expect true, >1)" % [str(in_range), distinct.size()])
+	print("  literal '3'=%d indestructible '0'=%s mineral 'M'=%s (expect 3, true, true)"
+			% [d1.get_cell(3, 4).get("hp", -1),
+			str(((d1.get_cell(0, 5).get("flags", 0) as int) & Tile.FLAG_INDESTRUCTIBLE) != 0),
+			str(d1.get_cell(9, 4).get("type", -1) == Tile.TileType.MINERAL)])
+	# Determinism: same seed → identical fill; different seed → different fill.
+	var d2 := map.to_map_data(42)
+	var d3 := map.to_map_data(999)
+	var same := true
+	var diff := false
+	for c in range(12):
+		var a : int = d1.get_cell(c, 3).get("hp", -1)
+		if a != d2.get_cell(c, 3).get("hp", -2):
+			same = false
+		if a != d3.get_cell(c, 3).get("hp", -2):
+			diff = true
+	print("  seed determinism: same_seed_match=%s diff_seed_differs=%s (expect true, true)"
+			% [str(same), str(diff)])
+	# Validation failures: flag without values; reversed bounds.
+	var bad1 := CustomMap.parse(header.replace("autoFillTerrainValues: [2, 5]\n", "") + grid)
+	var bad2 := CustomMap.parse(header.replace("[2, 5]", "[5, 2]") + grid)
+	print("  missing values err set=%s reversed err set=%s (expect true, true)"
+			% [str(bad1.error != ""), str(bad2.error != "")])
 
 func _mk_test_unit(def: UnitDefinition, dname: String, vox: Vector2i, hp: int, _maxhp: int,
 		is_player: bool) -> Unit:

@@ -33,6 +33,14 @@ func set_placement_state(active: bool, min_col: int, max_col: int, zones: Array 
 	_overlay.placement_max_col = max_col
 	_overlay.placement_zones = zones   # M44: zone boxes override the column band when set
 
+# QoL: translucent ghost of the queue-front unit at its landing spot (red tint = invalid).
+# top_left = (-1, -1) hides the ghost.
+func set_drop_preview(top_left: Vector2i, size_vox: Vector2i, color: Color, valid: bool) -> void:
+	_overlay.drop_preview_pos = top_left
+	_overlay.drop_preview_size = size_vox
+	_overlay.drop_preview_color = color
+	_overlay.drop_preview_valid = valid
+
 # Drop indicator: vertical line + unit name showing where the next unit will land.
 func set_drop_indicator(col: int, name: String) -> void:
 	_overlay.set_drop_indicator(col, name)

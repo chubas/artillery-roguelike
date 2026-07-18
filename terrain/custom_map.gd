@@ -3,6 +3,10 @@
 # Grid chars: '.' void · '1'-'9' SOLID with that hp (collapsible, FLAMMABLE) · '0' SOLID
 # indestructible · 'M' MINERAL (hp 2). Spawn/enemy zones are [x0, y0, x1, y1] voxel rects
 # (inclusive corners). Any problem sets `error` — callers must check it before using the map.
+#
+# M46 auto-fill: `autoFillTerrain: true` + `autoFillTerrainValues: [N, M]` (1 ≤ N ≤ M ≤ 9)
+# replaces every '1' with a durability sampled from N..M via seeded Simplex noise (smooth
+# patches, not speckle). Explicit digits 2-9 / '0' / 'M' remain authorial overrides.
 class_name CustomMap
 extends RefCounted
 
@@ -14,6 +18,11 @@ var width       : int = 0
 var height      : int = 0
 var spawn_zones : Array[Rect2i] = []   # player placement zones
 var enemy_zones : Array[Rect2i] = []   # enemy/deployable spawn zones
+# M46: noise-fill '1' tiles with durability auto_fill_min..auto_fill_max (inclusive).
+# min/max default 0 = "not provided" sentinel; validation requires them when the flag is on.
+var auto_fill_terrain : bool = false
+var auto_fill_min     : int = 0
+var auto_fill_max     : int = 0
 var error       : String = ""          # "" = parsed clean
 
 var _rows : Array = []   # Array[String], one per grid row, padded to width
@@ -45,6 +54,8 @@ static func parse(text: String) -> CustomMap:
 			"height":      map.height = int(value)
 			"spawn_zones": map.spawn_zones = _parse_zones(value, map, "spawn_zones")
 			"enemy_zones": map.enemy_zones = _parse_zones(value, map, "enemy_zones")
+			"autoFillTerrain": map.auto_fill_terrain = value.to_lower() == "true"
+			"autoFillTerrainValues": _parse_fill_values(value, map)
 			_:
 				map.error = "line %d: unknown key '%s'" % [i, key]
 		if map.error != "":
@@ -74,6 +85,9 @@ static func parse(text: String) -> CustomMap:
 		map.error = "no spawn_zones"
 	elif map.enemy_zones.is_empty():
 		map.error = "no enemy_zones"
+	elif map.auto_fill_terrain and (map.auto_fill_min < 1 or map.auto_fill_max > 9 \
+			or map.auto_fill_min > map.auto_fill_max):
+		map.error = "autoFillTerrain requires autoFillTerrainValues: [N, M] with 1 <= N <= M <= 9"
 	else:
 		for zone in map.spawn_zones + map.enemy_zones:
 			var z : Rect2i = zone
@@ -82,6 +96,15 @@ static func parse(text: String) -> CustomMap:
 				map.error = "zone %s out of bounds (%dx%d)" % [str(z), map.width, map.height]
 				break
 	return map
+
+## M46: "[N, M]" -> auto_fill_min/max. Range validity is checked in the final validation block.
+static func _parse_fill_values(value: String, map: CustomMap) -> void:
+	var parsed = JSON.parse_string(value)
+	if not parsed is Array or (parsed as Array).size() != 2:
+		map.error = "autoFillTerrainValues: expected [N, M]"
+		return
+	map.auto_fill_min = int(parsed[0])
+	map.auto_fill_max = int(parsed[1])
 
 ## "[[x0, y0, x1, y1], ...]" (inclusive corners) -> Array[Rect2i]. Sets map.error on failure.
 static func _parse_zones(value: String, map: CustomMap, key: String) -> Array[Rect2i]:
@@ -103,12 +126,22 @@ static func _parse_zones(value: String, map: CustomMap, key: String) -> Array[Re
 	return zones
 
 ## Build the MapData that TerrainManager.load_map consumes.
-func to_map_data() -> MapData:
+## noise_seed drives the M46 auto-fill (0 = derive from the map id, so parse-only callers are
+## deterministic); combat passes the per-node stage seed for reproducible per-run variety.
+func to_map_data(noise_seed: int = 0) -> MapData:
 	var data := MapData.new()
 	data.width = width
 	data.height = height
 	data.cells.resize(width * height)
 	data.cells.fill(null)
+	# M46: smooth durability patches for '1' tiles — Simplex reads as perlin-style coherent
+	# noise, so neighboring tiles get similar durability instead of speckle.
+	var noise : FastNoiseLite = null
+	if auto_fill_terrain:
+		noise = FastNoiseLite.new()
+		noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		noise.frequency = 0.08
+		noise.seed = noise_seed if noise_seed != 0 else hash(id)
 	for row in range(height):
 		var line : String = _rows[row]
 		for col in range(width):
@@ -132,6 +165,10 @@ func to_map_data() -> MapData:
 				}
 			else:
 				var hp := int(ch)
+				if noise != null and ch == "1":
+					var t := (noise.get_noise_2d(float(col), float(row)) + 1.0) * 0.5
+					hp = mini(auto_fill_min + int(t * float(auto_fill_max - auto_fill_min + 1)),
+							auto_fill_max)
 				cell = {
 					"type": Tile.TileType.SOLID,
 					"hp": hp, "max_hp": hp, "flags": 0,

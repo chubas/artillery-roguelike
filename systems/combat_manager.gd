@@ -206,12 +206,19 @@ func set_custom_map(map: CustomMap) -> void:
 
 ## Topmost standable top-left for a w×h unit at `col` WITHIN a zone box. Unlike the global
 ## surface snap this finds floors inside caves and on floating islands: it scans the zone's
-## rows top-down for a solid tile with a clear w×h box above it.
+## rows top-down for a supporting tile with a clear w×h box above it. Support matches the
+## movement rule (UnitMovement.grounded): ANY column of the footprint on solid ground is
+## enough — a wide unit may stand on a single voxel with the rest overhanging.
 func _zone_surface_top(col: int, zone: Rect2i, w: int, h: int) -> Vector2i:
 	if col < zone.position.x or col + w > zone.end.x:
 		return Vector2i(-1, -1)
 	for row in range(zone.position.y, zone.end.y):
-		if not _terrain.is_solid(col, row):
+		var supported := false
+		for c in range(col, col + w):
+			if _terrain.is_solid(c, row):
+				supported = true
+				break
+		if not supported:
 			continue
 		var top_left := Vector2i(col, row - h)
 		if top_left.y < 0:
@@ -253,8 +260,18 @@ func _confirm_placement() -> void:
 func _placement_drop(unit: Unit, col: int) -> bool:
 	if unit == null:
 		return false
-	var def := unit.definition
-	# M44: zone-box placement — the click must land inside a spawn zone; the unit drops on
+	var pos := placement_preview(unit.definition, col)
+	if pos.x == -1:
+		return false
+	unit.set_vox_position(pos)
+	unit.visible = true
+	return true
+
+# Where a unit of `def` would land if dropped at `col` — no side effects, so it doubles as the
+# ghost-preview resolver (QoL) and the validation half of _placement_drop.
+# Returns the top-left voxel, or (-1, -1) when the drop would be rejected.
+func placement_preview(def: UnitDefinition, col: int) -> Vector2i:
+	# M44: zone-box placement — the drop must land inside a spawn zone; the unit lands on
 	# the topmost floor within that zone box (caves/islands included).
 	if _custom_map != null:
 		for zone in _custom_map.spawn_zones:
@@ -264,24 +281,26 @@ func _placement_drop(unit: Unit, col: int) -> bool:
 			var zcol := clampi(col, z.position.x, maxi(z.position.x, z.end.x - def.width_voxels))
 			var pos := _zone_surface_top(zcol, z, def.width_voxels, def.height_voxels)
 			if pos.x != -1:
-				unit.set_vox_position(pos)
-				unit.visible = true
-				return true
-		return false
+				return pos
+		return Vector2i(-1, -1)
 	var lo := _spawn_min_col()
 	var hi := maxi(lo, _spawn_max_col() - def.width_voxels + 1)
 	col = clampi(col, lo, hi)
-	var surface := _terrain.get_surface_row(col)
+	# Land on the HIGHEST surface across the whole footprint (any-column support, matching
+	# UnitMovement.grounded) — a wide unit may stand on a single voxel.
+	var surface := -1
+	for c in range(col, col + def.width_voxels):
+		var s := _terrain.get_surface_row(c)
+		if s != -1 and (surface == -1 or s < surface):
+			surface = s
 	if surface == -1:
-		return false
+		return Vector2i(-1, -1)
 	var top_left := Vector2i(col, surface - def.height_voxels)
 	if top_left.y < 0:
-		return false
+		return Vector2i(-1, -1)
 	if not UnitMovement.bbox_terrain_clear(_terrain, top_left, def.width_voxels, def.height_voxels):
-		return false
-	unit.set_vox_position(top_left)
-	unit.visible = true
-	return true
+		return Vector2i(-1, -1)
+	return top_left
 
 # Smoke / auto-confirm helper: place every queued unit at the first valid column and confirm.
 func _drain_placement_queue() -> void:
@@ -1275,6 +1294,19 @@ func _process(delta: float) -> void:
 				if not _placement_queue.is_empty() else ""
 		_targeting.set_drop_indicator(
 				_placement_hover_col if not _placement_queue.is_empty() else -1, dname)
+		# QoL: translucent ghost of the queue-front unit at its landing spot (red if invalid).
+		if not _placement_queue.is_empty() and _placement_hover_col >= 0:
+			var pdef : UnitDefinition = _placement_queue[0].definition
+			var ppos := placement_preview(pdef, _placement_hover_col)
+			var valid := ppos.x != -1
+			if not valid:
+				# No landing spot here — ghost follows the cursor so the red tint tracks it.
+				var mvox := Const.world_to_voxel(get_global_mouse_position())
+				ppos = Vector2i(_placement_hover_col, mvox.y - pdef.height_voxels / 2)
+			_targeting.set_drop_preview(ppos,
+					Vector2i(pdef.width_voxels, pdef.height_voxels), pdef.color, valid)
+		else:
+			_targeting.set_drop_preview(Vector2i(-1, -1), Vector2i.ZERO, Color.WHITE, false)
 		_hud.set_placement_unit(dname, _placement_queue.size())
 
 func _push_hud_state() -> void:

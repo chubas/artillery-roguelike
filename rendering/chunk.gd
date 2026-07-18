@@ -4,12 +4,14 @@
 class_name Chunk
 extends Node2D
 
-# Placeholder palette: earth tones per variant; reinforced reads as stone;
+# Placeholder palette: earth tones; CONDUCTIVE (legacy reinforced sprinkle) reads as stone;
 # the indestructible spawn platform reads as dark steel.
-const COLOR_SOLID := [
-	Color8(152, 114, 76), Color8(141, 104, 68),
-	Color8(160, 122, 82), Color8(133, 98, 64),
-]
+# M46: destructible SOLID shades light→dark brown by durability (max_hp 1..9), so the
+# auto-filled durability patches are readable at a glance.
+const COLOR_SOLID_LIGHT := Color8(178, 140, 100)
+const COLOR_SOLID_DARK  := Color8(94, 66, 40)
+# Per-variant micro-tint (±) keeps the terrain from going flat within one durability band.
+const VARIANT_TINT := [0.0, -0.04, 0.04, -0.08]
 const COLOR_REINFORCED := [
 	Color8(122, 130, 140), Color8(112, 120, 130),
 	Color8(130, 138, 148), Color8(104, 112, 122),
@@ -58,10 +60,15 @@ func _draw() -> void:
 				continue
 			if tile.has_flag(Tile.FLAG_INDESTRUCTIBLE):
 				base = COLOR_PLATFORM
-			elif tile.max_hp > 3:
+			elif tile.status_tags.has("CONDUCTIVE"):
+				# Legacy generator's reinforced-stone sprinkle keeps its gray look.
 				base = COLOR_REINFORCED[tile.variant]
 			else:
-				base = COLOR_SOLID[tile.variant]
+				# M46: durability ramp — light (1 hp) to dark (9 hp) brown, plus variant tint.
+				var t := clampf(float(tile.max_hp - 1) / 8.0, 0.0, 1.0)
+				base = COLOR_SOLID_LIGHT.lerp(COLOR_SOLID_DARK, t)
+				var tint : float = VARIANT_TINT[tile.variant]
+				base = base.lightened(tint) if tint > 0.0 else base.darkened(-tint)
 			draw_rect(rect, base)
 			# Hairline border keeps the voxel grid readable.
 			draw_rect(rect, base.darkened(0.3), false, 1.0)

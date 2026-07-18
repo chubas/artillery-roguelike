@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-07-09 M45)
+## Current state (2026-07-18 M46)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -68,6 +68,44 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-07-18 — Milestone 46: Auto-Fill Terrain Durability + Durability Shading
+
+Map-authoring QoL + visual debug. Full design in
+[docs/planning/milestone-46-plan.md](docs/planning/milestone-46-plan.md).
+
+- **Auto-fill:** map metadata `autoFillTerrain: true` + `autoFillTerrainValues: [N, M]` — every
+  `1` in the grid gets a durability sampled from N..M via seeded Simplex noise (freq 0.08 →
+  smooth patches, not speckle). Explicit `2`–`9`/`0`/`M` stay authorial. Bad/missing values are
+  parse errors. `CustomMap.to_map_data(noise_seed)`: combat passes the node's `stage_seed`
+  (per-run variety, reproducible), sandbox passes its seed field.
+- **Durability shading (`chunk.gd`):** destructible SOLID lerps light→dark brown by `max_hp`
+  1→9 (+ per-variant micro-tint); the old `max_hp > 3 → gray` rule is now keyed on the
+  `CONDUCTIVE` tag so legacy reinforced stone keeps its look while filled tiles stay brown.
+- **Also this session (small QoL, pre-M46):** placement ghost preview — translucent unit-sized
+  ghost at the landing spot during placement (unit color; red + cursor-tracking when invalid),
+  backed by side-effect-free `CombatManager.placement_preview()` shared with `_placement_drop`;
+  placement support rule now matches `UnitMovement.grounded` (any footprint column on solid =
+  standable → units land on the highest voxel under them); camera fits small maps
+  (real `terrain.map_width/height` + contain-zoom, unchanged on standard maps).
+- **Post-M46 QoL:** middle-mouse drag pans the combat camera (world follows the mouse, in
+  whole-voxel steps — sub-voxel remainder banked in `_drag_accum`; cancels unit-focus easing
+  like WASD; `combat_scene._unhandled_input`). `data/maps/test_flat.txt` deleted (hand-authored maps only in the pool;
+  `_m44_smoke` now builds its test map inline). Run-map debug aids: combat nodes show their
+  `custom_map_id` under the node (gold), and hovering any node shows a tooltip
+  (`MapGraphView._get_tooltip`/`_node_tooltip` — stage id, objective, threats, enemy/wave counts,
+  map id + title + dims, seed; extend freely).
+- **Smoke:** `_m46_smoke()`.
+
+## 2026-07-14 — Phase 2 kickoff: Productionization plan (no code)
+
+Feature freeze declared: the mechanical prototype (M1–M45) is complete. Phase 2 productionizes —
+placeholder art, particles, audio, and game-feel through **skinnable seams** (id-keyed registries
+with code-drawn fallbacks), ending in a playable **Act 1 boss stage** used to test squad builds.
+Full roadmap, system designs, asset conventions, and placeholder-asset sources in
+[docs/design/artillery-space-productionization-plan.md](docs/design/artillery-space-productionization-plan.md).
+Phases: P0 seams → P1 terrain/entity skins → P2 FX → P3 audio → P4 juice → P5 UI palette/icons →
+P6 boss stage (exit criterion). No code shipped in this entry — planning document only.
 
 ## 2026-07-10 — Hotfix: terrain crash on non-standard map sizes
 

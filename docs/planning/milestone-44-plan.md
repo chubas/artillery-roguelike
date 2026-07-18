@@ -38,6 +38,8 @@ data:
   **indestructible** · `M` MINERAL (hp 2, drops Ore per M42). Short rows are dot-padded; longer
   rows or unknown chars are parse errors.
 - Validation: id present, ≥1 spawn + enemy zone, zones in bounds, grid rows = height.
+- **M46 addendum:** optional `autoFillTerrain: true` + `autoFillTerrainValues: [N, M]` — every `1`
+  gets a noise-sampled durability N..M (see milestone-46-plan.md). Explicit digits stay literal.
 
 ## What shipped
 

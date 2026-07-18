@@ -107,6 +107,36 @@ class LdtkMapSyncTests(unittest.TestCase):
             self.assertIn("enemy_zones: [[2, 0, 2, 0], [2, 1, 2, 1]]", converted.text)
             self.assertTrue(converted.text.endswith("data:\n.0M\n123\n"))
 
+    def test_conversion_syncs_optional_auto_fill_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            level_dir = Path(temporary)
+            self._write_level(level_dir)
+            metadata_path = level_dir / "data.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["customFields"]["autoFillTerrain"] = True
+            metadata["customFields"]["autoFillTerrainValues"] = "[3, 6]"
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+            converted = convert_level(level_dir, self.terrain_mapping)
+
+            self.assertIn("autoFillTerrain: true\n", converted.text)
+            self.assertIn("autoFillTerrainValues: [3, 6]\n", converted.text)
+
+    def test_conversion_rejects_enabled_auto_fill_without_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            level_dir = Path(temporary)
+            self._write_level(level_dir)
+            metadata_path = level_dir / "data.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["customFields"]["autoFillTerrain"] = True
+            metadata["customFields"]["autoFillTerrainValues"] = ""
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                MapSyncError, "autoFillTerrainValues is missing or empty"
+            ):
+                convert_level(level_dir, self.terrain_mapping)
+
     def test_conversion_rejects_mismatched_grid_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             level_dir = Path(temporary)
