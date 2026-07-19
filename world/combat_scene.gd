@@ -30,9 +30,9 @@ var stage : StageDescriptor = null
 # M33: run-controller sets these from MapNode before entering combat.
 var terrain_profile_path : String = ""
 var active_stage_seed    : int    = -1
-# M44: hand-authored map id ("" = profile/legacy terrain). Set by the run controller.
+# M48: imported LDtk map id ("" = profile/legacy terrain). Set by the run controller.
 var custom_map_id : String = ""
-var active_custom_map : CustomMap = null
+var active_custom_map : MapDefinition = null
 
 # Camera focus target (the selected ally). _focusing is a one-shot pan: it eases the camera
 # to the unit, then releases so WASD can free-pan without the camera snapping back.
@@ -293,6 +293,7 @@ func _smoke_test() -> void:
 	_m45_smoke()
 	_m46_smoke()
 	_m47_smoke()
+	_m48_smoke()
 
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit()
@@ -1362,11 +1363,11 @@ func _m31_smoke() -> void:
 
 func _setup_terrain() -> void:
 	var seed_val := active_stage_seed if active_stage_seed >= 0 else (stage.terrain_seed if stage != null else Const.NOISE_SEED)
-	# M44: hand-authored maps take priority. Minerals come only from the map's 'M' chars —
+	# M48: imported maps take priority. Minerals come only from authored terrain value 11 —
 	# the ambient scatter pass stays on the procedural paths below.
 	if Features.custom_maps_enabled and custom_map_id != "":
 		var cmap := MapLibrary.get_map(custom_map_id)
-		if cmap != null and cmap.error == "":
+		if cmap != null:
 			active_custom_map = cmap
 			terrain.load_map(cmap.to_map_data(seed_val))   # M46: seed drives auto-fill noise
 			renderer.setup(terrain)
@@ -1988,10 +1989,10 @@ func _m43_smoke() -> void:
 	print("  flag off: attempts=%d seam_tiles=%d (expect 1, 0)" % [d0.attempts_used, seams0])
 	Features.terrain_v2_enabled = true
 
-# M44: hand-authored ASCII maps — parser, library, zone placement/spawn helpers, assignment.
+# M44 contract retained through M48 resources — map materialization, zones, and assignment.
 func _m44_smoke() -> void:
-	print("[smoke] -- M44 custom ASCII maps --")
-	# Self-contained inline map (no shipped test map since the plain test_flat was removed):
+	print("[smoke] -- M44 authored map runtime contract --")
+	# Self-contained definition:
 	# 40x30, sky rows 0-11, hp-3 ground 12-27, indestructible floor 28-29, M cluster at (20,14).
 	var mrows : Array = []
 	for r in range(30):
@@ -2003,12 +2004,12 @@ func _m44_smoke() -> void:
 			mrows.append("0".repeat(40))
 	mrows[14] = (mrows[14] as String).substr(0, 20) + "MM" + (mrows[14] as String).substr(22)
 	mrows[15] = (mrows[15] as String).substr(0, 20) + "M" + (mrows[15] as String).substr(21)
-	var mtext := "id: m44_inline\ntitle: Inline\nwidth: 40\nheight: 30\n" \
-			+ "spawn_zones: [[2, 4, 18, 20]]\nenemy_zones: [[22, 4, 38, 20]]\ndata:\n" \
-			+ "\n".join(mrows) + "\n"
-	var cmap := CustomMap.parse(mtext)
-	print("  parse: %dx%d spawn_zones=%d enemy_zones=%d err='%s' (expect 40x30, 1, 1, '')"
-			% [cmap.width, cmap.height, cmap.spawn_zones.size(), cmap.enemy_zones.size(), cmap.error])
+	var cmap := _smoke_map_from_rows("m44_inline", mrows)
+	cmap.title = "Inline"
+	cmap.spawn_zones = [Rect2i(2, 4, 17, 17)]
+	cmap.enemy_zones = [Rect2i(22, 4, 17, 17)]
+	print("  definition: %dx%d spawn_zones=%d enemy_zones=%d (expect 40x30, 1, 1)"
+			% [cmap.width, cmap.height, cmap.spawn_zones.size(), cmap.enemy_zones.size()])
 	print("  zone0=%s (expect (2, 4, 17, 17))" % str(cmap.spawn_zones[0]))
 
 	var data := cmap.to_map_data()
@@ -2020,7 +2021,7 @@ func _m44_smoke() -> void:
 			str(((c_floor.get("flags", 0) as int) & Tile.FLAG_INDESTRUCTIBLE) != 0),
 			str(c_ore.get("type", -1) == Tile.TileType.MINERAL and (c_ore.get("status_tags", []) as Array).has("MINERAL")),
 			str(data.get_cell(10, 5) == null)])
-	# Imported tiles are NON-collapsible (floating platforms stay put when shot) — see custom_map.gd.
+	# Imported tiles are NON-collapsible (floating platforms stay put when shot).
 	print("  collapsible default: solid=%s mineral=%s (expect false, false)"
 			% [str(c_solid.get("collapsible", true)), str(c_ore.get("collapsible", true))])
 
@@ -2038,10 +2039,6 @@ func _m44_smoke() -> void:
 	print("  enemy zone drop=%s in_zone=%s (expect true)" % [str(edrop), str(in_zone)])
 	cm.free()
 	tm.free()
-
-	# Bad file → loud parse error, never a usable map.
-	var bad := CustomMap.parse("id: bad\nwidth: 4\nheight: 2\ndata:\nX3\n33\n")
-	print("  bad parse err='%s' (expect non-empty)" % bad.error)
 
 	# Run assignment: every combat node draws from the library pool; flag off → legacy profiles.
 	var ids := MapLibrary.map_ids()
@@ -2081,6 +2078,28 @@ func _m44_smoke() -> void:
 	tm2.generate(12345)
 	print("  generate() after load_map: dims=%dx%d (expect 120x100)" % [tm2.map_width, tm2.map_height])
 	tm2.free()
+
+
+func _smoke_map_from_rows(map_id: String, rows: Array) -> MapDefinition:
+	var map := MapDefinition.new()
+	map.id = map_id
+	map.height = rows.size()
+	map.width = (rows[0] as String).length()
+	map.terrain_values.resize(map.width * map.height)
+	for row in range(map.height):
+		var line : String = rows[row]
+		for col in range(map.width):
+			var ch := line[col]
+			var value := 0
+			if ch == "M":
+				value = MapDefinition.TERRAIN_MINERAL
+			elif ch == "0":
+				value = MapDefinition.TERRAIN_UNBREAKABLE
+			elif ch >= "1" and ch <= "9":
+				value = int(ch)
+			map.terrain_values[row * map.width + col] = value
+	return map
+
 
 # M45: deterministic enemy targeting + Taunt. Pure logic checks on scratch units/terrain.
 func _m45_smoke() -> void:
@@ -2167,14 +2186,16 @@ func _m45_smoke() -> void:
 # M46: autoFillTerrain — '1' tiles get noise-sampled durability N..M; explicit digits stay.
 func _m46_smoke() -> void:
 	print("[smoke] -- M46 auto-fill terrain durability --")
-	var header := "id: fill_test\nwidth: 12\nheight: 6\n" \
-			+ "spawn_zones: [[0, 0, 5, 5]]\nenemy_zones: [[6, 0, 11, 5]]\n" \
-			+ "autoFillTerrain: true\nautoFillTerrainValues: [2, 5]\n" \
-			+ "data:\n"
-	var grid := "............\n............\n............\n" \
-			+ "111111111111\n111311111M11\n000000000000\n"
-	var map := CustomMap.parse(header + grid)
-	print("  parse err='%s' (expect '')" % map.error)
+	var rows : Array = [
+		"............", "............", "............",
+		"111111111111", "111311111M11", "000000000000",
+	]
+	var map := _smoke_map_from_rows("fill_test", rows)
+	map.spawn_zones = [Rect2i(0, 0, 6, 6)]
+	map.enemy_zones = [Rect2i(6, 0, 6, 6)]
+	map.auto_fill_terrain = true
+	map.auto_fill_min = 2
+	map.auto_fill_max = 5
 	var d1 := map.to_map_data(42)
 	var in_range := true
 	var distinct : Dictionary = {}
@@ -2204,11 +2225,6 @@ func _m46_smoke() -> void:
 			diff = true
 	print("  seed determinism: same_seed_match=%s diff_seed_differs=%s (expect true, true)"
 			% [str(same), str(diff)])
-	# Validation failures: flag without values; reversed bounds.
-	var bad1 := CustomMap.parse(header.replace("autoFillTerrainValues: [2, 5]\n", "") + grid)
-	var bad2 := CustomMap.parse(header.replace("[2, 5]", "[5, 2]") + grid)
-	print("  missing values err set=%s reversed err set=%s (expect true, true)"
-			% [str(bad1.error != ""), str(bad2.error != "")])
 
 # M47: first boss — 5x5 anchored Boss1 spawned from a map entity, no-op attack, DEFEAT_BOSS clear.
 func _m47_smoke() -> void:
@@ -2218,12 +2234,15 @@ func _m47_smoke() -> void:
 			% [bdef.width_voxels, bdef.height_voxels, bdef.max_hp, str(bdef.anchored),
 			UnitDefinition.AttackBehavior.keys()[bdef.attack_behavior], str("BOSS" in bdef.tags)])
 
-	# Entity parse: the shipped boss map carries Entity_Boss1 as a MapEntity + is out of the pool.
+	# Entity import: the shipped boss map carries Boss1 as a MapEntity + is out of the pool.
 	var cmap := MapLibrary.get_map("boss1")
-	var ent : MapEntity = cmap.entities.get("Boss1")
-	print("  entity parse: err='%s' Boss1_present=%s coords=%s pool=%s (expect '', true, (61, 22), false)"
-			% [cmap.error, str(ent != null),
-			str(ent.coordinates if ent else Vector2i.ZERO), str(cmap.pool)])
+	var ent : MapEntity = null
+	for candidate in cmap.entities:
+		if candidate.name == "Boss1":
+			ent = candidate
+			break
+	print("  entity import: Boss1_present=%s coords=%s pool=%s (expect true, (61, 22), false)"
+			% [str(ent != null), str(ent.coordinates if ent else Vector2i.ZERO), str(cmap.pool)])
 
 	# Spawn the entity into a scratch combat on a scratch terrain (live combat untouched).
 	var tm := TerrainManager.new()
@@ -2280,6 +2299,35 @@ func _m47_smoke() -> void:
 	layer.queue_free()
 	tm.free()
 	cm.free()
+
+
+func _m48_smoke() -> void:
+	print("[smoke] -- M48 native LDtk map resources --")
+	MapLibrary.reload()
+	var hills := MapLibrary.get_map("hills")
+	var boss := MapLibrary.get_map("boss1")
+	print("  typed resources: hills=%s boss=%s (expect true, true)"
+			% [str(hills is MapDefinition), str(boss is MapDefinition)])
+	print("  provenance: project='%s' level_iid_set=%s hash_len=%d (expect map1.ldtk, true, 64)"
+			% [hills.source_project, str(hills.source_level_iid != ""), hills.source_hash.length()])
+	var h1 := hills.to_map_data(4248)
+	var h2 := hills.to_map_data(4248)
+	var deterministic := true
+	for index in range(h1.cells.size()):
+		var a = h1.cells[index]
+		var b = h2.cells[index]
+		if (a == null) != (b == null) or (a != null and a.get("hp") != b.get("hp")):
+			deterministic = false
+			break
+	print("  materialization: dims=%dx%d deterministic=%s (expect 89x35, true)"
+			% [h1.width, h1.height, str(deterministic)])
+	var entity : MapEntity = boss.entities[0] if not boss.entities.is_empty() else null
+	print("  entity payload: iid_set=%s layer='%s' coords=%s (expect true, MapDefinitions, (61, 22))"
+			% [str(entity != null and entity.iid != ""),
+			entity.source_layer if entity else "", str(entity.coordinates if entity else Vector2i.ZERO)])
+	print("  library pool: all=%s pool=%s (expect [boss1, hills], [hills])"
+			% [str(MapLibrary.map_ids()), str(MapLibrary.pool_map_ids())])
+
 
 func _mk_test_unit(def: UnitDefinition, dname: String, vox: Vector2i, hp: int, _maxhp: int,
 		is_player: bool) -> Unit:

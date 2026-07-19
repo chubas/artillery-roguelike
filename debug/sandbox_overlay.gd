@@ -234,7 +234,7 @@ func _build_panel() -> void:
 
 	# ── Terrain ──
 	_add_section(col, "TERRAIN")
-	# M44: hand-authored map files (res://data/maps + user://maps)
+	# M48: generated LDtk map definitions from res://data/maps
 	col.add_child(_make_label("Map:"))
 	_tv_map_option = OptionButton.new()
 	_tv_map_option.add_theme_font_size_override("font_size", 10)
@@ -457,16 +457,16 @@ class _TerrainMinimap extends Control:
 
 # ── Terrain regeneration ─────────────────────────────────────────────────────
 
-# M44: load a hand-authored map from the dropdown into the live terrain + minimap.
+# M48: load an imported LDtk map from the dropdown into the live terrain + minimap.
 func _load_custom_map() -> void:
 	if _tv_map_option == null or _tv_map_option.selected <= 0:
 		return
 	var map_id := _tv_map_option.get_item_text(_tv_map_option.selected)
-	MapLibrary.reload()   # pick up freshly dropped files without reopening the panel
+	MapLibrary.reload()   # pick up freshly imported resources without reopening the panel
 	var cmap := MapLibrary.get_map(map_id)
-	if cmap == null or cmap.error != "":
+	if cmap == null:
 		if _tv_valid_lbl != null:
-			_tv_valid_lbl.text = "map: FAILED\n%s" % (cmap.error if cmap != null else "not found")
+			_tv_valid_lbl.text = "map: FAILED\nnot found"
 		return
 	# M46: the seed field drives the auto-fill noise, so Regenerate-style iteration works.
 	var seed_val := int(_seed_field.text) if _seed_field.text.is_valid_int() else 12345

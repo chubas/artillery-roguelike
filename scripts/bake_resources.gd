@@ -493,7 +493,7 @@ func _ready() -> void:
 	_save(s3, "res://data/stages/stage_03.tres")
 
 	# ── M47: Act 1 boss stage ────────────────────────────────────────────────────
-	# The boss itself is spawned from the map's Entity_Boss1 (data/maps/boss1.txt), not from
+	# The boss itself is spawned from the imported Boss1 entity (data/maps/boss1.tres), not from
 	# initial_enemies. Objective is DEFEAT_BOSS — clears the instant the boss dies. Wind off.
 	var sb_obj := ObjectiveDescriptor.new()
 	sb_obj.type = ObjectiveDescriptor.Type.DEFEAT_BOSS

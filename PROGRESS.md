@@ -14,7 +14,7 @@ Chronological record of what's been built and changed. Newest first.
 relevant `milestone-N-plan.md` for design context before touching a system. When you finish a
 chunk of work, add an entry here (and update the milestone plan if a decision changed).
 
-## Current state (2026-07-18 M47)
+## Current state (2026-07-18 M48)
 
 - **Milestones complete:** M1 (terrain), M2 (combat loop), M3 (elements/status engine),
   M4 (shot varieties & 4-unit squad), M5 (card system: shield + direct damage, reinforcements),
@@ -57,11 +57,12 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   **M43 (Terrain generation v2 — placer contract + anchors + seams + validation: pipeline reordered to noise-first (A base+noise everywhere → B features → C seams → D HP/variants → E validation) so features anchor to the real surface; per-feature placer modules in `terrain/placers/` registered in `TerrainGenerator.PLACERS`, each returning a `FeatureInstance` (`terrain/feature_instance.gd`: id, footprint, named anchors — exact `Vector2i` or zone `Rect2i` — edge specs, gap rects) carried on `MapData.features`; anchors exported per construct (bunker `core`/`aperture_n`/`interior`, ridge `summit_center`/`reverse_slope`, pit rims, pillar top, crystal vein); `terrain/seam_pass.gd` reconciles edges (RAMP staircase 2 voxels/column until ground, GAP re-carve, FLUSH foundations, CLIFF no-op) with new `GenOrigin.SEAM`; `terrain/map_validator.gd` checks dig-cost-weighted reachability to the enemy zone (budget 40), zone clearance (2×3), and per-placer validators, with reroll `hash([seed, attempt])` ≤5 attempts then loud warning; HP sprinkle now skips feature tiles (was silently downgrading bunker shells); sandbox minimap gains anchors overlay + toggle, SEAM color, and a validation readout; `Features.terrain_v2_enabled` gates seams+validation; design doc updated to v0.2)**,
   **M44 (Hand-authored ASCII maps — procedural generation deactivated: maps are plain-text files (`data/maps/*.txt` + drop-in `user://maps/*.txt`) with `key: value` metadata (id/title/description/notes/width/height + `spawn_zones`/`enemy_zones` as `[x0,y0,x1,y1]` boxes) and an ASCII grid (`'.'` void, `1`–`9` SOLID hp N, `0` indestructible, `M` MINERAL); `terrain/custom_map.gd` parses + builds MapData, `terrain/map_library.gd` scans/caches both dirs; `MapNode.custom_map_id` assigned randomly per combat node from the pool (run-seeded, node 0 included), profiles/legacy only as fallback; `combat_scene._setup_terrain` loads the map and skips `scatter_minerals` (M chars are the only minerals); `CombatManager._zone_surface_top` finds the topmost floor WITHIN a zone box (caves/islands) for placement, `_random_zone_drop` (StageRng) places initial enemies/reinforcements/deployables in enemy zones ignoring stage cols; placement overlay draws zone boxes; sandbox Map dropdown + Load Map; `Features.custom_maps_enabled`; generator classes remain dormant + smoke-tested; test map `test_flat`)**,
   **M45 (Deterministic enemy targeting + Taunt — replaces accuracy RNG: enemies lock a target + committed firing solution at round start (telegraphed, shown on hover), execute it on their turn; ±5% `ENEMY_ERROR_PCT` speed variance deleted; `UnitDefinition.TargetingRule` {NEAREST/FARTHEST/WEAKEST/STRONGEST/FIXED_LANE/SPECIFIC} + runtime overridable copy on `Unit` (`intended_target`/`intended_solution`/`forced_target`); `systems/enemy_targeting.gd` composes reachable-set (LOS via `terrain/los.gd`, `bypass_terrain` ignores cover) with the rule; wind-aware closed-form solver in `EnemySystem.firing_solution(enemy,target,wind_force_x)` so enemies account for forecast wind — changing wind after telegraph (Halve Wind) deflects the committed shot (defensive counter); dead target → rule-based recompute, SPECIFIC fires at corpse; no reachable target → skip; new **Taunt** card (`EffectType.TAUNT`, ALLY, in default deck + pool) forces all enemies SPECIFIC→ally for the round; enemy defs baked organic=WEAKEST/mechanical=STRONGEST; hover tooltip + inspector show `Targeting: <rule> → <unit>`; `Features.enemy_targeting_enabled`)**,
-  **M47 (First boss + map-entity spawning engine: map `entities` become `MapEntity` objects (`terrain/map_entity.gd`: `name`/`coordinates`/open `props`) — `Entity_<name>: [x,y]` shorthand unchanged; new `pool: true|false` map metadata keeps boss/special maps out of the random run pool via `MapLibrary.pool_map_ids()`; `UnitDefinition.anchored` (never settles under gravity — skipped in `CombatManager._settle_unit`) + `AttackBehavior {PROJECTILE, NONE}` (NONE = no-op turn, no telegraph); baked `boss1.tres` 5×5/100HP/anchored/NONE/`tags=["BOSS"]`; `CombatManager._spawn_map_entities()` spawns a unit per map entity whose name resolves to a baked def id at its exact coordinate, gated by `Features.boss_enabled`; `EnemyTargeting.assign_all` + `_run_enemy_turn` skip NONE attackers; new `ObjectiveDescriptor.Type.DEFEAT_BOSS` (won when no living `BOSS`-tagged enemy; ignores waves) + `ObjectiveEvaluator.evaluate` `boss_alive` param; baked `stage_boss1.tres`; `data/maps/boss1.txt` marked `pool: false`; `Features.boss_test_stage` forces run node 0 into the boss arena for manual playtest; `_m47_smoke`)**.
+  **M47 (First boss + map-entity spawning engine: map `entities` become `MapEntity` objects (`terrain/map_entity.gd`: `name`/`coordinates`/open `props`) — `Entity_<name>: [x,y]` shorthand unchanged; new `pool: true|false` map metadata keeps boss/special maps out of the random run pool via `MapLibrary.pool_map_ids()`; `UnitDefinition.anchored` (never settles under gravity — skipped in `CombatManager._settle_unit`) + `AttackBehavior {PROJECTILE, NONE}` (NONE = no-op turn, no telegraph); baked `boss1.tres` 5×5/100HP/anchored/NONE/`tags=["BOSS"]`; `CombatManager._spawn_map_entities()` spawns a unit per map entity whose name resolves to a baked def id at its exact coordinate, gated by `Features.boss_enabled`; `EnemyTargeting.assign_all` + `_run_enemy_turn` skip NONE attackers; new `ObjectiveDescriptor.Type.DEFEAT_BOSS` (won when no living `BOSS`-tagged enemy; ignores waves) + `ObjectiveEvaluator.evaluate` `boss_alive` param; baked `stage_boss1.tres`; `Features.boss_test_stage` forces run node 0 into the boss arena for manual playtest; `_m47_smoke`)**,
+  **M48 (Native LDtk importer: raw external `.ldtk` JSON is the sole authored map source; headless GDScript importer validates `Terrain`/`SpawnZones` IntGrid layers, level fields, zones, and arbitrary entity instances, then generates typed `MapDefinition` `.tres` resources with compact `PackedByteArray` terrain; `MapEntity` is now an exportable Resource carrying IID/layer/custom props; `MapDefinition.to_map_data(seed)` preserves seeded durability materialization and the mutable `MapData → TerrainManager` runtime; `MapLibrary` loads only generated resources; ASCII parser, `.txt` maps, Python sync, and `user://maps` support removed; `rl_pool` comes from LDtk; `_m48_smoke` + headless importer tests)**.
 - **Main scene:** `world/run_controller.tscn` (swaps map ↔ reward screens ↔ `combat_scene.tscn`).
   `combat_scene.tscn` is still standalone-runnable. Map is 120×100 voxels. Default run map is a
   15-node extended map (`MapState.build_run_map`); `build_diamond` and `build_linear` kept for smoke/regression.
-- **Verify:** `ARTILLERY_SMOKE=1 godot --headless --path . res://world/combat_scene.tscn` runs M3–M27 checklists headless (all pass). Use the `.tscn` form — `-s combat_scene.gd` skips autoload registration at parse time and fails to compile. After adding new `class_name` scripts, run `godot --headless --import` once (and commit the generated `.uid` files). M24/M25 have no smoke test — they're dev tools verified manually.
+- **Verify:** `ARTILLERY_SMOKE=1 godot --headless --path . res://world/combat_scene.tscn` runs M3–M48 checklists headless. Use the `.tscn` form — `-s combat_scene.gd` skips autoload registration at parse time and fails to compile. After adding new `class_name` scripts, run `godot --headless --import` once (and commit the generated `.uid` files). M24/M25 have no smoke test — they're dev tools verified manually.
 - **Re-bake resources** after changing any generator in `scripts/bake_resources.gd`:
   `godot --headless --import` → `godot --headless --path . res://scripts/bake_runner.tscn` → `godot --headless --import`.
   Do not use `-s scripts/bake_resources.gd` — that entry skips autoload registration at parse time.
@@ -69,6 +70,36 @@ chunk of work, add an entry here (and update the milestone plan if a decision ch
   load error on import. Left in place intentionally.
 
 ---
+
+## 2026-07-18 — Milestone 48: Native LDtk Map Importer
+
+LDtk is now the sole source of truth for shipped maps. Full schema and workflow:
+[docs/planning/milestone-48-plan.md](docs/planning/milestone-48-plan.md).
+
+- **Typed map contract.** New `MapDefinition` Resource stores metadata, pool eligibility, compact
+  row-major terrain enum bytes, zones, entity subresources, auto-fill rules, level IID, and source
+  SHA-256. `to_map_data(seed)` ports the old materialization behavior exactly; mutable terrain,
+  rendering, destruction, and combat still run through `MapData`/`TerrainManager`.
+- **Native importer.** `LdtkMapImporter` parses raw LDtk JSON 1.5.x, validates embedded levels plus
+  `Terrain`/`SpawnZones` IntGrid layers, compiles deterministic rectangle covers, imports every
+  entity instance from every Entity layer using LDtk `__grid`, and preserves arbitrary custom
+  fields. `tools/import_ldtk_maps.gd` reads `LDTK_PROJECT_PATH`, emits `data/maps/<rl_id>.tres`,
+  records source provenance, and removes only stale generated definitions.
+- **LDtk schema.** Required fields remain `rl_id`/`rl_name`/`rl_description`/`rl_notes`; optional
+  `rl_pool` defaults true (Boss1=false), and auto-fill retains its Bool + `[N,M]` fields. Terrain
+  values are 0 empty, 1–9 durability, 10 unbreakable, 11 mineral. Spawn values 1/2 are player,
+  3/4 enemy; reserved value 5 is rejected.
+- **Entities.** `MapEntity` is now a Resource with name, IID, source layer, coordinate, and open
+  props. Duplicate entity identifiers are preserved as separate instances. Combat remains the
+  consumer that resolves entity names to unit definitions.
+- **Migration complete.** `MapLibrary` loads only generated `.tres` definitions. Combat, sandbox,
+  map UI, boss spawning, and old authored-map smoke checks use `MapDefinition`. Removed
+  `CustomMap`, shipped `.txt` maps, Python sync/config/tests, and `user://maps` compatibility.
+- **Verification.** Headless importer suite covers valid conversion, terrain/zones/entities,
+  duplicate instances, external levels, missing layers, malformed grids, unknown enums, invalid
+  auto-fill, out-of-bounds entities, duplicate map ids, and actual Hills/Boss1 parity. Hills imports
+  as 89×35; Boss1 as 126×56 with entity `(61,22)` and `pool=false`. Full M3–M48 smoke exits 0;
+  the pre-existing M6 index error still logs during the legacy smoke chain.
 
 ## 2026-07-18 — Milestone 47: First Boss (Boss1) + map-entity spawning engine
 

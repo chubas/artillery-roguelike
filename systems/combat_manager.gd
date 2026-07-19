@@ -97,7 +97,7 @@ var _ore : OreSystem   # M42: collectible Ore drops
 # places them one at a time by hovering a column indicator and clicking.
 var _placement_queue : Array[Unit] = []
 var _placement_hover_col : int = -1   # column under the mouse, clamped to spawn zone
-var _custom_map : CustomMap = null    # M44: hand-authored map (zones); null = legacy col rules
+var _custom_map : MapDefinition = null  # M48: imported map (zones); null = legacy col rules
 
 func setup(terrain: TerrainManager, projectiles: ProjectileManager,
 		unit_layer: Node2D, hud: HUD, targeting: TargetingUI,
@@ -202,7 +202,7 @@ func _spawn_max_col() -> int:
 
 ## Set before setup() by combat_scene. When present, player placement uses the map's
 ## spawn zone boxes and enemy/deployable spawns use its enemy zones (stage cols ignored).
-func set_custom_map(map: CustomMap) -> void:
+func set_custom_map(map: MapDefinition) -> void:
 	_custom_map = map
 
 ## Topmost standable top-left for a w×h unit at `col` WITHIN a zone box. Unlike the global
@@ -377,8 +377,8 @@ func _spawn(def: UnitDefinition, unit_name: String, col: int, is_player: bool) -
 func _spawn_map_entities() -> void:
 	if not Features.boss_enabled or _custom_map == null:
 		return
-	for entity_name in _custom_map.entities:
-		var ent : MapEntity = _custom_map.entities[entity_name]
+	for ent in _custom_map.entities:
+		var entity_name := ent.name
 		var path := "res://data/units/%s.tres" % entity_name.to_lower()
 		if not ResourceLoader.exists(path):
 			continue

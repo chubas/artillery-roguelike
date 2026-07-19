@@ -1,31 +1,33 @@
-# Loader for hand-authored ASCII maps (M44). Scans `res://data/maps/*.txt` plus
-# `user://maps/*.txt` — drop a file in the user directory and it appears without touching the
-# project; a user:// map with the same id overrides the res:// one. Lazy cache; call reload()
-# to rescan (the sandbox does this when opening its Map dropdown).
-#
-# Export note: plain .txt under res:// needs an export include filter (*.txt) once the project
-# gets an export preset — none exists yet.
+# Loader for generated LDtk MapDefinition resources (M48). Lazy cache; call reload() after running
+# the importer so sandbox/editor sessions replace ResourceLoader's cached definitions.
 class_name MapLibrary
 
-const DIRS := ["res://data/maps/", "user://maps/"]
+const DIR := "res://data/maps/"
 
-static var _cache : Dictionary = {}   # id -> CustomMap
+static var _cache : Dictionary = {}   # id -> MapDefinition
 static var _loaded := false
 
 static func reload() -> void:
 	_cache.clear()
-	for dir in DIRS:
-		if not DirAccess.dir_exists_absolute(dir):
+	if not DirAccess.dir_exists_absolute(DIR):
+		_loaded = true
+		return
+	for fname in DirAccess.get_files_at(DIR):
+		if not fname.ends_with(".tres"):
 			continue
-		for fname in DirAccess.get_files_at(dir):
-			if not fname.ends_with(".txt"):
-				continue
-			var text := FileAccess.get_file_as_string(dir + fname)
-			var map := CustomMap.parse(text)
-			if map.error != "":
-				push_warning("MapLibrary: %s%s failed to parse: %s" % [dir, fname, map.error])
-				continue
-			_cache[map.id] = map   # later dirs (user://) override earlier ids
+		var resource = ResourceLoader.load(
+				DIR + fname, "", ResourceLoader.CACHE_MODE_REPLACE)
+		if not resource is MapDefinition:
+			push_warning("MapLibrary: %s%s is not a MapDefinition" % [DIR, fname])
+			continue
+		var map : MapDefinition = resource
+		if map.id == "":
+			push_warning("MapLibrary: %s%s has no id" % [DIR, fname])
+			continue
+		if _cache.has(map.id):
+			push_warning("MapLibrary: duplicate map id '%s' in %s" % [map.id, fname])
+			continue
+		_cache[map.id] = map
 	_loaded = true
 
 static func map_ids() -> Array:
@@ -40,12 +42,12 @@ static func map_ids() -> Array:
 static func pool_map_ids() -> Array:
 	var ids : Array = []
 	for id in map_ids():
-		var m : CustomMap = _cache[id]
+		var m : MapDefinition = _cache[id]
 		if m.pool:
 			ids.append(id)
 	return ids
 
-static func get_map(id: String) -> CustomMap:
+static func get_map(id: String) -> MapDefinition:
 	if not _loaded:
 		reload()
 	return _cache.get(id, null)
